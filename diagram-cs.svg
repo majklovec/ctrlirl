@@ -22,7 +22,7 @@
 
   <!-- ================= TITULEK ================= -->
   <text x="60" y="64" font-size="34" font-weight="700" fill="#e6edf7" letter-spacing="1">IRLCTRL</text>
-  <text x="60" y="92" font-size="14" fill="#7f92ad">Ovladač pro bonding IRL streamingu — mapa funkcí</text>
+  <text x="60" y="92" font-size="14" fill="#7f92ad">Ovladač pro bonding IRL streamingu - mapa funkcí</text>
 
   <!-- legenda -->
   <line x1="1020" y1="58" x2="1080" y2="58" stroke="#38bdf8" stroke-width="2.5"

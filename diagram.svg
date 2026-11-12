@@ -22,7 +22,7 @@
 
   <!-- ================= TITLE ================= -->
   <text x="60" y="64" font-size="34" font-weight="700" fill="#e6edf7" letter-spacing="1">IRLCTRL</text>
-  <text x="60" y="92" font-size="14" fill="#7f92ad">Bonded IRL streaming controller — functionality
+  <text x="60" y="92" font-size="14" fill="#7f92ad">Bonded IRL streaming controller - functionality
     map</text>
 
   <!-- legend -->
