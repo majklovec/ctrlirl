@@ -29,6 +29,19 @@ export function ipToU32(ip: string): number {
     return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
 }
 
+/** 4 raw big-endian bytes at `buf[off..off+4)` → u32. Null when short. */
+export function bytesToU32(buf: Uint8Array, off = 0): number | null {
+    if (buf.length < off + 4) return null;
+    return ((buf[off] << 24) | (buf[off+1] << 16) | (buf[off+2] << 8) | buf[off+3]) >>> 0;
+}
+
+/** True when `ip` is a valid dotted-quad IPv4 address. */
+export function isIpv4(ip: string): boolean {
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+    if (!m) return false;
+    return m.slice(1).every((o) => Number(o) <= 255);
+}
+
 /** 32-bit big-endian value → "a.b.c.d". */
 export function u32ToIp(u32: number): string {
     return `${(u32 >>> 24) & 0xff}.${(u32 >>> 16) & 0xff}.${u32 >>> 8 & 0xff}.${u32 & 0xff}`;

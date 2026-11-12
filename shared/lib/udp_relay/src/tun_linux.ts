@@ -234,6 +234,14 @@ export interface TunDevice {
     close(): void;
 }
 
+import type { CommandRunner } from "./types.js";
+
+/** Factory for TUN devices; `openTun` in production, mocks in tests. */
+export type TunFactory = (
+    name: string,
+    runCommand?: CommandRunner,
+) => Promise<TunDevice>;
+
 type LibcIoctl = (fd: number, request: number, arg: Uint8Array) => number;
 
 let cachedIoctl: LibcIoctl | null = null;

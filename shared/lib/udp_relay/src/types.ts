@@ -5,6 +5,12 @@
  * Moblink, auth, discovery, or configuration.
  */
 
+/** Shell command runner (Bun.$ in production, fakes in tests). */
+export type CommandRunner = (
+    cmd: string,
+    ...args: string[]
+) => { stdout: string; exitCode: number };
+
 /** A network endpoint: a host (IP or resolvable name) and a UDP port. */
 export interface Endpoint {
     host: string;
@@ -32,12 +38,12 @@ export interface RelayStats {
     /** IP packets received from the encoder (over the wire-protocol UDP socket). */
     encRxPackets: number;
     encRxBytes: number;
-    /** IP packets forwarded out the bound physical interface. */
-    ifaceTxPackets: number;
-    ifaceTxBytes: number;
-    /** IP packets received from the bound physical interface. */
-    ifaceRxPackets: number;
-    ifaceRxBytes: number;
+    /** IP packets written into the relay TUN (toward the kernel/uplink). */
+    vifTxPackets: number;
+    vifTxBytes: number;
+    /** IP packets delivered out of the relay TUN (replies from the uplink). */
+    vifRxPackets: number;
+    vifRxBytes: number;
     /** IP packets sent back toward the encoder (addressed to the vif IP). */
     encTxPackets: number;
     encTxBytes: number;
@@ -46,6 +52,8 @@ export interface RelayStats {
     lastError?: { at: number; message: string };
     /** Last time a frame from the encoder was seen (epoch ms). */
     lastEncoderSeen?: number;
+    /** Source address of the most recent encoder frame. */
+    lastEncoder?: string;
     startedAt?: number;
 }
 

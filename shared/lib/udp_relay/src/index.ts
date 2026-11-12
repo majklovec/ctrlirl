@@ -8,6 +8,10 @@ export {
     ipDST,
     parseUdpPacket,
     udpChecksum,
+    ipToU32,
+    u32ToIp,
+    bytesToU32,
+    isIpv4,
 } from "./ip";
 export type {
     BuildUdpIpPacketOptions,
@@ -20,25 +24,24 @@ export {
     DATA_FRAME_TYPE,
     KEEPALIVE_FRAME_TYPE,
     DATA_HEADER_LEN,
+    writeDataHeader,
+    sniffFrameKind,
 } from "./protocol";
 export type { DecodedFrame } from "./frame_types";
 export {
     createUdpRelay,
     resolveInterfaceAddress,
     decideEncoderFrame,
-    decideIfacePacket,
+    bunRelaySocketFactory,
 } from "./relay";
 export type {
     UdpRelay,
     UdpRelayOptions,
     EncoderDecision,
-    IfaceDecision,
+    RelaySocket,
+    RelaySocketFactory,
+    SocketEvent,
 } from "./relay";
-export {
-    openIfaceRawSocket,
-    makeMockIfaceRawSocket,
-} from "./net_linux";
-export type { IfaceRawSocket, OpenIfaceRawSocketOptions } from "./net_linux";
 export {
     createVirtualInterface,
     makeMockTunDevice,
@@ -55,7 +58,7 @@ export {
     IFF_NO_PI,
     TUNSETIFF,
 } from "./tun_linux";
-export type { TunDevice } from "./tun_linux";
+export type { TunDevice, TunFactory } from "./tun_linux";
 /**
  * List the machine's network interfaces with their IPv4 addresses. Library
  * tests use this; production callers use the `network` module's capability.

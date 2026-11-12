@@ -1,147 +1,136 @@
-/* Real-loopback integration for the full pipeline: TUN (mocked fd seam) + UDP
- * + protocol + a transparent L3 relay (mocked raw iface socket seam), driving
- * traffic the way a real deployment would. The kernel-bound pieces
- * (openTun/ioctl, configureTun, openIfaceRawSocket) are exercised separately
- * and remain gated behind IRLCTRL_TEST_NET_ADMIN=1 because they need root.
- *
- * This file is safe to run in CI without privileges: it uses the mock TUN and
- * mock iface-socket seams (no /dev/net/tun, no RAW sockets) plus plain
- * loopback UDP, so it always runs.
- */
+//
+// End-to-end test of the full relay data path with mock TUN and a mock
+// socket factory (no root, no real TUN, no network binding):
+//
+//   encoder data frame → relay listener → TUN write (bare IP packet)
+//   TUN read (reply)   → relay → framed UDP back to the encoder
+
 import { describe, expect, test } from "bun:test";
 import {
-    createVirtualInterface,
-    makeMockTunDevice,
     createUdpRelay,
-    makeMockIfaceRawSocket,
+    encodeDataFrame,
+    encodeKeepaliveFrame,
+    buildUdpIpPacket,
 } from "../src/index";
-import { buildUdpIpPacket, parseUdpPacket } from "../src/ip";
+import { makeMockTunDevice } from "../src/tun_linux";
+import type { UdpRelayOptions } from "../src/relay";
 
-function waitFor(cond: () => boolean, timeoutMs = 3000): Promise<void> {
-    const start = Date.now();
-    return new Promise((resolve, reject) => {
-        const tick = () => {
-            if (cond()) return resolve();
-            if (Date.now() - start > timeoutMs)
-                return reject(new Error("waitFor timed out"));
-            setTimeout(tick, 10);
-        };
-        tick();
+const VIF = "192.168.77.13";
+
+function encoderHarness(opts: Omit<UdpRelayOptions, "socketFactory" | "tunFactory">) {
+    const tun = makeMockTunDevice({ name: "rltun0" });
+    const outbound: { buf: Uint8Array; port: number; addr: string }[] = [];
+    let inbound:
+        | ((b: Uint8Array, a: string, p: number) => void)
+        | null = null;
+
+    const relayOpts: UdpRelayOptions = {
+        ...opts,
+        tunFactory: async () => tun.device,
+        socketFactory: (_p, _h, onEvent) =>
+            Promise.resolve({
+                send: (b: Uint8Array, port: number, addr: string) => {
+                    outbound.push({ buf: Uint8Array.from(b), port, addr });
+                    return true;
+                },
+                close() {},
+            }),
+    };
+    // wrap so we can inject
+    relayOpts.socketFactory = (_p, _h, onEvent) => {
+        inbound = (b, a, p) => onEvent({ buf: b, addr: a, port: p });
+        return Promise.resolve({
+            send: (b: Uint8Array, port: number, addr: string) => {
+                outbound.push({ buf: Uint8Array.from(b), port, addr });
+                return true;
+            },
+            close() {},
+        });
+    };
+
+    return {
+        tun,
+        outbound,
+        send: (b: Uint8Array, a: string, p: number) => inbound!(b, a, p),
+        relayOpts,
+    };
+}
+
+function ipPacket(src: string, dst: string, payload: string): Uint8Array {
+    return buildUdpIpPacket({
+        srcIp: src,
+        dstIp: dst,
+        srcPort: 5001,
+        dstPort: 5000,
+        payload: new TextEncoder().encode(payload),
     });
 }
 
-const enc = new TextEncoder();
-const VIF_IP = "10.3.3.1";
-const REC_IP = "10.3.3.2";
-
-describe("integration — encoder ⇄ transparent relay on loopback", () => {
-    test("a packet out of the TUN is forwarded out the iface; reply returns", async () => {
-        // Encoder: TUN (mock) + VIF on 127.0.0.1 → relay.
-        const { device, pushPacket, written } = makeMockTunDevice();
-        const vif = await createVirtualInterface({
-            name: "integ0",
-            localIp: VIF_IP,
-            prefixLength: 8,
-            relay: { host: "127.0.0.1", port: 58912 },
-            bindAddress: "127.0.0.1",
-            tunDevice: device,
-        });
-        await vif.start();
-
-        // Relay box: bound to loopback, forwarding through a (mock) iface.
-        const iface = makeMockIfaceRawSocket();
-        const relay = await createUdpRelay({
+describe("relay full data path (no root)", () => {
+    test("forward + reply round trip", async () => {
+        const h = encoderHarness({
             interfaceName: "lo",
-            listenPort: 58912,
-            interfaceAddress: "127.0.0.1",
-            ifaceSocket: iface,
+            listenPort: 10000,
+            vifIp: VIF,
         });
+        const relay = await createUdpRelay(h.relayOpts);
         await relay.start();
 
-        // Drive a whole IP packet out of the TUN (vif → rec).
-        pushPacket(
-            buildUdpIpPacket({
-                srcIp: VIF_IP,
-                dstIp: REC_IP,
-                srcPort: 5555,
-                dstPort: 4444,
-                payload: enc.encode("full-pipeline"),
-            }),
-        );
+        // 1. Encoder sends a data frame (source = vif, dest = VPS).
+        const fwd = ipPacket(VIF, "83.208.44.38", "forward");
+        h.send(encodeDataFrame(fwd, VIF), "192.168.10.101", 40000);
 
-        // The relay forwards the whole IP packet out the iface, routed to dst.
-        await waitFor(() => iface.sent.length >= 1);
-        const sentPkt = parseUdpPacket(iface.sent[0].packet);
-        expect(iface.sent[0].dstIp).toBe(REC_IP);
-        expect(sentPkt?.payload).toEqual(enc.encode("full-pipeline"));
+        // The TUN receives the bare IP packet (header stripped).
+        expect(h.tun.written.length).toBe(1);
+        expect(Array.from(h.tun.written[0])).toEqual(Array.from(fwd));
 
-        // The far end's reply (rec → vif) arrives on the iface and is written
-        // back into the TUN unchanged.
-        iface.push(
-            buildUdpIpPacket({
-                srcIp: REC_IP,
-                dstIp: VIF_IP,
-                srcPort: 4444,
-                dstPort: 5555,
-                payload: enc.encode("full-pipeline"),
-            }),
-        );
-        await waitFor(() => written.length >= 1);
-        const back = parseUdpPacket(written[0]);
-        expect(back).not.toBeNull();
-        if (!back) return;
-        expect(back.srcIp).toBe(REC_IP);
-        expect(back.dstIp).toBe(VIF_IP);
-        expect(new TextDecoder().decode(back.payload)).toBe("full-pipeline");
+        // 2. Reply arrives out of the TUN (from VPS, to the vif /32).
+        const reply = ipPacket("83.208.44.38", VIF, "reply!");
+        h.tun.pushPacket(reply);
 
-        expect(relay.stats().encRxPackets).toBeGreaterThanOrEqual(1);
-        expect(relay.stats().ifaceTxPackets).toBeGreaterThanOrEqual(1);
-        expect(relay.stats().ifaceRxPackets).toBeGreaterThanOrEqual(1);
-        expect(relay.stats().encTxPackets).toBeGreaterThanOrEqual(1);
+        // 3. Encoder receives the framed reply.
+        expect(h.outbound.length).toBe(1);
+        expect(h.outbound[0].addr).toBe("192.168.10.101");
+        expect(h.outbound[0].port).toBe(40000);
+        expect(h.outbound[0].buf[0]).toBe(0x01);
+        expect(Array.from(h.outbound[0].buf.subarray(8))).toEqual(Array.from(reply));
 
-        await vif.stop();
+        const st = relay.stats();
+        expect(st.encRxPackets).toBe(1);
+        expect(st.vifTxPackets).toBe(1);
+        expect(st.vifRxPackets).toBe(1);
+        expect(st.encTxPackets).toBe(1);
         await relay.stop();
-        iface.close();
     });
 
-    test("stop() order is safe: TUN first, then relay", async () => {
-        const { device } = makeMockTunDevice();
-        const vif = await createVirtualInterface({
-            name: "integ1",
-            localIp: "127.0.0.1",
-            prefixLength: 8,
-            relay: { host: "127.0.0.1", port: 58914 },
-            bindAddress: "127.0.0.1",
-            tunDevice: device,
+    test("keepalive keeps the leg alive without touching the TUN", async () => {
+        const h = encoderHarness({
+            interfaceName: "lo",
+            listenPort: 10000,
+            vifIp: VIF,
         });
-        await vif.start();
-        // Stopping before the relay exists is fine (nothing to bridge).
-        await vif.stop();
-        expect(vif.isRunning()).toBe(false);
-        await vif.stop(); // idempotent
+        const relay = await createUdpRelay(h.relayOpts);
+        await relay.start();
+        h.send(encodeKeepaliveFrame(Date.now()), "192.168.10.101", 40000);
+        expect(h.tun.written.length).toBe(0);
+        expect(h.outbound.length).toBe(1);
+        expect(h.outbound[0].buf[0]).toBe(0x02);
+        expect(relay.stats().lastEncoderSeen).toBeGreaterThan(0);
+        await relay.stop();
     });
-});
 
-/**
- * Privileged integration: real /dev/net/tun + `ip` configuration. Skips
- * gracefully unless IRLCTRL_TEST_NET_ADMIN=1 (needs root + NET_ADMIN).
- */
-const gated = process.env.IRLCTRL_TEST_NET_ADMIN === "1";
-describe("integration — real TUN (gated)", () => {
-    test("openTun + configureTun bring up a live interface", async () => {
-        if (!gated) return;
-        const { openTun, configureTun, deleteTun } = await import("../src/tun_linux");
-        const name = `mob${Math.floor(Math.random() * 99)}`;
-        const fd = await openTun(name);
-        try {
-            await configureTun(fd.name, "10.9.9.1", 24, 1400);
-            const { listInterfaces } = await import("../src/index");
-            const all = listInterfaces().find((i) => i.name === fd.name);
-            expect(all).toBeDefined();
-            expect(all?.addresses).toContain("10.9.9.1");
-        } finally {
-            fd.close();
-            await deleteTun(fd.name);
-        }
+    test("onVifLearned fires at end of start", async () => {
+        const learned: string[] = [];
+        const h = encoderHarness({
+            interfaceName: "lo",
+            listenPort: 10000,
+            vifIp: "192.168.77.99",
+            onVifLearned: (ip) => learned.push(ip),
+        });
+        const relay = await createUdpRelay(h.relayOpts);
+        await relay.start();
+        expect(learned).toEqual(["192.168.77.99"]);
+        expect(relay.vifName()).toBe("rltun0");
+        await relay.stop();
     });
 });

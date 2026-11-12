@@ -1,21 +1,21 @@
 /* @irlctrl/udp-relay — micro-benchmark.
  *
  * Measures the relay's forward hot path (encoder frame in → IP packet out the
- * interface) for: sustained pps, CPU %, heap slope (KB per 10k pkts), and
+ * TUN) for: sustained pps, CPU %, heap slope (KB per 10k pkts), and
  * per-packet p99 latency (µs).
  *
- * Rootless: runs the relay against an in-memory mock interface socket, bound to
- * loopback. `--real-tun` opens a real kernel TUN (requires root) to include the
- * TUN read/write cost. Keep the relay API surface used here stable so the
- * before/after comparison in BASELINE.md is apples-to-apples.
+ * Rootless: the relay listener is a REAL UDP socket on loopback (the part we
+ * optimize); egress is an in-memory mock TUN (no root, no /dev/net/tun). Keep
+ * the API surface used here stable so the before/after comparison in
+ * BASELINE.md is apples-to-apples.
  *
  * Usage:
- *   bun bench/bench.ts [--real-tun]
+ *   bun bench/bench.ts
  */
 import {
 	createUdpRelay,
-	makeMockIfaceRawSocket,
 	encodeDataFrame,
+	makeMockTunDevice,
 } from "../src/index";
 
 const PAYLOAD_SIZE = Number(process.env.BENCH_SIZE ?? 1200);
@@ -23,7 +23,6 @@ const TOTAL_PACKETS = Number(process.env.BENCH_TOTAL ?? 200_000);
 const LISTEN_PORT = Number(process.env.BENCH_PORT ?? 40990);
 const VIF_IP = "10.20.30.40";
 const DIAL_HOST = "127.0.0.1";
-const useRealTun = process.argv.includes("--real-tun");
 
 /** A minimal IPv4 header + payload so the relay sees a real packet. */
 function makeIpPacket(size: number): Uint8Array {
@@ -51,6 +50,19 @@ async function yieldLoop(): Promise<void> {
 	return new Promise((r) => setImmediate(r));
 }
 
+/** Build a relay with a real loopback listener + mock TUN egress. */
+async function buildRelay(tun: ReturnType<typeof makeMockTunDevice>) {
+	const relay = await createUdpRelay({
+		interfaceName: "lo",
+		listenPort: LISTEN_PORT,
+		vifIp: VIF_IP,
+		listenAddress: DIAL_HOST,
+		tunFactory: async () => tun.device,
+	});
+	await relay.start();
+	return relay;
+}
+
 /**
  * Send in chunks, yielding after each chunk so the relay keeps up. This paces
  * the producer to the relay's drain rate (the kernel UDP recv buffer is small,
@@ -71,15 +83,8 @@ async function pacedSend(
 }
 
 async function measureForwardPps(): Promise<{ pps: number; cpuPct: number; heapKbPer10k: number }> {
-	const iface = makeMockIfaceRawSocket();
-	const relay = await createUdpRelay({
-		interfaceName: "lo",
-		listenPort: LISTEN_PORT,
-		interfaceAddress: DIAL_HOST,
-		ifaceSocket: iface,
-		nat: false,
-	});
-	await relay.start();
+	const tun = makeMockTunDevice({ name: "rltun0" });
+	const relay = await buildRelay(tun);
 
 	const encoder = await Bun.udpSocket({ hostname: DIAL_HOST, port: 0, binaryType: "uint8array" });
 	const ipPacket = makeIpPacket(PAYLOAD_SIZE);
@@ -88,7 +93,7 @@ async function measureForwardPps(): Promise<{ pps: number; cpuPct: number; heapK
 	// Warm up (JIT + first-send path).
 	await pacedSend(encoder, frame, 5_000);
 	await sleep(150);
-	iface.sent.length = 0;
+	tun.written.length = 0;
 
 	const heapBefore = performance.memory?.usedHeap ?? 0;
 	const cpuBefore = process.cpuUsage();
@@ -100,7 +105,7 @@ async function measureForwardPps(): Promise<{ pps: number; cpuPct: number; heapK
 	const heapAfter = performance.memory?.usedHeap ?? 0;
 	const cpuAfter = process.cpuUsage();
 
-	const received = iface.sent.length;
+	const received = tun.written.length;
 	const seconds = (t1 - t0) / 1000;
 	const pps = received / seconds;
 	const cpuPct = cpuSeconds(cpuBefore, cpuAfter) / seconds;
@@ -118,15 +123,8 @@ async function measureForwardPps(): Promise<{ pps: number; cpuPct: number; heapK
  * hot-path latency on the same machine.
  */
 async function measurePerPacketLatency(samples = 4_000): Promise<{ p50: number; p99: number }> {
-	const iface = makeMockIfaceRawSocket();
-	const relay = await createUdpRelay({
-		interfaceName: "lo",
-		listenPort: LISTEN_PORT,
-		interfaceAddress: DIAL_HOST,
-		ifaceSocket: iface,
-		nat: false,
-	});
-	await relay.start();
+	const tun = makeMockTunDevice({ name: "rltun0" });
+	const relay = await buildRelay(tun);
 	const encoder = await Bun.udpSocket({ hostname: DIAL_HOST, port: 0, binaryType: "uint8array" });
 	const ipPacket = makeIpPacket(PAYLOAD_SIZE);
 	const frame = encodeDataFrame(ipPacket, VIF_IP);
@@ -135,11 +133,11 @@ async function measurePerPacketLatency(samples = 4_000): Promise<{ p50: number; 
 
 	const latencies: number[] = [];
 	for (let i = 0; i < samples; i++) {
-		const before = iface.sent.length;
+		const before = tun.written.length;
 		const t0 = performance.now();
 		encoder.send(frame, LISTEN_PORT, DIAL_HOST);
 		let guard = 0;
-		while (iface.sent.length <= before && guard++ < 200) await yieldLoop();
+		while (tun.written.length <= before && guard++ < 200) await yieldLoop();
 		latencies.push(performance.now() - t0);
 	}
 	latencies.sort((a, b) => a - b);
@@ -155,7 +153,7 @@ async function main(): Promise<void> {
 	const { pps, cpuPct, heapKbPer10k } = await measureForwardPps();
 	const { p50, p99 } = await measurePerPacketLatency();
 	const out = {
-		mode: useRealTun ? "real-tun" : "mock-tun",
+		mode: "real-listener+mock-tun",
 		payloadSize: PAYLOAD_SIZE,
 		pps: Math.round(pps),
 		cpuPctOfOneCore: Math.round(cpuPct * 100) / 100,
