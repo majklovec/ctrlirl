@@ -17,7 +17,7 @@ function recordingRunner(
     failOn?: (cmd: string, args: string[]) => boolean,
 ): { run: CommandRunner; calls: string[] } {
     const calls: string[] = [];
-    const run: CommandRunner = (cmd, ...args) => {
+    const run: CommandRunner = async (cmd, ...args) => {
         calls.push([cmd, ...args].join(" "));
         if (failOn?.(cmd, args)) return { stdout: "boom", exitCode: 1 };
         return { stdout: "", exitCode: 0 };
@@ -103,7 +103,7 @@ describe("sweepStaleLegTuns", () => {
         const { run, calls } = recordingRunner();
         // monkeypatch: the runner returns a fake `ip -o link show` once.
         const orig: CommandRunner = run;
-        const fake: CommandRunner = (cmd, ...args) => {
+        const fake: CommandRunner = async (cmd, ...args) => {
             if (cmd === "ip" && args[0] === "-o" && args[1] === "link") {
                 return {
                     stdout:

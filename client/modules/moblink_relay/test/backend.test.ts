@@ -23,9 +23,7 @@ import type {
 	Uplinks,
 } from "../../../../shared/contracts/module_capabilities";
 import {
-	buildUdpIpPacket,
-	encodeDataFrame,
-	makeMockIfaceRawSocket,
+	makeMockTunDevice,
 } from "../../../../shared/lib/udp_relay";
 import * as mod from "../backend";
 import {
@@ -94,6 +92,9 @@ function fakeCore(
 		notifyStateChange: () => {},
 		cancelAutostart: () => {},
 		logEvent: () => {},
+		// The relay provisions its leg netplan through core.run (sudo). The
+		// default fake is a no-op; routing tests override it with a recorder.
+		run: async () => "",
 		// The control-server encoder lookup path: report which encoders the
 		// (fake) control server knows and what their `encoderInfo` says.
 		listDevices: async () =>
@@ -120,9 +121,12 @@ beforeEach(() => {
 		fakeInterfaces(LO),
 	);
 	provideCapability<Uplinks>("network.uplinks", fakeUplinks);
-	// The transparent bridge needs a raw interface socket (root) in production;
-	// the lifecycle tests inject a mock so they run without CAP_NET_ADMIN.
-	mod.setIfaceSocketFactory(() => makeMockIfaceRawSocket());
+	// The relay needs a TUN (root) in production; the lifecycle tests inject
+	// a mock TUN factory so they run without CAP_NET_ADMIN.
+	mod.setRelayFactories({
+		tunFactory: async (name: string) =>
+			makeMockTunDevice({ name }).device,
+	});
 });
 
 describe("effectiveAnnounceHost (advertise IP)", () => {
@@ -204,7 +208,7 @@ describe("announcePayload (tunnels advertised on the advertise IP)", () => {
 });
 
 afterEach(async () => {
-	mod.setIfaceSocketFactory(undefined);
+	mod.setRelayFactories(undefined);
 	cfg.bind?.(fakeCore({}));
 	await cfg.stop();
 });
@@ -355,6 +359,8 @@ describe("relay lifecycle (real loopback UDP)", () => {
 			// fails and the announcer must fall back to one unbound
 			// (default-route) socket.
 			startAnnouncing(() => ({
+				v: 1,
+				ts: Date.now(),
 				id: "r",
 				host: "192.0.2.1",
 				proto: "",
@@ -416,16 +422,16 @@ describe("relay lifecycle (real loopback UDP)", () => {
 	});
 });
 
-describe("relay installs a vif forward-route in a dedicated table", () => {
-	test("onVifLearned → source-agnostic default + `from` rule in a dedicated table, never the main table", async () => {
+describe("relay provisions its leg netplan (table + iif rule + NAT)", () => {
+	test("start: TUN up + leg table 40 + iif rule + vif pin + MASQUERADE + FORWARD", async () => {
 		const base = 45410;
-		const vifIp = "10.90.0.1";
-		// `lo` is the first (only) eligible interface → dedicated table 200.
-		const table = "200";
-		// A core whose `run` records each (cmd, args) so we can assert the routing.
+		const vifIp = "127.0.0.1"; // `lo` is the only eligible interface.
+		const table = "40";
+		const tun = "relay0_lo";
+		// A core whose `run` records each (cmd, args) so we can assert the netplan.
 		const runCalls: Array<{ cmd: string; args: string[] }> = [];
 		const coreWithRun = {
-			...fakeCore({ listenPortBase: base, nat: false }, false),
+			...fakeCore({ listenPortBase: base }, false),
 			run: async (cmd: string, args: string[]) => {
 				runCalls.push({ cmd, args });
 				return "";
@@ -435,134 +441,90 @@ describe("relay installs a vif forward-route in a dedicated table", () => {
 		cfg.bind?.(coreWithRun);
 		await cfg.dispatch("moblink_relay.start", {});
 
-		// An encoder data frame (carrying the vif IP in the header) to lo's relay.
-		const frame = encodeDataFrame(
-			buildUdpIpPacket({
-				srcIp: vifIp,
-				dstIp: "203.0.113.10",
-				srcPort: 1000,
-				dstPort: 2000,
-				payload: new TextEncoder().encode("hi"),
-			}),
-			vifIp,
-		);
-		interface TestSock {
-			send(buf: Uint8Array, port: number, host: string): void;
-			close(): void;
-		}
-		const sock = (await Bun.udpSocket({
-			binaryType: "uint8array",
-		} as unknown as Parameters<
-			typeof Bun.udpSocket
-		>[0])) as unknown as TestSock;
-		sock.send(frame, base, "127.0.0.1");
+		const ipArgs = (a: string[]) => a.join(" ");
+		const has = (s: string) =>
+			runCalls.some((c) => c.cmd === "ip" && ipArgs(c.args) === s);
 
-		const deadline = Date.now() + 2000;
-		while (
-			Date.now() < deadline &&
-			!runCalls.some(
-				(c) => c.cmd === "ip" && c.args[0] === "rule" && c.args[1] === "add",
-			)
-		)
-			await Bun.sleep(10);
+		expect(has(`link set ${tun} up`)).toBe(true);
+		// Leg table: egress pin for packets arriving on the TUN (the b6db3 fix).
+		expect(has(`route add default dev lo table ${table}`)).toBe(true);
+		expect(has(`rule add iif ${tun} table ${table}`)).toBe(true);
+		// vif /32 pinned to the TUN in the main table.
+		expect(has(`route add ${vifIp}/32 dev ${tun}`)).toBe(true);
+		// NAT exit off the uplink + FORWARD accepts both directions.
+		// Idempotent insert form (each -I is preceded by a best-effort -D).
+		expect(
+			runCalls.some(
+				(c) =>
+					c.cmd === "iptables" &&
+					ipArgs(c.args) ===
+						"-t nat -I POSTROUTING 1 -s 127.0.0.1/32 -o lo -j MASQUERADE",
+			),
+		).toBe(true);
+		expect(
+			runCalls.some(
+				(c) => c.cmd === "iptables" && ipArgs(c.args) === "-I FORWARD 1 -i relay0_lo -j ACCEPT",
+			),
+		).toBe(true);
+		expect(
+			runCalls.some(
+				(c) => c.cmd === "iptables" && ipArgs(c.args) === "-I FORWARD 2 -o relay0_lo -j ACCEPT",
+			),
+		).toBe(true);
 
-		// A source-AGNOSTIC default lives in the dedicated table, out the
-		// interface: this is what makes vif-SOURCED packets routable (the host's
-		// main-table default is source-pinned `src <relayIp>` and refuses them).
-		const routeCall = runCalls.find(
-			(c) => c.cmd === "ip" && c.args[0] === "route" && c.args[1] === "replace",
-		);
-		expect(routeCall?.args).toEqual([
-			"route",
-			"replace",
-			"default",
-			"dev",
-			"lo",
-			"table",
-			table,
-		]);
-		// The forward path is a SOURCE-scoped rule (`from <vif> lookup <table>`):
-		// only traffic the relay egresses on the vif's behalf takes the dedicated
-		// table; the relay's own traffic keeps the main-table default route.
-		const ruleAdd = runCalls.find(
-			(c) => c.cmd === "ip" && c.args[0] === "rule" && c.args[1] === "add",
-		);
-		expect(ruleAdd?.args).toEqual([
-			"rule",
-			"add",
-			"from",
-			vifIp,
-			"lookup",
-			table,
-		]);
-		// Nothing may land in the MAIN table: a main-table entry for the vif would
-		// perturb the host's local-source routing (the bug this whole fix targets).
-		for (const c of runCalls) {
-			if (c.cmd === "ip" && c.args[0] === "route")
-				expect(c.args).toContain("table");
-		}
-
-		// Teardown removes the rule and flushes the dedicated table.
-		sock.close();
+		// Teardown removes the rule, routes and NAT rules.
 		await cfg.stop();
-		const ruleDel = runCalls.find(
-			(c) => c.cmd === "ip" && c.args[0] === "rule" && c.args[1] === "del",
-		);
-		expect(ruleDel).toBeDefined();
-		expect(ruleDel?.args).toContain(table);
-		const flush = runCalls.find(
-			(c) => c.cmd === "ip" && c.args[0] === "route" && c.args[1] === "flush",
-		);
-		expect(flush?.args).toEqual(["route", "flush", "table", table]);
+		expect(has(`rule del lookup ${table}`)).toBe(true);
+		expect(has(`route del default table ${table}`)).toBe(true);
+		expect(has(`route del ${vifIp}/32 dev ${tun}`)).toBe(true);
+		expect(
+			runCalls.some(
+				(c) =>
+					c.cmd === "iptables" &&
+					ipArgs(c.args) === "-t nat -D POSTROUTING -s 127.0.0.1/32 -o lo -j MASQUERADE",
+			),
+		).toBe(true);
 	});
 
-	test("NAT mode: no vif forward-route is installed (egress is the relay IP)", async () => {
+	test("hotplug: a second leg gets the next table and its own TUN", async () => {
 		const base = 45470;
-		const vifIp = "10.90.0.1";
 		const runCalls: Array<{ cmd: string; args: string[] }> = [];
 		const coreWithRun = {
-			...fakeCore({ listenPortBase: base, nat: true }, false),
+			...fakeCore({ listenPortBase: base }, false),
 			run: async (cmd: string, args: string[]) => {
 				runCalls.push({ cmd, args });
 				return "";
 			},
 		} as unknown as ModuleCore;
+		provideCapability<NetworkInterfaces>(
+			"network.interfaces",
+			fakeInterfaces([
+				{ name: "lo", addresses: ["127.0.0.1"] },
+				{ name: "eth1", addresses: ["10.0.0.7"] },
+			]),
+		);
 
 		cfg.bind?.(coreWithRun);
 		await cfg.dispatch("moblink_relay.start", {});
 
-		const frame = encodeDataFrame(
-			buildUdpIpPacket({
-				srcIp: vifIp,
-				dstIp: "203.0.113.10",
-				srcPort: 1000,
-				dstPort: 2000,
-				payload: new TextEncoder().encode("hi"),
-			}),
-			vifIp,
-		);
-		interface TestSock {
-			send(buf: Uint8Array, port: number, host: string): void;
-			close(): void;
-		}
-		const sock = (await Bun.udpSocket({
-			binaryType: "uint8array",
-		} as unknown as Parameters<
-			typeof Bun.udpSocket
-		>[0])) as unknown as TestSock;
-		sock.send(frame, base, "127.0.0.1");
+		const ipArgs = (a: string[]) => a.join(" ");
+		// Two legs → tables 40 (eth1 = slot 0) and 41 (lo = slot 1), distinct TUNs.
+		expect(
+			runCalls.some(
+				(c) => c.cmd === "ip" && ipArgs(c.args) === "route add default dev eth1 table 40",
+			),
+		).toBe(true);
+		expect(
+			runCalls.some(
+				(c) => c.cmd === "ip" && ipArgs(c.args) === "route add default dev lo table 41",
+			),
+		).toBe(true);
+		expect(
+			runCalls.some(
+				(c) => c.cmd === "ip" && ipArgs(c.args) === "rule add iif relay1_lo table 41",
+			),
+		).toBe(true);
 
-		// Give the relay a moment to learn the vif; it must NOT touch routing.
-		await Bun.sleep(200);
-
-		expect(runCalls.some((c) => c.cmd === "ip" && c.args[0] === "rule")).toBe(
-			false,
-		);
-		expect(runCalls.some((c) => c.cmd === "ip" && c.args[0] === "route")).toBe(
-			false,
-		);
-
-		sock.close();
 		await cfg.stop();
 	});
 });

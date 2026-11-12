@@ -138,6 +138,8 @@ export interface UdpRelayOptions {
 export interface UdpRelay {
     readonly interfaceName: string;
     readonly interfaceAddress: string;
+    /** Address the single UDP listener binds (all NICs in the NIC-agnostic design). */
+    readonly listenAddress: string;
     readonly listenPort: number;
     start(): Promise<void>;
     stop(): Promise<void>;
@@ -215,6 +217,7 @@ export async function createUdpRelay(
 class RelayImpl implements UdpRelay {
     readonly interfaceName: string;
     readonly interfaceAddress: string;
+    readonly listenAddress: string;
     readonly listenPort: number;
     readonly tunName: string;
 
@@ -248,6 +251,7 @@ class RelayImpl implements UdpRelay {
     ) {
         this.interfaceName = options.interfaceName;
         this.interfaceAddress = options.interfaceAddress ?? listenAddress;
+        this.listenAddress = listenAddress;
         this.listenPort = options.listenPort;
         this.tunName = options.tunName ?? "rltun0";
         this.counters = newRelayStats();
@@ -267,7 +271,7 @@ class RelayImpl implements UdpRelay {
             this.options.socketFactory ?? bunRelaySocketFactory;
         this.listenSocket = await socketFactory(
             this.listenPort,
-            this.interfaceAddress,
+            this.listenAddress,
             (event) => this.onListenEvent(event),
             (err) => this.onSocketError(err),
         );

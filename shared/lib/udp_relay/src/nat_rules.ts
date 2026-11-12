@@ -120,7 +120,7 @@ export async function applyLegPlan(
         // Best-effort steps: `ip ... del ...` and `iptables -D ...`.
         const args = cmds[i].slice(1);
         const isDel = args.includes("del") || args.includes("-D");
-        const res = runCommand(...cmds[i]);
+        const res = await runCommand(...cmds[i]);
         if (res.exitCode !== 0 && !isDel) {
             throw new Error(
                 `leg plan step ${i} failed (${cmds[i][0]} ${cmds[i].slice(1).join(" ")}): ` +
@@ -137,7 +137,7 @@ export async function removeLegPlan(
 ): Promise<void> {
     for (const cmd of planLegRemoval(p)) {
         try {
-            runCommand(...cmd);
+            await runCommand(...cmd);
         } catch {
             // best effort: tearing down a half-provisioned leg is normal.
         }
@@ -154,7 +154,7 @@ export async function removeLegPlan(
 export async function sweepStaleLegTuns(
     runCommand: CommandRunner,
 ): Promise<string[]> {
-    const res = runCommand("ip", "-o", "link", "show");
+    const res = await runCommand("ip", "-o", "link", "show");
     if (res.exitCode !== 0) return [];
     const names: string[] = [];
     for (const line of res.stdout.split("\n")) {
@@ -165,7 +165,7 @@ export async function sweepStaleLegTuns(
     }
     for (const name of names) {
         try {
-            runCommand("ip", "link", "del", name);
+            await runCommand("ip", "link", "del", name);
         } catch {
             // already gone
         }

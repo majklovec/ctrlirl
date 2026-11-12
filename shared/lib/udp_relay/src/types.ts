@@ -9,7 +9,7 @@
 export type CommandRunner = (
     cmd: string,
     ...args: string[]
-) => { stdout: string; exitCode: number };
+) => Promise<{ stdout: string; exitCode: number }>;
 
 /** A network endpoint: a host (IP or resolvable name) and a UDP port. */
 export interface Endpoint {
