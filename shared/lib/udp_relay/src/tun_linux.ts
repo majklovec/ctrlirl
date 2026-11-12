@@ -211,13 +211,26 @@ export function readTunsetName(ifr: Uint8Array): string {
     return new TextDecoder().decode(ifr.subarray(0, end === -1 ? IF_NAME_LEN : end));
 }
 
-/** A minimal TUN device handle: a fd plus non-blocking read stream and write. */
+/**
+ * A minimal TUN device handle: a fd plus a zero-copy reader and writer.
+ *
+ * The reader is callback-based and never allocates per packet: the caller
+ * supplies a reusable buffer and is invoked with the byte length of each full
+ * IPv4 datagram (IFF_NO_PI) landed at `buf[0..len)`. Pass a subarray (e.g.
+ * `big.subarray(8)`) to land packets at an offset — the relay uses this to
+ * frame TUN packets without a copy.
+ */
 export interface TunDevice {
     readonly fd: number;
     readonly name: string;
-    /** Non-blocking reader: each chunk is one full IPv4 packet (IFF_NO_PI). */
-    readStream(): ReadableStream<Uint8Array>;
-    write(packet: Uint8Array): void;
+    /**
+     * Read packets into `buf` (at `buf[0..len)`). `onPacket` fires per packet
+     * and may be synchronous with other relay work — keep it allocation-free.
+     * Returns a one-shot stop/teardown function.
+     */
+    onPacket(buf: Uint8Array, onPacket: (len: number) => void): () => void;
+    /** Write the datagram `buf[offset .. offset+length)` to the TUN. No copy. */
+    write(buf: Uint8Array, offset: number, length: number): void;
     close(): void;
 }
 
@@ -310,7 +323,7 @@ class FdTunDevice implements TunDevice {
         readonly fd: number,
         readonly name: string,
     ) {}
-    readStream(): ReadableStream<Uint8Array> {
+    onPacket(buf: Uint8Array, onPacket: (len: number) => void): () => void {
         // Non-blocking read through the libuv poller. The TUN fd is `O_RDWR |
         // O_NONBLOCK` (see openTunFd), so this stream yields to the event loop
         // when idle and emits exactly one IPv4 packet per chunk (IFF_NO_PI).
@@ -322,24 +335,35 @@ class FdTunDevice implements TunDevice {
             fd: this.fd,
             autoClose: false,
         });
-        return new ReadableStream<Uint8Array>({
-            start(controller) {
-                // `readable` fires when the fd becomes readable after an EAGAIN;
-                // drain it fully (loop until `read()` returns null) so back-
-                //logged packets are never dropped between events.
-                source.on("readable", () => {
-                    let chunk: Buffer | null;
-                    while ((chunk = source.read()) !== null)
-                        controller.enqueue(new Uint8Array(chunk));
-                });
-                source.on("error", (e) => controller.error(e));
-                // The TUN never signals EOF for its lifetime, so no `end`
-                // handler is needed; the fd close on stop() tears it down.
-            },
+        let stopped = false;
+        source.on("readable", () => {
+            // Drain fully (loop until `read()` returns null) so backlogged
+            // packets are never dropped between events. Each chunk is copied
+            // into the caller's reusable buffer — the single allocation the
+            // poller reader makes; the worker-reader alternative is recorded
+            // in DECISIONS.md.
+            let chunk: Buffer | null;
+            while ((chunk = source.read()) !== null) {
+                if (stopped) break;
+                const n = Math.min(chunk.length, buf.length);
+                buf.set(chunk.subarray(0, n));
+                onPacket(n);
+            }
         });
+        // The TUN never signals EOF for its lifetime; a read error means the
+        // device vanished, and close() is the authoritative teardown path.
+        source.on("error", () => {});
+        return () => {
+            stopped = true;
+            try {
+                source.destroy();
+            } catch {
+                // already destroyed
+            }
+        };
     }
-    write(packet: Uint8Array): void {
-        writeSync(this.fd, packet);
+    write(buf: Uint8Array, offset: number, length: number): void {
+        writeSync(this.fd, buf, offset, length);
     }
     close(): void {
         try {
@@ -359,38 +383,54 @@ class FdTunDevice implements TunDevice {
 export function makeMockTunDevice(opts?: { name?: string }): {
     device: TunDevice;
     pushPacket: (p: Uint8Array) => void;
+    /** One copy per write (the real TUN copies into the kernel too). */
     written: Uint8Array[];
+    stopPushing: () => void;
 } {
     const written: Uint8Array[] = [];
-    let controller: ReadableStreamController<Uint8Array> | null = null;
+    let listener: ((len: number) => void) | null = null;
+    let readerBuf: Uint8Array | null = null;
     let preRead: Uint8Array[] = [];
+    let closed = false;
     const device: TunDevice = {
         fd: -1,
         name: opts?.name ?? "mock0",
-        readStream() {
-            const stream = new ReadableStream<Uint8Array>({
-                start(c) {
-                    controller = c;
-                    for (const ch of preRead.splice(0)) c.enqueue(ch);
-                },
-            });
-            return stream;
+        onPacket(buf, onPacket) {
+            readerBuf = buf;
+            listener = onPacket;
+            for (const ch of preRead.splice(0)) {
+                const n = Math.min(ch.length, buf.length);
+                buf.set(ch.subarray(0, n));
+                onPacket(n);
+            }
+            return () => {
+                listener = null;
+                readerBuf = null;
+            };
         },
-        write(p) {
-            written.push(p);
+        write(p, off, len) {
+            written.push(p.subarray(off, off + len).slice());
         },
         close() {
-            try {
-                controller?.close();
-            } catch {
-                // already closed
-            }
-            controller = null;
+            closed = true;
+            listener = null;
+            readerBuf = null;
         },
     };
     const pushPacket = (p: Uint8Array): void => {
-        if (controller) controller.enqueue(p as any);
-        else preRead.push(p);
+        if (closed) return;
+        if (listener && readerBuf) {
+            const n = Math.min(p.length, readerBuf.length);
+            readerBuf.set(p.subarray(0, n));
+            listener(n);
+        } else {
+            preRead.push(p);
+        }
     };
-    return { device, pushPacket, written };
+    const stopPushing = (): void => {
+        closed = true;
+        listener = null;
+        readerBuf = null;
+    };
+    return { device, pushPacket, written, stopPushing };
 }

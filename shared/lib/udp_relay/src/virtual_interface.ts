@@ -128,7 +128,9 @@ class VifImpl implements VirtualInterface {
     private socket: BoundSocket | null = null;
     private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
     private running = false;
-    private readTask: Promise<void> | null = null;
+    private stopReader: (() => void) | null = null;
+    /** Reusable landing buffer for TUN reads (one allocation, not per packet). */
+    private rxBuf: Uint8Array;
 
     constructor(
         private opts: VirtualInterfaceOptions,
@@ -137,6 +139,8 @@ class VifImpl implements VirtualInterface {
         private keepaliveIntervalMs: number,
     ) {
         this._stats = newVifStats();
+        // Max IPv4 datagram plus slack — a TUN reader never returns more.
+        this.rxBuf = new Uint8Array(65_536);
     }
 
     get name(): string {
@@ -207,32 +211,14 @@ class VifImpl implements VirtualInterface {
             },
         } as unknown as Parameters<typeof Bun.udpSocket>[0])) as unknown as BoundSocket;
 
-        // 3. Read loop (non-blocking: each stream chunk = one TUN packet).
+        // 3. Read loop (non-blocking: the TUN reader fires per packet,
+        // landing each datagram in this.rxBuf — no per-packet allocation).
         this._stats.startedAt = Date.now();
         this.running = true;
         this.opts.onStats?.(this.stats());
-        const stream = tun.readStream();
-        this.readTask = (async () => {
-            const reader = stream.getReader();
-            try {
-                for (;;) {
-                    const { value, done } = await reader.read();
-                    if (done) return;
-                    if (value) this.onTunPacket(value);
-                }
-            } catch (e) {
-                noteError(
-                    this._stats,
-                    `tun read loop: ${e instanceof Error ? e.message : String(e)}`,
-                );
-            } finally {
-                try {
-                    reader.releaseLock();
-                } catch {
-                    // stream already released
-                }
-            }
-        })();
+        this.stopReader = tun.onPacket(this.rxBuf, (len) =>
+            this.onTunPacket(this.rxBuf.subarray(0, len)),
+        );
 
         // 4. Keepalives.
         this.keepaliveTimer = setInterval(() => {
@@ -262,6 +248,13 @@ class VifImpl implements VirtualInterface {
             clearInterval(this.keepaliveTimer);
             this.keepaliveTimer = null;
         }
+        // 0. Detach the TUN reader before closing the fd.
+        try {
+            this.stopReader?.();
+        } catch {
+            // best effort
+        }
+        this.stopReader = null;
         // 1. Close the TUN fd (the kernel removes the interface on last close).
         try {
             this.tun?.close();
@@ -323,7 +316,7 @@ class VifImpl implements VirtualInterface {
         // IP — write it into the TUN untouched.
         const pkt = frame.payload;
         try {
-            this.tun.write(pkt);
+            this.tun.write(pkt, 0, pkt.length);
         } catch (e) {
             noteError(
                 this._stats,

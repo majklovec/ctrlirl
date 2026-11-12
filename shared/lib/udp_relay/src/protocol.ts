@@ -23,7 +23,7 @@
  * rejected as a `{ type: "malformed" }` result, never thrown.
  */
 
-import { bytesToIp, ipToBytes } from "./ip";
+import { bytesToIp, ipToBytes, ipToU32 } from "./ip";
 import type { DecodedFrame } from "./frame_types";
 
 export const DATA_FRAME_TYPE = 0x01;
@@ -32,6 +32,35 @@ export const KEEPALIVE_FRAME_TYPE = 0x02;
 export const DATA_HEADER_LEN = 8;
 /** Length of a keepalive frame (type + 8-byte timestamp). */
 export const KEEPALIVE_FRAME_LEN = 9;
+
+/**
+ * Write a data-frame header into `buf[0..7]` (type + flags + reserved[2] +
+ * vifIp). The caller pre-allocated the buffer with the payload already placed
+ * at offset {@link DATA_HEADER_LEN}. No allocation, no per-byte address math.
+ */
+export function writeDataHeader(buf: Uint8Array, vifU32: number): void {
+    buf[0] = DATA_FRAME_TYPE;
+    buf[1] = 0;
+    buf[2] = 0;
+    buf[3] = 0;
+    buf[4] = (vifU32 >>> 24) & 0xff;
+    buf[5] = (vifU32 >>> 16) & 0xff;
+    buf[6] = (vifU32 >>> 8) & 0xff;
+    buf[7] = vifU32 & 0xff;
+}
+
+/**
+ * Classify a wire datagram without reading a single byte. `null` for anything
+ * that is neither a data nor a keepalive frame (the caller counts it
+ * dropped). Direct byte indexing — this is the hot path.
+ */
+export function sniffFrameKind(buf: Uint8Array): "data" | "keepalive" | null {
+    if (buf.length < 1) return null;
+    const t = buf[0];
+    if (t === DATA_FRAME_TYPE) return "data";
+    if (t === KEEPALIVE_FRAME_TYPE) return "keepalive";
+    return null;
+}
 
 /**
  * Encode a full IPv4 packet as a data frame, tagged with the virtual-interface
@@ -43,12 +72,7 @@ export const KEEPALIVE_FRAME_LEN = 9;
  */
 export function encodeDataFrame(ipPacket: Uint8Array, vifIp: string): Uint8Array {
     const out = new Uint8Array(DATA_HEADER_LEN + ipPacket.length);
-    out[0] = DATA_FRAME_TYPE;
-    // out[1..3] (flags + reserved) stay 0.
-    out[4] = ipToBytes(vifIp)[0];
-    out[5] = ipToBytes(vifIp)[1];
-    out[6] = ipToBytes(vifIp)[2];
-    out[7] = ipToBytes(vifIp)[3];
+    writeDataHeader(out, ipToU32(vifIp));
     out.set(ipPacket, DATA_HEADER_LEN);
     return out;
 }

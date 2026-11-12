@@ -23,6 +23,17 @@ export function bytesToIp(b: [number, number, number, number]): string {
     return `${b[0]}.${b[1]}.${b[2]}.${b[3]}`;
 }
 
+/** "a.b.c.d" → one 32-bit big-endian value (hot path: no string ops per packet). */
+export function ipToU32(ip: string): number {
+    const [a, b, c, d] = ipToBytes(ip);
+    return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
+}
+
+/** 32-bit big-endian value → "a.b.c.d". */
+export function u32ToIp(u32: number): string {
+    return `${(u32 >>> 24) & 0xff}.${(u32 >>> 16) & 0xff}.${u32 >>> 8 & 0xff}.${u32 & 0xff}`;
+}
+
 // --- Checksum ----------------------------------------------------------------
 
 /**
@@ -81,6 +92,24 @@ export function ipDST(buf: Uint8Array): string | null {
     const version = buf[0] >> 4;
     if (version !== 4) return null;
     return bytesToIp([buf[16], buf[17], buf[18], buf[19]]);
+}
+
+/**
+ * Source IPv4 of a full IPv4 datagram as a u32, or null when `buf` is not an
+ * IPv4 datagram (short buffer / not version 4). Direct byte indexing — this is
+ * the hot path; no temp arrays, no string building.
+ */
+export function ipSRCU32(buf: Uint8Array): number | null {
+    if (buf.length < 20) return null;
+    if ((buf[0] & 0xf0) !== 0x40) return null;
+    return ((buf[12] << 24) | (buf[13] << 16) | (buf[14] << 8) | buf[15]) >>> 0;
+}
+
+/** Destination IPv4 of a full IPv4 datagram as a u32, or null (see {@link ipSRCU32}). */
+export function ipDSTU32(buf: Uint8Array): number | null {
+    if (buf.length < 20) return null;
+    if ((buf[0] & 0xf0) !== 0x40) return null;
+    return ((buf[16] << 24) | (buf[17] << 16) | (buf[18] << 8) | buf[19]) >>> 0;
 }
 
 /**
