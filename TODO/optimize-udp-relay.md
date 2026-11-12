@@ -166,7 +166,7 @@ Encoder --UDP--> relaySocket.data(buf, rinfo)
 
 **One socket. One rx buffer per worker. One tx buffer per worker. Zero allocations on the fast path.**
 
-### 6.2 NAT (documented, not implemented)
+### 6.2 NAT (implemented in `nat_rules.ts`, keyed on the encoder vif)
 
 Library ships a `NAT.md` with copy-paste rules, e.g.:
 
@@ -520,4 +520,80 @@ Do not mark the task complete without this report.
 
 ## 15. Summary for the implementing AI
 
-You are removing one socket and a lot of user-space packet mangling, and replacing them with a single `Bun.udpSocket`, kernel netfilter, pre-allocated buffers, direct `Uint8Array` reads, and a fully synchronous hot path. You are **not** changing the wire format or the encoder. The reference implementation (`moblink-rust`) proves this design is both simpler and faster. Ship it in small, benchmarked, committed steps. When in doubt, delete code.
+You are removing one socket and a lot of user-space packet mangling, and replacing them with a single `Bun.udpSocket`, kernel netfilter, pre-allocated buffers, direct `Uint8Array` reads, and a fully synchronous hot path. You are **not** changing the wire format and you should not need to change the encoder. The reference implementation (`moblink-rust`) proves this design is both simpler and faster. Ship it in small, benchmarked, committed steps. When in doubt, delete code.
+
+---
+
+## 16. Live validation findings (implemented NAT, b6db3 fix)
+
+_This section records what the live single-socket + kernel-NAT build actually required,
+where it deviated from §6.2, and the correction that makes `relay0_enxb6db3` (and every
+CGNAT/multi-NIC leg) work. Verified by probe on a real 3-leg relay host (mobile `enx76ae…`
+172.21.254.230, home `eno2` 192.168.1.136, `wg0` 192.168.225.12)._
+
+### 16.1 What §6.2 implied vs. what the code first shipped
+
+§6.2's example uses a **dedicated, non-local vif** (`10.3.3.1`) SNAT'd to the uplink IP
+(`192.168.1.10`). The first single-socket implementation instead set
+
+```
+vifIp = interfaceAddress = <the uplink's OWN IPv4>   (e.g. 172.21.254.230)
+```
+
+That makes `MASQUERADE -s <vif> -o <uplink>` a **source-identity no-op** (src already
+equals the egress IP) — and, worse, the vif is a **local** address on the host
+(`ip route get 172.21.254.230` → `local … dev lo`). A packet entering the leg TUN with a
+local source fails **strict reverse-path filtering** (`rp_filter=2`): the reverse route
+resolves to `lo`, not the TUN, so the kernel drops it **before** `FORWARD`.
+
+Probe evidence (mobile leg, vif=uplink IP):
+- packet entered the TUN (RX counter +N), `ip_forward=1`, leg table `default via gw dev uplink`,
+  `ip rule iif relay1_enx76ae2 lookup 41` present, FORWARD ACCEPT present;
+- `ForwDatagrams` delta **0** and no egress, with `rp_filter` strict;
+- forcing `rp_filter=loose(1)` let it reach `POSTROUTING` (MASQ 15→16) but it **could not
+  return**: a reply to `172.21.254.230` is a **local** delivery, never forwarded to the TUN.
+  So the uplink-IP-as-vif design is a dead end in both directions.
+
+### 16.2 The fix: key NAT + reply route on the **encoder's** vif (proved live)
+
+The relay already reads the encoder's vif from every frame header
+(`decideEncoderFrame` → `frame.vifIp`, e.g. `10.{90+x}.{y}.1`). The leg must install its
+conntrack NAT **and** the `to vif/32 dev tun` reply route for **that** (dedicated,
+non-local) vif — learned dynamically as frames arrive, not hardcoded to the uplink IP.
+
+Verified with an encoder-equivalent vif `10.90.50.1` (mobile leg, strict `rp_filter=2`):
+
+| direction | kernel action | result |
+|-----------|---------------|--------|
+| outbound  | `MASQUERADE -s 10.90.50.1/32 -o uplink` → src becomes `172.21.254.230` | egress ✓, **0** raw-vif leaks |
+| reply     | `10.90.50.1/32 dev relay1_enx76ae2` (main) → into the TUN | into TUN ✓ |
+
+No `rp_filter` weakening, no source-routing pinning. This is exactly the b6db3 fix:
+replies leave the uplink with the uplink's own source (no pinning to the leg listener),
+and the kernel answers the flow in both directions.
+
+### 16.3 Egress route must carry the uplink **gateway**
+
+The leg egress table must be `default via <uplink GW> dev <uplink>`, not
+`default dev <uplink>` (no gateway). A `scope link` / no-gateway default makes the kernel
+ARP for the *destination* directly on the uplink segment — which fails for a public/CGNAT
+peer (mobile CGNAT gateway is `172.21.254.48`; the VPS is not on-link). No-gateway:
+flaky (only the one packet that happened to hit, ARP `FAILED`). With the gateway:
+reliable 3/3 egress.
+
+→ `planLegCommands` must add the uplink's gateway to the leg table. The gateway is
+resolved at provision time (the backend reads the default route for the uplink) and passed
+into the leg plan.
+
+### 16.4 Config knob
+
+`config().nat` (default `true`) gates the `MASQUERADE`/`to-route` insertion
+(§6.2: "NAT is the deployment layer's job"). `nat=false` leaves the FORWARD + routing
+path so a leg whose vif is directly reachable by the uplink still works. Routing +
+FORWARD are **always** installed; only the NAT (masquerade + reply `to-route`) is gated.
+
+### 16.5 Status
+
+- **Fixed in code:** encoder-vif keying (NAT + reply route), gateway in the egress route.
+- **Proved live:** outbound NAT egress + reply into TUN (mobile leg), strict rp_filter.
+- **Encoders unchanged** — the vif they already use (`10.{90+x}.{y}.1`) is exactly the key.
