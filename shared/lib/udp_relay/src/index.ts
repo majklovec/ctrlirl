@@ -18,6 +18,16 @@ export type {
     ParsedUdpPacket,
 } from "./ip";
 export {
+    relayTunName,
+    legTable,
+    planLegCommands,
+    planLegRemoval,
+    applyLegPlan,
+    removeLegPlan,
+    sweepStaleLegTuns,
+} from "./nat_rules";
+export type { LegPlan } from "./nat_rules";
+export {
     decodeFrame,
     encodeDataFrame,
     encodeKeepaliveFrame,
