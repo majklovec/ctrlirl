@@ -261,3 +261,60 @@ describe("relay data path (mocks)", () => {
         await relay.stop();
     });
 });
+
+describe("onEncoderVifLearned (wire-learned vif)", () => {
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    const ENC_VIF = "10.90.50.1";
+    const encFrame = () =>
+        encodeDataFrame(
+            ipPacket(ENC_VIF, "144.91.123.190"),
+            ENC_VIF,
+        );
+
+    test("fires once per distinct vif, on the frame-header vif", async () => {
+        const learned: string[] = [];
+        const { opts, sock } = relaySetup({
+            onEncoderVifLearned: (ip) => {
+                learned.push(ip);
+            },
+        });
+        const relay = await createUdpRelay(opts);
+        await relay.start();
+        sock.deliver(encFrame(), "10.0.0.1", 1111);
+        await tick();
+        // Fired with the ENCODER's vif (from the frame header), not the
+        // uplink IP the leg was provisioned with.
+        expect(learned).toEqual([ENC_VIF]);
+        // Same vif again: no re-announce.
+        sock.deliver(encFrame(), "10.0.0.1", 1111);
+        await tick();
+        expect(learned).toEqual([ENC_VIF]);
+        // A second distinct vif: announced separately.
+        const enc2 = encodeDataFrame(
+            ipPacket("10.90.51.2", "144.91.123.190"),
+            "10.90.51.2",
+        );
+        sock.deliver(enc2, "10.0.0.1", 1111);
+        await tick();
+        expect(learned).toEqual([ENC_VIF, "10.90.51.2"]);
+        await relay.stop();
+    });
+
+    test("await rejects do not poison the hot path", async () => {
+        let rejected = false;
+        const { opts, sock } = relaySetup({
+            onEncoderVifLearned: () => {
+                rejected = true;
+                return Promise.reject(new Error("vif apply failed"));
+            },
+        });
+        const relay = await createUdpRelay(opts);
+        await relay.start();
+        sock.deliver(encFrame(), "10.0.0.1", 1111);
+        await tick();
+        expect(rejected).toBe(true);
+        // Relay keeps running after the callback rejects.
+        expect(relay.isRunning()).toBe(true);
+        await relay.stop();
+    });
+});

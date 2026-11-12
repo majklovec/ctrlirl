@@ -1,4 +1,4 @@
-# Handoff: Refactor `irlctrl/shared/lib/udp_relay` to single-socket + high-performance design
+# Refactor `irlctrl/shared/lib/udp_relay` to single-socket + high-performance design
 
 **Audience:** Implementing AI agent (Claude, GPT, Cursor, Aider, etc.)
 **Author of handoff:** Previous analysis pass
@@ -547,12 +547,13 @@ local source fails **strict reverse-path filtering** (`rp_filter=2`): the revers
 resolves to `lo`, not the TUN, so the kernel drops it **before** `FORWARD`.
 
 Probe evidence (mobile leg, vif=uplink IP):
-- packet entered the TUN (RX counter +N), `ip_forward=1`, leg table `default via gw dev uplink`,
-  `ip rule iif relay1_enx76ae2 lookup 41` present, FORWARD ACCEPT present;
-- `ForwDatagrams` delta **0** and no egress, with `rp_filter` strict;
-- forcing `rp_filter=loose(1)` let it reach `POSTROUTING` (MASQ 15→16) but it **could not
-  return**: a reply to `172.21.254.230` is a **local** delivery, never forwarded to the TUN.
-  So the uplink-IP-as-vif design is a dead end in both directions.
+
+-   packet entered the TUN (RX counter +N), `ip_forward=1`, leg table `default via gw dev uplink`,
+    `ip rule iif relay1_enx76ae2 lookup 41` present, FORWARD ACCEPT present;
+-   `ForwDatagrams` delta **0** and no egress, with `rp_filter` strict;
+-   forcing `rp_filter=loose(1)` let it reach `POSTROUTING` (MASQ 15→16) but it **could not
+    return**: a reply to `172.21.254.230` is a **local** delivery, never forwarded to the TUN.
+    So the uplink-IP-as-vif design is a dead end in both directions.
 
 ### 16.2 The fix: key NAT + reply route on the **encoder's** vif (proved live)
 
@@ -561,12 +562,33 @@ The relay already reads the encoder's vif from every frame header
 conntrack NAT **and** the `to vif/32 dev tun` reply route for **that** (dedicated,
 non-local) vif — learned dynamically as frames arrive, not hardcoded to the uplink IP.
 
-Verified with an encoder-equivalent vif `10.90.50.1` (mobile leg, strict `rp_filter=2`):
+**How it shipped (the split base+vif API).** The leg netplan is split so the
+vif-independent part is installed up-front and the vif-specific part is installed on learn:
 
-| direction | kernel action | result |
-|-----------|---------------|--------|
-| outbound  | `MASQUERADE -s 10.90.50.1/32 -o uplink` → src becomes `172.21.254.230` | egress ✓, **0** raw-vif leaks |
-| reply     | `10.90.50.1/32 dev relay1_enx76ae2` (main) → into the TUN | into TUN ✓ |
+-   `planLegBaseCommands` / `applyLegPlan` — egress table (`default via <gw> dev <uplink>`),
+    `ip rule iif <tun> table <40+slot>`, FORWARD accepts. Applied in `startRelay` before
+    `relay.start()`.
+-   `planVifCommands` / `applyVifPlan` / `removeVifPlan` — reply route
+    (`to <vif>/32 dev <tun>`, main) + `MASQUARADE -s <vif>/32 -o <uplink>`. Applied on
+    `onEncoderVifLearned` (see below), removed on `stopRelay`/`stopAll`.
+
+The `relay.ts` relay exposes **`onEncoderVifLearned(vifIp)`**, fired from the listen path
+(`onListenEvent` → `decideEncoderFrame`) the **first time** each distinct vif is seen on
+the wire. `backend.ts` `startRelay` registers the leg in `relayLegs` *before* `relay.start()`,
+applies the base plan up-front, and on `onEncoderVifLearned` applies the vif plan and records
+the learned vif (used later for the announce payload).
+
+Re-verified live on the mobile leg this pass (strict `rp_filter=2`), with a fresh
+encoder-equivalent vif `10.90.1.1` learned from an injected frame:
+
+| direction | kernel action                                                          | result                        |
+| --------- | ---------------------------------------------------------------------- | ----------------------------- |
+| outbound  | `MASQUARDE -s 10.90.1.1/32 -o uplink` → src becomes `172.21.254.230`   | egress ✓ 3/3, **0** raw-vif leaks |
+| reply     | `10.90.1.1/32 dev relay1_enx76ae2` (main) → into the TUN               | **full round-trip** back to the encoder socket ✓ |
+
+The reply path was closed end-to-end: a `VPS → 10.90.1.1` IPv4 reply routed into the TUN
+came out framed (8-byte header + IPv4) to the encoder-equivalent socket on `127.0.0.1:4003`
+(`ENCODER-RECV 81b … reply path OK`).
 
 No `rp_filter` weakening, no source-routing pinning. This is exactly the b6db3 fix:
 replies leave the uplink with the uplink's own source (no pinning to the leg listener),
@@ -576,14 +598,16 @@ and the kernel answers the flow in both directions.
 
 The leg egress table must be `default via <uplink GW> dev <uplink>`, not
 `default dev <uplink>` (no gateway). A `scope link` / no-gateway default makes the kernel
-ARP for the *destination* directly on the uplink segment — which fails for a public/CGNAT
+ARP for the _destination_ directly on the uplink segment — which fails for a public/CGNAT
 peer (mobile CGNAT gateway is `172.21.254.48`; the VPS is not on-link). No-gateway:
 flaky (only the one packet that happened to hit, ARP `FAILED`). With the gateway:
 reliable 3/3 egress.
 
-→ `planLegCommands` must add the uplink's gateway to the leg table. The gateway is
-resolved at provision time (the backend reads the default route for the uplink) and passed
-into the leg plan.
+→ the base leg plan adds the uplink's gateway to the leg table. The gateway is
+resolved at provision time by `backend.ts` `uplinkGateway(name)` (`ip -4 route show
+default dev <name>` → parse `via <gw>`; `undefined` for a direct/`scope link` link, e.g.
+`wg0`) and passed into `planLegBaseCommands` as `uplinkGateway`. On the 3-leg host this
+yields `eno2 → 192.168.1.1`, `enx76ae… → 172.21.254.48`, `wg0 → (none, direct)`.
 
 ### 16.4 Config knob
 
@@ -594,6 +618,10 @@ FORWARD are **always** installed; only the NAT (masquerade + reply `to-route`) i
 
 ### 16.5 Status
 
-- **Fixed in code:** encoder-vif keying (NAT + reply route), gateway in the egress route.
-- **Proved live:** outbound NAT egress + reply into TUN (mobile leg), strict rp_filter.
-- **Encoders unchanged** — the vif they already use (`10.{90+x}.{y}.1`) is exactly the key.
+-   **Fixed in code:** encoder-vif keying (NAT + reply route) via the `onEncoderVifLearned`
+    + split base/vif plan API, gateway in the egress route.
+-   **Proved live (re-verified this pass):** outbound NAT egress **and full reply round-trip**
+    (mobile leg, learned vif `10.90.1.1`), strict `rp_filter=2`.
+-   **Encoders unchanged** — the vif they already use (`10.{90+x}.{y}.1`) is exactly the key.
+-   **Outstanding (not a relay defect):** `test_relay_chain.sh all` end-to-end needs the rpi4
+    encoder side up (no TUNs; `/tmp/srtla_ips.txt` needs 3 IPs) to run the real chain.

@@ -44,10 +44,13 @@ import type {
 } from "../../../shared/contracts/module_capabilities";
 import {
     applyLegPlan,
+    applyVifPlan,
     createUdpRelay,
     relayTunName,
     removeLegPlan,
+    removeVifPlan,
     sweepStaleLegTuns,
+    type LegPlan,
     type UdpRelay,
     type UdpRelayOptions,
 } from "../../../shared/lib/udp_relay";
@@ -219,7 +222,11 @@ const relayLegs = new Map<
         slot: number;
         tun: string;
         uplinkIface: string;
-        vifIp: string;
+        /** Uplink gateway for the leg egress table (resolved at start). */
+        uplinkGateway?: string;
+        /** The encoder's dedicated vif, learned from the wire (null until
+         * the first frame arrives). The NAT + reply route key on it. */
+        vifIp: string | undefined;
         nat: boolean;
     }
 >();
@@ -312,6 +319,28 @@ function ifaceAddress(
     const override = cfg.interfaceNameOverrides[name];
     if (override) return override;
     return ifaces.find((i) => i.name === name)?.addresses[0];
+}
+
+/**
+ * The uplink's gateway, for the leg egress table (`default via gw dev uplink`).
+ * Read from the main table's default route for that interface. Returns
+ * undefined for a no-gateway (direct / link-scope) uplink, in which case the
+ * leg table falls back to `default dev uplink`. Best-effort: a read failure
+ * logs and degrades to the no-gateway form.
+ */
+async function uplinkGateway(name: string): Promise<string | undefined> {
+    try {
+        const out = await core.run("ip", ["-4", "route", "show", "default", "dev", name], true);
+        const m = /\bvia\s+(\d{1,3}(?:\.\d{1,3}){3})\b/.exec(out);
+        return m?.[1];
+    } catch (e) {
+        core.logEvent(
+            "warn",
+            "Relay",
+            `no default-route gateway for ${name}: ${errorMessage(e)}`,
+        );
+        return undefined;
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -522,8 +551,9 @@ export function announcePayload(): MoblinkAnnounce | null {
         interfaces: ifaces.map((i) => ({
             name: i.name,
             address: perIfaceAddress ? i.address || host : host,
-            // The vif /32 this leg bridges (the encoder source the relay NATs
-            // to the uplink). Only present while the leg is running.
+            // The encoder's dedicated vif /32 this leg NATs to the uplink,
+            // learned from the wire. Present once the first frame arrives
+            // (before that, the encoder hasn't used the leg).
             vif_ip: relayLegs.get(i.name)?.vifIp,
             listenPort: i.listenPort,
             // Down paths stay advertised (port kept) so the encoder keeps the
@@ -590,9 +620,27 @@ async function startRelay(
 ): Promise<UdpRelay> {
     const slot = legSlotFor(name);
     const tunName = relayTunName(slot, name);
+    // The base leg plan (egress table + iif rule + FORWARD) is vif-independent
+    // and installed up-front; the NAT + reply route key on the encoder's vif,
+    // which is only known once the first frame arrives on the wire.
+    const uplinkGw = await uplinkGateway(name);
+    // Register the leg BEFORE the relay starts so a frame (→ onEncoderVifLearned)
+    // that arrives while the base netplan is still being applied can still be
+    // read for teardown, and so the vif plan reads the authoritative (possibly
+    // slot-reassigned) leg entry.
+    relayLegs.set(name, {
+        slot,
+        tun: tunName,
+        uplinkIface: name,
+        uplinkGateway: uplinkGw,
+        vifIp: undefined,
+        nat: config().nat,
+    });
     const relay = await createUdpRelay({
         interfaceName: name,
         listenPort,
+        // `vifIp` is kept only for the onVifLearned lifecycle hook; the real
+        // vif is learned from the wire (see onEncoderVifLearned).
         vifIp: addr,
         interfaceAddress: addr,
         tunName,
@@ -602,34 +650,39 @@ async function startRelay(
         runCommand: privilegedRun(),
         tunFactory: relayTunFactory,
         socketFactory: relaySocketFactory,
-        // The leg's kernel netplan (table/iif-rule/NAT/FORWARD) is installed
-        // up front in startRelay now - learning the vif IP only logs it.
-        onVifLearned: (vifIp) =>
-            core.logEvent("info", "Relay", `vif ${vifIp} leg on ${name}`),
+        onVifLearned: () =>
+            core.logEvent("info", "Relay", `leg up on ${name} (tun ${tunName})`),
+        // The vif-specific NAT + `to vif/32 dev tun` reply route key on the
+        // LEARNED encoder vif (not the uplink IP). This is the b6db3 fix.
+        onEncoderVifLearned: (vifIp) => {
+            const leg = relayLegs.get(name);
+            if (!leg) return; // stopped in the meantime
+            return applyVifPlan(privilegedRun(), leg, vifIp).then(() => {
+                const current = relayLegs.get(name);
+                if (current) current.vifIp = vifIp;
+                core.logEvent(
+                    "info",
+                    "Relay",
+                    `learned encoder vif ${vifIp} on ${name}${
+                        current?.nat ?? false ? " (nat)" : " (no-nat)"
+                    }`,
+                );
+            });
+        },
     });
     await relay.start();
-    // Bring the leg's TUN up + install its kernel netplan. A failure here
-    // tears the relay back down (the port is re-claimed by the failures path).
+    // Bring the leg's TUN up + install its vif-independent base netplan. A
+    // failure here tears the relay back down (the port is re-claimed by the
+    // failures path).
     try {
         await core.run("ip", ["link", "set", tunName, "up"], true);
-        await applyLegPlan(privilegedRun(), {
-            slot,
-            tun: tunName,
-            uplinkIface: name,
-            vifIp: addr,
-            nat: config().nat,
-        });
+        const leg = relayLegs.get(name);
+        if (leg) await applyLegPlan(privilegedRun(), leg);
     } catch (e) {
+        relayLegs.delete(name);
         await relay.stop().catch(() => {});
         throw e;
     }
-    relayLegs.set(name, {
-        slot,
-        tun: tunName,
-        uplinkIface: name,
-        vifIp: addr,
-        nat: config().nat,
-    });
     relays.set(name, relay);
     lastIfaceAddr.set(name, addr);
     failures.delete(name);
@@ -645,7 +698,12 @@ async function stopRelay(name: string): Promise<void> {
     if (leg) {
         relayLegs.delete(name);
         // Best-effort: a teardown hiccup must not block the relay stop.
-        void removeLegPlan(privilegedRun(), leg).catch((e: unknown) =>
+        void (async () => {
+            // The learned vif's reply route + MASQUERADE (keyed on the
+            // encoder vif) is torn down alongside the base plan.
+            if (leg.vifIp) await removeVifPlan(privilegedRun(), leg, leg.vifIp);
+            await removeLegPlan(privilegedRun(), leg);
+        })().catch((e: unknown) =>
             core.logEvent(
                 "warn",
                 "Relay",
@@ -911,6 +969,8 @@ async function stopAll(): Promise<void> {
     // restart race can leave one).
     for (const [name, leg] of [...relayLegs.entries()]) {
         relayLegs.delete(name);
+        if (leg.vifIp)
+            await removeVifPlan(privilegedRun(), leg, leg.vifIp).catch(() => {});
         await removeLegPlan(privilegedRun(), leg).catch(() => {});
     }
     downIfaces.clear();

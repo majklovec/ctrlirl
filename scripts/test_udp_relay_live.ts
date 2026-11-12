@@ -55,6 +55,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
     applyLegPlan,
+    applyVifPlan,
     buildUdpIpPacket,
     type CommandRunner,
     createUdpRelay,
@@ -62,6 +63,7 @@ import {
     legTable,
     relayTunName,
     removeLegPlan,
+    removeVifPlan,
     type UdpRelay,
 } from "../shared/lib/udp_relay/src/index";
 
@@ -212,14 +214,13 @@ try {
         runCommand: rootRun,
     });
     await relay.start();
-    // Bring the leg up: TUN + kernel netplan (table/iif-rule/MASQUERADE/FORWARD).
+    // Bring the leg up: TUN + kernel netplan. This script knows its vif up
+    // front, so it applies the vif-independent base + the vif-specific
+    // reply route/NAT (the production backend learns the vif from the wire).
     await rootRun("ip", "link", "set", TUN, "up");
-    await applyLegPlan(rootRun, {
-        slot: SLOT,
-        tun: TUN,
-        uplinkIface: IFACE,
-        vifIp: VIF_IP,
-    });
+    const leg = { slot: SLOT, tun: TUN, uplinkIface: IFACE };
+    await applyLegPlan(rootRun, leg);
+    await applyVifPlan(rootRun, leg, VIF_IP);
     ok("relay started + leg netplan installed", relay.isRunning());
     setupOk = relay.isRunning();
 } catch (e) {
@@ -342,12 +343,9 @@ if (!setupOk) {
 relay?.stop().catch(() => {});
 // Best-effort teardown of the leg netplan + TUN (kept with --keep).
 if (!KEEP) {
-    await removeLegPlan(rootRun, {
-        slot: SLOT,
-        tun: TUN,
-        uplinkIface: IFACE,
-        vifIp: VIF_IP,
-    }).catch(() => {});
+    const leg = { slot: SLOT, tun: TUN, uplinkIface: IFACE };
+    await removeVifPlan(rootRun, leg, VIF_IP).catch(() => {});
+    await removeLegPlan(rootRun, leg).catch(() => {});
     try {
         execFileSync("/usr/sbin/ip", ["link", "del", TUN]);
     } catch {

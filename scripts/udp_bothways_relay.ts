@@ -15,6 +15,7 @@
 import { execFileSync } from "node:child_process";
 import {
     applyLegPlan,
+    applyVifPlan,
     type CommandRunner,
     createUdpRelay,
     relayTunName,
@@ -56,12 +57,18 @@ const relay = await createUdpRelay({
 });
 await relay.start();
 await rootRun("ip", "link", "set", TUN, "up");
-await applyLegPlan(rootRun, {
-    slot: 0,
-    tun: TUN,
-    uplinkIface: IFACE,
-    vifIp: VIF_IP,
-});
+// Resolve the uplink gateway for the leg egress table (required for
+// public/CGNAT destinations). Best-effort: falls back to no-gateway.
+let gw: string | undefined;
+try {
+    const out = await rootRun("ip", "-4", "route", "show", "default", "dev", IFACE);
+    gw = /\bvia\s+(\d{1,3}(?:\.\d{1,3}){3})\b/.exec(out.stdout)?.[1];
+} catch {
+    /* no gateway */
+}
+const leg = { slot: 0, tun: TUN, uplinkIface: IFACE, uplinkGateway: gw };
+await applyLegPlan(rootRun, leg);
+await applyVifPlan(rootRun, leg, VIF_IP);
 console.log(
     `[relay] running (leg netplan installed). Waiting ${SECONDS}s for traffic...`,
 );

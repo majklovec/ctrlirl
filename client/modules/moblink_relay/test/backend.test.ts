@@ -22,7 +22,11 @@ import type {
     NetworkInterfaces,
     Uplinks,
 } from "../../../../shared/contracts/module_capabilities";
-import { makeMockTunDevice } from "../../../../shared/lib/udp_relay";
+import {
+    buildUdpIpPacket,
+    encodeDataFrame,
+    makeMockTunDevice,
+} from "../../../../shared/lib/udp_relay";
 import * as mod from "../backend";
 import {
     knownEncoderIps,
@@ -445,11 +449,11 @@ describe("relay lifecycle (real loopback UDP)", () => {
 });
 
 describe("relay provisions its leg netplan (table + iif rule + NAT)", () => {
-    test("start: TUN up + leg table 40 + iif rule + vif pin + MASQUERADE + FORWARD", async () => {
+    test("start: base netplan up-front; vif NAT only after the encoder is learned", async () => {
         const base = 45410;
-        const vifIp = "127.0.0.1"; // `lo` is the only eligible interface.
         const table = "40";
         const tun = "relay0_lo";
+        const ENC_VIF = "10.90.50.1"; // the encoder's dedicated non-local vif.
         // A core whose `run` records each (cmd, args) so we can assert the netplan.
         const runCalls: Array<{ cmd: string; args: string[] }> = [];
         const coreWithRun = {
@@ -459,6 +463,18 @@ describe("relay provisions its leg netplan (table + iif rule + NAT)", () => {
                 return "";
             },
         } as unknown as ModuleCore;
+        // A mock listener capturing the onEvent hook, so we can deliver an
+        // encoder frame and drive onEncoderVifLearned deterministically.
+        let encDeliver:
+            | ((buf: Uint8Array, addr: string, port: number) => void)
+            | null = null;
+        mod.setRelayFactories({
+            tunFactory: async (name: string) => makeMockTunDevice({ name }).device,
+            socketFactory: (_p, _h, onEvent) => {
+                encDeliver = (buf, addr, port) => onEvent({ buf, addr, port });
+                return Promise.resolve({ send: () => true, close: () => {} });
+            },
+        });
 
         cfg.bind?.(coreWithRun);
         await cfg.dispatch("moblink_relay.start", {});
@@ -466,51 +482,52 @@ describe("relay provisions its leg netplan (table + iif rule + NAT)", () => {
         const ipArgs = (a: string[]) => a.join(" ");
         const has = (s: string) =>
             runCalls.some((c) => c.cmd === "ip" && ipArgs(c.args) === s);
+        const hasNat = (s: string) =>
+            runCalls.some(
+                (c) => c.cmd === "iptables" && ipArgs(c.args).includes(s),
+            );
 
+        // The vif-INDEPENDENT base is installed at start: TUN up, egress
+        // table, iif rule, FORWARD. (No gateway on `lo` → `default dev lo`.)
         expect(has(`link set ${tun} up`)).toBe(true);
-        // Leg table: egress pin for packets arriving on the TUN (the b6db3 fix).
         expect(has(`route add default dev lo table ${table}`)).toBe(true);
         expect(has(`rule add iif ${tun} table ${table}`)).toBe(true);
-        // vif /32 pinned to the TUN in the main table.
-        expect(has(`route add ${vifIp}/32 dev ${tun}`)).toBe(true);
-        // NAT exit off the uplink + FORWARD accepts both directions.
-        // Idempotent insert form (each -I is preceded by a best-effort -D).
-        expect(
-            runCalls.some(
-                (c) =>
-                    c.cmd === "iptables" &&
-                    ipArgs(c.args) ===
-                        "-t nat -I POSTROUTING 1 -s 127.0.0.1/32 -o lo -j MASQUERADE",
-            ),
-        ).toBe(true);
-        expect(
-            runCalls.some(
-                (c) =>
-                    c.cmd === "iptables" &&
-                    ipArgs(c.args) === "-I FORWARD 1 -i relay0_lo -j ACCEPT",
-            ),
-        ).toBe(true);
-        expect(
-            runCalls.some(
-                (c) =>
-                    c.cmd === "iptables" &&
-                    ipArgs(c.args) === "-I FORWARD 2 -o relay0_lo -j ACCEPT",
-            ),
-        ).toBe(true);
+        expect(hasNat("-I FORWARD 1 -i relay0_lo -j ACCEPT")).toBe(true);
+        expect(hasNat("-I FORWARD 2 -o relay0_lo -j ACCEPT")).toBe(true);
+        // The vif-specific part is NOT installed yet (the encoder hasn't
+        // spoken). This is the fix for the b6db3 dead-end: no uplink-IP NAT.
+        expect(hasNat("MASQUERADE")).toBe(false);
+        expect(runCalls.some((c) => c.cmd === "ip" && ipArgs(c.args).includes("/32 dev"))).toBe(false);
 
-        // Teardown removes the rule, routes and NAT rules.
+        // The encoder speaks on the wire: deliver a frame whose header vif is
+        // its dedicated `10.{90+x}.{y}.1`. The relay learns it and installs
+        // the vif-specific reply route + MASQUERADE keyed on THAT vif.
+        encDeliver!(
+            encodeDataFrame(
+                buildUdpIpPacket({
+                    srcIp: ENC_VIF,
+                    dstIp: "144.91.123.190",
+                    srcPort: 5001,
+                    dstPort: 5000,
+                    payload: new TextEncoder().encode("x"),
+                }),
+                ENC_VIF,
+            ),
+            "10.0.0.1",
+            1111,
+        );
+        await until(() => has(`route add ${ENC_VIF}/32 dev ${tun}`));
+        expect(has(`route add ${ENC_VIF}/32 dev ${tun}`)).toBe(true);
+        expect(hasNat(`-s ${ENC_VIF}/32 -o lo -j MASQUERADE`)).toBe(true);
+        // And it is NOT keyed on the uplink IP (127.0.0.1).
+        expect(hasNat("-s 127.0.0.1/32")).toBe(false);
+
+        // Teardown removes the base plan AND the learned vif's route + NAT.
         await cfg.stop();
         expect(has(`rule del lookup ${table}`)).toBe(true);
         expect(has(`route del default table ${table}`)).toBe(true);
-        expect(has(`route del ${vifIp}/32 dev ${tun}`)).toBe(true);
-        expect(
-            runCalls.some(
-                (c) =>
-                    c.cmd === "iptables" &&
-                    ipArgs(c.args) ===
-                        "-t nat -D POSTROUTING -s 127.0.0.1/32 -o lo -j MASQUERADE",
-            ),
-        ).toBe(true);
+        expect(has(`route del ${ENC_VIF}/32 dev ${tun}`)).toBe(true);
+        expect(hasNat(`-D POSTROUTING -s ${ENC_VIF}/32 -o lo -j MASQUERADE`)).toBe(true);
     });
 
     test("hotplug: a second leg gets the next table and its own TUN", async () => {

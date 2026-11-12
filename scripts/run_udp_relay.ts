@@ -22,6 +22,7 @@
 import { execFileSync } from "node:child_process";
 import {
     applyLegPlan,
+    applyVifPlan,
     type CommandRunner,
     createUdpRelay,
     relayTunName,
@@ -79,14 +80,13 @@ for (let slot = 0; slot < LEGS.length; slot++) {
         },
     });
     await relay.start();
-    // Bring the leg's TUN up + install its kernel netplan.
+    // Bring the leg's TUN up + install its kernel netplan. This standalone
+    // script knows its per-leg vif up-front, so it applies base + vif
+    // (the production backend learns the vif from the wire instead).
     await rootRun("ip", "link", "set", tunName, "up");
-    await applyLegPlan(rootRun, {
-        slot,
-        tun: tunName,
-        uplinkIface: iface,
-        vifIp,
-    });
+    const leg = { slot, tun: tunName, uplinkIface: iface };
+    await applyLegPlan(rootRun, leg);
+    await applyVifPlan(rootRun, leg, vifIp);
     relays.push(relay);
     console.log(
         `[relay] leg up: ${iface} vif ${vifIp} :${port} (tun ${tunName}, table ${slot + 40})`,

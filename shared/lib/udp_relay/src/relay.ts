@@ -17,7 +17,7 @@
  */
 
 import { networkInterfaces } from "node:os";
-import { bytesToU32, isIpv4 } from "./ip";
+import { bytesToU32, isIpv4, u32ToIp } from "./ip";
 import {
     DATA_HEADER_LEN,
     decodeFrame,
@@ -119,10 +119,20 @@ export interface UdpRelayOptions {
     /** Periodic stats emission interval in ms (0 = only on lifecycle). */
     statsIntervalMs?: number;
     /**
-     * Invoked once with the vif IP, at end of `start()`. The backend
-     * installs the `to vif/32 dev tun` route + iif rule there.
+     * Invoked once with the leg's vif IP, at end of `start()`. Retained for
+     * callers that bind a known vif at provision time; the production
+     * backend installs the vif-independent base plan here.
      */
     onVifLearned?: (vifIp: string) => void;
+    /**
+     * Invoked with the encoder's vif IP the FIRST time a data frame for a
+     * given vif arrives on the wire (and again if the vif changes). This is
+     * the value the backend keys its `to vif/32 dev tun` reply route +
+     * MASQUERADE on - the relay reads it from the frame header because it
+     * cannot derive `10.{90+x}.{y}.1` (only the encoder knows x, y). The
+     * callback may be async; the relay does not block the hot path on it.
+     */
+    onEncoderVifLearned?: (vifIp: string) => void | Promise<void>;
     /** TUN factory (tests / non-Linux). */
     tunFactory?: TunFactory;
     /** UDP listener factory (tests / Bun-less runtimes). */
@@ -228,6 +238,9 @@ class RelayImpl implements UdpRelay {
     private readonly vifEndpoints = new Map<number, RelayEndpoint>();
     private lastEncoder: string | null = null;
     private lastEncoderSeen = 0;
+    // u32s for which `onEncoderVifLearned` has already fired (the callback
+    // fires once per distinct encoder vif, mirroring the endpoint map).
+    private readonly announcedVifs = new Set<number>();
 
     // Two reusable buffers for the TUN→encoder path: the TUN delivers into
     // `rxBuf`; the frame (header + packet) is assembled in `txBuf` - a
@@ -351,6 +364,18 @@ class RelayImpl implements UdpRelay {
                 this.vifEndpoints.set(vifU32, {
                     addr: event.addr,
                     port: event.port,
+                });
+            }
+            // First sight of this encoder vif: tell the backend so it can
+            // install the vif-specific NAT + reply route (keyed on the
+            // encoder's dedicated non-local vif, not the uplink IP). The
+            // callback may be async; fire-and-forget with an error log.
+            if (!this.announcedVifs.has(vifU32)) {
+                this.announcedVifs.add(vifU32);
+                void Promise.resolve(
+                    this.options.onEncoderVifLearned?.(u32ToIp(vifU32)),
+                ).catch((e: unknown) => {
+                    this.lastError = e instanceof Error ? e.message : String(e);
                 });
             }
             this.counters.encRxPackets++;

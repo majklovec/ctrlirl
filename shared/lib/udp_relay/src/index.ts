@@ -19,11 +19,16 @@ export {
 export type { LegPlan } from "./nat_rules";
 export {
     applyLegPlan,
+    applyVifPlan,
     legTable,
+    planLegBaseCommands,
     planLegCommands,
     planLegRemoval,
+    planVifCommands,
+    planVifRemoval,
     relayTunName,
     removeLegPlan,
+    removeVifPlan,
     sweepStaleLegTuns,
 } from "./nat_rules";
 export {
