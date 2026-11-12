@@ -198,9 +198,7 @@ export const SHAPES = {
 			<path d="M5 9h14M5 15h14M10 4 7 20M17 4l-3 16" />
 		</>
 	),
-	frame: (
-		<path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3" />
-	),
+	frame: <path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3" />,
 	checklist: (
 		<>
 			<path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17" />
@@ -264,7 +262,7 @@ export const Icon = {
 	),
 } as MithrilJSXComponent<{ name: IconName } & m.Attributes>;
 
-/** A 24×24 outline icon from arbitrary SVG children — what a module uses to
+/** A 24×24 outline icon from arbitrary SVG children - what a module uses to
  * draw its own pictograms (role icons, overlay element icons) in the same
  * style as the built-in set. */
 export const OutlineIcon = {

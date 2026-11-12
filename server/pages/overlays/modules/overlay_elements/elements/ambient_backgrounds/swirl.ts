@@ -1,5 +1,5 @@
 /*
- * `swirl` — fine particles pulled along a 3D simplex-noise flow field.
+ * `swirl` - fine particles pulled along a 3D simplex-noise flow field.
  * Port of `swirl.js` from crnacura/AmbientCanvasBackgrounds (CC BY-SA).
  */
 

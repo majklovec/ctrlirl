@@ -1,15 +1,13 @@
 /*
  * The dashboards page's routes: the four page HTML routes and the editor
  * REST API. The shared live feed (/dashboards/ws) is core-owned
- * (server/core/live_routes.ts) — it serves the devices and overlays pages
+ * (server/core/live_routes.ts) - it serves the devices and overlays pages
  * too, so it is not part of this slice.
  */
 import { Elysia } from "elysia";
+import { authenticatedHandler } from "../../../core/auth/authenticated";
 import type { PageServices, ProjectAccess } from "../../../core/contracts";
 import { apiGuard, scopedProject } from "../../../core/project_scope";
-import {
-    authenticatedHandler,
-} from "../../../core/auth/authenticated";
 import type { createDashboards } from "./registry";
 
 type Dashboards = ReturnType<typeof createDashboards>;

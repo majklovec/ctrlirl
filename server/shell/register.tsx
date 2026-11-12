@@ -36,7 +36,7 @@ const state = {
 	// false = no message; otherwise an i18n key (or the raw server text).
 	error: false as false | string,
 	// Whether an invite code is required (any account already exists). Kept true
-	// until proven otherwise — safer to show the field than skip sign-up.
+	// until proven otherwise - safer to show the field than skip sign-up.
 	needsInvite: true,
 	statusLoaded: false,
 };
@@ -51,7 +51,7 @@ function valid(): boolean {
 }
 
 /** Ask the server whether an invite is required (any account exists yet). On
- * failure the field stays visible — safer than silently allowing sign-up. */
+ * failure the field stays visible - safer than silently allowing sign-up. */
 async function loadRegisterStatus(): Promise<void> {
 	try {
 		const body = await apiJson<{ needsInvite: boolean }>(

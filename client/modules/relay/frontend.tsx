@@ -146,7 +146,7 @@ const relaySummaryColumns = [
 		available: (device: DeviceSummary) => device.role === "relay",
 		header: () => t("mgmt.th.stream"),
 		cell: (device: DeviceSummary) => {
-			if (!device.online) return "—";
+			if (!device.online) return "-";
 			const { relay, activeLinks } = device as RelayDeviceSummary;
 			if (!relay?.running)
 				return <Badge text={t("dev.badge.stopped")} kind="off" />;
@@ -164,7 +164,7 @@ const relaySummaryColumns = [
 			const { activeLinks, totalLinks } = device as RelayDeviceSummary;
 			return device.online && totalLinks !== undefined
 				? `${activeLinks ?? 0}/${totalLinks}`
-				: "—";
+				: "-";
 		},
 	},
 	{
@@ -174,7 +174,7 @@ const relaySummaryColumns = [
 		header: () => [relayIcon(), ` ${t("setup.step.relay")}`],
 		cell: (device: DeviceSummary) => {
 			const { relay } = device as RelayDeviceSummary;
-			if (!relay) return "—";
+			if (!relay) return "-";
 			return relay.running ? (
 				<Badge text={`→ ${relay.remoteHost}:${relay.remotePort}`} kind="on" />
 			) : (

@@ -32,7 +32,13 @@ export function ipToU32(ip: string): number {
 /** 4 raw big-endian bytes at `buf[off..off+4)` → u32. Null when short. */
 export function bytesToU32(buf: Uint8Array, off = 0): number | null {
     if (buf.length < off + 4) return null;
-    return ((buf[off] << 24) | (buf[off+1] << 16) | (buf[off+2] << 8) | buf[off+3]) >>> 0;
+    return (
+        ((buf[off] << 24) |
+            (buf[off + 1] << 16) |
+            (buf[off + 2] << 8) |
+            buf[off + 3]) >>>
+        0
+    );
 }
 
 /** True when `ip` is a valid dotted-quad IPv4 address. */
@@ -44,7 +50,7 @@ export function isIpv4(ip: string): boolean {
 
 /** 32-bit big-endian value → "a.b.c.d". */
 export function u32ToIp(u32: number): string {
-    return `${(u32 >>> 24) & 0xff}.${(u32 >>> 16) & 0xff}.${u32 >>> 8 & 0xff}.${u32 & 0xff}`;
+    return `${(u32 >>> 24) & 0xff}.${(u32 >>> 16) & 0xff}.${(u32 >>> 8) & 0xff}.${u32 & 0xff}`;
 }
 
 // --- Checksum ----------------------------------------------------------------
@@ -60,7 +66,7 @@ export function internetChecksum(buf: Uint8Array): number {
     if (buf.length % 2 === 1) sum += buf[buf.length - 1] << 8;
     // Fold the 32-bit sum into 16 bits, then one's-complement.
     while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16);
-    return (~sum) & 0xffff;
+    return ~sum & 0xffff;
 }
 
 /**
@@ -72,10 +78,12 @@ export function udpChecksum(
     udpHeaderAndPayload: Uint8Array,
     pseudoHeader: Uint8Array,
 ): number {
-    const combined = new Uint8Array(pseudoHeader.length + udpHeaderAndPayload.length);
+    const combined = new Uint8Array(
+        pseudoHeader.length + udpHeaderAndPayload.length,
+    );
     combined.set(pseudoHeader);
     combined.set(udpHeaderAndPayload, pseudoHeader.length);
-    let cksum = internetChecksum(combined);
+    const cksum = internetChecksum(combined);
     // A UDP checksum that computes to zero is transmitted as all ones.
     return cksum === 0 ? 0xffff : cksum;
 }
@@ -97,7 +105,7 @@ export interface ParsedUdpPacket {
 /**
  * Read the destination IPv4 address from a raw IPv4 datagram (header present).
  * Returns `null` when the buffer is not a well-formed IPv4 header (shorter than
- * 20 bytes, or not version 4). No checksum validation — used to route packets
+ * 20 bytes, or not version 4). No checksum validation - used to route packets
  * at the transport layer, not to deliver them.
  */
 export function ipDST(buf: Uint8Array): string | null {
@@ -109,7 +117,7 @@ export function ipDST(buf: Uint8Array): string | null {
 
 /**
  * Source IPv4 of a full IPv4 datagram as a u32, or null when `buf` is not an
- * IPv4 datagram (short buffer / not version 4). Direct byte indexing — this is
+ * IPv4 datagram (short buffer / not version 4). Direct byte indexing - this is
  * the hot path; no temp arrays, no string building.
  */
 export function ipSRCU32(buf: Uint8Array): number | null {
@@ -146,8 +154,7 @@ export function parseUdpPacket(buf: Uint8Array): ParsedUdpPacket | null {
     const dstPort = (buf[udp + 2] << 8) | buf[udp + 3];
     const udpLength = (buf[udp + 4] << 8) | buf[udp + 5];
     const payloadStart = udp + 8;
-    const payloadEnd =
-        udpLength >= 8 ? udp + udpLength : buf.length;
+    const payloadEnd = udpLength >= 8 ? udp + udpLength : buf.length;
     if (payloadEnd > buf.length) return null;
     return {
         ihl,
@@ -179,9 +186,7 @@ export interface BuildUdpIpPacketOptions {
  * length = 8 + payload, computed checksum) and the payload. Returns one
  * contiguous `Uint8Array`.
  */
-export function buildUdpIpPacket(
-    o: BuildUdpIpPacketOptions,
-): Uint8Array {
+export function buildUdpIpPacket(o: BuildUdpIpPacketOptions): Uint8Array {
     const src = ipToBytes(o.srcIp);
     const dst = ipToBytes(o.dstIp);
     const udpLength = 8 + o.payload.length;
@@ -257,7 +262,7 @@ function natIpAddress(
     offset: 12 | 16,
 ): Uint8Array | null {
     if (buf.length < 20) return null;
-    if ((buf[0] >> 4) !== 4) return null;
+    if (buf[0] >> 4 !== 4) return null;
     const ihl = (buf[0] & 0x0f) * 4;
     if (ihl < 20) return null;
     const addr = ipToBytes(newAddr);
@@ -279,10 +284,18 @@ function natIpAddress(
     if (out[9] === 17 && out.length >= ihl + 8) {
         const udpLen = (out[ihl + 4] << 8) | out[ihl + 5];
         const pseudo = new Uint8Array([
-            out[12], out[13], out[14], out[15],
-            out[16], out[17], out[18], out[19],
-            0x00, 17,
-            (udpLen >> 8) & 0xff, udpLen & 0xff,
+            out[12],
+            out[13],
+            out[14],
+            out[15],
+            out[16],
+            out[17],
+            out[18],
+            out[19],
+            0x00,
+            17,
+            (udpLen >> 8) & 0xff,
+            udpLen & 0xff,
         ]);
         out[ihl + 6] = 0;
         out[ihl + 7] = 0;

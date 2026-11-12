@@ -14,7 +14,7 @@
  * - a trigger's `?<name>=<value>` pairs ride in the frame's payload and
  *   are written into the project variables only when an element goes on air
  *   for it (never while it waits in the queue), then persisted via the
- *   `overlays.applyEvent` WS uplink — so a queued element's values never
+ *   `overlays.applyEvent` WS uplink - so a queued element's values never
  *   clobber the on-air ones early, and the written values persist
  */
 
@@ -143,7 +143,7 @@ function assetMap(): Map<string, string> {
 	return map;
 }
 
-/** The initial `overlays.snapshot`: the complete state — overlay, canvas
+/** The initial `overlays.snapshot`: the complete state - overlay, canvas
  * and variables. */
 function applySnapshot(data: Record<string, unknown>): void {
 	const overlay = data.overlay as Overlay | null | undefined;
@@ -284,7 +284,7 @@ function playEvent(
 	return true;
 }
 
-/** Run the per-element trigger lifecycle: outro window, then removal —
+/** Run the per-element trigger lifecycle: outro window, then removal -
  * and the FIFO drain of queued claims for this element (a claim whose
  * condition fails at play time is dropped and the queue continues). */
 function scheduleTriggerLifecycle(elementId: string, duration: number): void {
@@ -315,7 +315,7 @@ function scheduleTriggerLifecycle(elementId: string, duration: number): void {
 /** Route an `overlays.event` frame to every trigger-driven element in the
  * scene. A claim plays immediately (values applied, `onTrigger` evaluated
  * with the live values) when the element is free, and is queued FIFO with
- * its values when the element is still reacting to an earlier event — the
+ * its values when the element is still reacting to an earlier event - the
  * queued values only land at play time, and the written values persist
  * via the `overlays.applyEvent` uplink (nothing is cleared here). */
 function handleEvent(

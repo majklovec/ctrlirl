@@ -31,7 +31,7 @@ export interface FeedLine extends ChatLine {
 // ── Inline platform SVGs (shown per line when the element enables icons) ──
 // `width/height="1em"` are intrinsic: the editor page loads no element CSS,
 // so an unsized SVG (viewBox only) would render at its default 300×150.
-// The runtime's `overlay.css` sizes the same box to 1em — no visual change
+// The runtime's `overlay.css` sizes the same box to 1em - no visual change
 // on the OBS page.
 
 const PLATFORM_ICONS: Record<ChatLine["platform"], string> = {
@@ -68,7 +68,7 @@ function formatTimestamp(ts: number): string {
 
 // ── Message decoration (escaped HTML: links, bold @mentions, DM dimming) ──
 
-/** A message starting with @username is a DM — render it muted. */
+/** A message starting with @username is a DM - render it muted. */
 const DM_RE = /^\s*@[A-Za-z0-9_-]+/;
 
 export function decorateText(text: string): string {
@@ -150,7 +150,7 @@ function upgradeEmoteUrl(raw: string): string {
 	}
 
 	// Google image CDNs (yt3.ggpht.com, lh3.ggpht.com,
-	// lh3.googleusercontent.com — the ggpht hosts carry YouTube channel
+	// lh3.googleusercontent.com - the ggpht hosts carry YouTube channel
 	// emojis) use =s{size} suffixes; =s0 is max.
 	if (/\/\/[a-z0-9.-]+\.(?:ggpht\.com|googleusercontent\.com)\//.test(url)) {
 		return url.replace(/=s\d+(?=-|$)/, "=s0");
@@ -397,7 +397,7 @@ type ChatFeedAttrs = {
 	showBadges: boolean;
 	feedKey: string;
 	// Feed text display values. The feed styles itself from these instead of
-	// relying on `overlay.css` consuming the element's `--ov-chat-*` props —
+	// relying on `overlay.css` consuming the element's `--ov-chat-*` props -
 	// the editor page loads no element CSS, so every value that only lived in
 	// that stylesheet (text-align, font, fade, spacing) ignored the settings
 	// outside the overlay. Same values both places → identical rendering.
@@ -426,7 +426,7 @@ type ChatFeedAttrs = {
  *
  * (It used to count how many lines "fit" the box by measuring one rendered
  * line and re-slicing after every redraw. That counted the newest line's
- * height as the unit — so a wrapped line arriving (or any other redraw, from
+ * height as the unit - so a wrapped line arriving (or any other redraw, from
  * a trigger timer, the weather ticker, …) changed the count and the top of
  * the feed jumped. CSS clipping is the same visual result at zero per-frame
  * DOM churn; the line buffers feeding this feed are capped server-side.)
@@ -459,7 +459,7 @@ export const ChatFeedView: m.Component<ChatFeedAttrs> = {
 
 		if (!vnode.attrs.bottom) {
 			// Top order: new lines enter at the top of the feed. Pin the feed
-			// there — without this, a feed that was following its bottom in
+			// there - without this, a feed that was following its bottom in
 			// bottom order stays scrolled to the (stable) tail and the new
 			// top lines stay off-clip in a non-scrollable (overflow:hidden)
 			// element.
@@ -535,7 +535,7 @@ export const ChatFeedView: m.Component<ChatFeedAttrs> = {
 					.filter(Boolean)
 					.join(";")}
 				onscroll={(event: Event) => {
-					// The top-order pin (onupdate) scrolls the feed too — don't
+					// The top-order pin (onupdate) scrolls the feed too - don't
 					// let that reset the auto-follow state, which only bottom
 					// order uses.
 					if (!bottom) return;

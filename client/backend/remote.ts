@@ -10,7 +10,7 @@
  *   - answers requests `{ "id", "method", "params" }` sent by the server
  *     with `{ "type": "response", ... }`;
  *   - sends requests itself: `{ "type": "request", "id", "method", "params",
- *     "target"? }` — `devices.list` is answered by the server, a `target`
+ *     "target"? }` - `devices.list` is answered by the server, a `target`
  *     routes the request to that device (server-mediated, same path viewers
  *     use), the response comes back over this socket.
  *
@@ -24,8 +24,8 @@
  * runtime so settings saved in the UI apply without a process restart.
  */
 
-import { asLanguage } from "../../shared/i18n";
 import type { DeviceSummary } from "../../shared/contracts/wire";
+import { asLanguage } from "../../shared/i18n";
 import { errorMessage, scrubUrl, textOf } from "../../shared/util";
 import { APP_VERSION } from "../../shared/version";
 import {
@@ -214,7 +214,7 @@ function connect(): void {
         pingTimer = setInterval(() => {
             if (Date.now() - lastSeen > LIVENESS_TIMEOUT_MS) {
                 console.warn(
-                    "[remote] no traffic from server — dropping connection",
+                    "[remote] no traffic from server - dropping connection",
                 );
                 sock.terminate();
                 return;
@@ -267,7 +267,7 @@ export function startRemote(): void {
     if (!target.url || !stopped) return;
     if (target.token && target.url.startsWith("ws://")) {
         console.warn(
-            "[remote] sending token over unencrypted ws:// — prefer wss://",
+            "[remote] sending token over unencrypted ws:// - prefer wss://",
         );
     }
     stopped = false;
@@ -318,7 +318,7 @@ export function serverRequest(
     });
 }
 
-/** The control server's registry — the devices registered on it. */
+/** The control server's registry - the devices registered on it. */
 export function listDevices(): Promise<DeviceSummary[]> {
     return serverRequest("devices.list") as Promise<DeviceSummary[]>;
 }

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { buildUdpIpPacket, parseUdpPacket } from "../src/ip";
+import { encodeDataFrame } from "../src/protocol";
 import {
     createVirtualInterface,
     makeMockTunDevice,
 } from "../src/virtual_interface";
-import { buildUdpIpPacket, parseUdpPacket } from "../src/ip";
-import { encodeDataFrame } from "../src/protocol";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,12 +23,15 @@ function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
 
 /**
  * A faithful transparent-bridge relay stub: it receives a 0x01 frame (8-byte
- * header + a full IP packet), and — standing in for the far end — replies with
+ * header + a full IP packet), and - standing in for the far end - replies with
  * the same IP datagram with the addresses/ports swapped (src<->dst), framed
  * again. Keepalives are counted, not echoed. Bound to 127.0.0.1.
  */
 async function makeRelayStub(port: number) {
-    type Recv = { kind: "data"; packet: Uint8Array } | { kind: "keepalive" } | { kind: "other" };
+    type Recv =
+        | { kind: "data"; packet: Uint8Array }
+        | { kind: "keepalive" }
+        | { kind: "other" };
     const received: Recv[] = [];
     const sock = (await Bun.udpSocket({
         hostname: "127.0.0.1",
@@ -63,7 +66,7 @@ async function makeRelayStub(port: number) {
 
 const enc = new TextEncoder();
 
-describe("virtual_interface.ts — factory validation", () => {
+describe("virtual_interface.ts - factory validation", () => {
     const base = {
         name: "moblink0",
         localIp: "10.3.3.1",
@@ -73,15 +76,21 @@ describe("virtual_interface.ts — factory validation", () => {
     };
 
     test("rejects a bad name", async () => {
-        await expect(createVirtualInterface({ ...base, name: "bad name!" })).rejects.toThrow(/name/);
+        await expect(
+            createVirtualInterface({ ...base, name: "bad name!" }),
+        ).rejects.toThrow(/name/);
     });
 
     test("rejects a bad localIp", async () => {
-        await expect(createVirtualInterface({ ...base, localIp: "nope" })).rejects.toThrow(/localIp/);
+        await expect(
+            createVirtualInterface({ ...base, localIp: "nope" }),
+        ).rejects.toThrow(/localIp/);
     });
 
     test("rejects a bad prefixLength", async () => {
-        await expect(createVirtualInterface({ ...base, prefixLength: 7 })).rejects.toThrow(/prefixLength/);
+        await expect(
+            createVirtualInterface({ ...base, prefixLength: 7 }),
+        ).rejects.toThrow(/prefixLength/);
     });
 
     test("rejects a missing relay", async () => {
@@ -91,7 +100,9 @@ describe("virtual_interface.ts — factory validation", () => {
     });
 
     test("rejects a too-small mtu", async () => {
-        await expect(createVirtualInterface({ ...base, mtu: 20 })).rejects.toThrow(/mtu/);
+        await expect(
+            createVirtualInterface({ ...base, mtu: 20 }),
+        ).rejects.toThrow(/mtu/);
     });
 
     test("rejects off-Linux without a mock device", async () => {
@@ -112,7 +123,7 @@ describe("virtual_interface.ts — factory validation", () => {
     });
 });
 
-describe("virtual_interface.ts — packet logic (mock TUN)", () => {
+describe("virtual_interface.ts - packet logic (mock TUN)", () => {
     test("round trip: TUN → relay → TUN (transparent, no address swap)", async () => {
         const { device, pushPacket, written } = makeMockTunDevice();
         const relay = await makeRelayStub(58901);
@@ -204,8 +215,12 @@ describe("virtual_interface.ts — packet logic (mock TUN)", () => {
         } as unknown as Parameters<typeof Bun.udpSocket>[0])) as any;
         const vifPort = vif.socketAddress?.port;
         expect(vifPort).toBeTypeOf("number");
-        // A data frame carrying a 100-byte "packet" — exceeds the 60-byte cap.
-        stub.send(encodeDataFrame(new Uint8Array(100), "127.0.0.1"), vifPort!, "127.0.0.1");
+        // A data frame carrying a 100-byte "packet" - exceeds the 60-byte cap.
+        stub.send(
+            encodeDataFrame(new Uint8Array(100), "127.0.0.1"),
+            vifPort!,
+            "127.0.0.1",
+        );
         await waitFor(() => vif.stats().rxDropped >= 1);
         expect(written.length).toBe(0);
         await vif.stop();
@@ -263,7 +278,11 @@ describe("virtual_interface.ts — packet logic (mock TUN)", () => {
         } as unknown as Parameters<typeof Bun.udpSocket>[0])) as any;
         const vifPort = vif.socketAddress?.port;
         expect(vifPort).toBeTypeOf("number");
-        stub.send(encodeDataFrame(enc.encode("reply"), "127.0.0.1"), vifPort!, "127.0.0.1");
+        stub.send(
+            encodeDataFrame(enc.encode("reply"), "127.0.0.1"),
+            vifPort!,
+            "127.0.0.1",
+        );
         await waitFor(() => vif.stats().rxDropped >= 1);
         expect(written.length).toBe(0);
         expect(vif.stats().rxPackets).toBe(0);
@@ -285,7 +304,9 @@ describe("virtual_interface.ts — packet logic (mock TUN)", () => {
         });
         await vif.start();
         await waitFor(
-            () => relay.received.filter((r) => r.kind === "keepalive").length >= 2,
+            () =>
+                relay.received.filter((r) => r.kind === "keepalive").length >=
+                2,
             3000,
         );
         await vif.stop();

@@ -1,12 +1,12 @@
 /*
  * Server → client pushes shared by the local WebSocket API and the remote
  * control link: `status` (debounced, deduplicated), `log`, and module events
- * (`ctx.emit`) — optionally throttled per sink and/or retained for replay to
+ * (`ctx.emit`) - optionally throttled per sink and/or retained for replay to
  * new connections.
  */
 
-import type { LogEvent } from "../../shared/log_messages";
 import type { EmitOptions } from "../../shared/contracts/backend_module";
+import type { LogEvent } from "../../shared/log_messages";
 import { errorMessage } from "../../shared/util";
 import { logEntries, onLogEntry } from "./eventlog";
 import { buildStatus } from "./methods";

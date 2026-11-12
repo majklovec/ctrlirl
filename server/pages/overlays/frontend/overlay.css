@@ -1,6 +1,6 @@
 /* OBS Browser Source runtime page: fully transparent, no chrome.
    NOTE: the html/body/#app rules below are ALSO inlined in
-   pages/overlay_view.html — OBS's CEF does not reliably repaint when this
+   pages/overlay_view.html - OBS's CEF does not reliably repaint when this
    external stylesheet arrives after the first paint, so the inlined copy is
    authoritative for the first frame. Keep the two in sync. */
 html,
@@ -425,13 +425,13 @@ body {
     --ov-chat-fade-clear: #fff0;
 }
 
-/* No scrollbar — the feed is clipped to the element box and long lines wrap
+/* No scrollbar - the feed is clipped to the element box and long lines wrap
    inside it. `white-space: normal` resets the `.overlay-element` `pre`
    inheritance so lines actually wrap. The fallbacks keep a feed rendered
    without an element (e.g. a bare preview) at its defaults.
    A flex column so the lines pin to the edge new messages enter: bottom
-   order sits flush on the box's bottom edge (any excess overflows — and is
-   clipped — at the top), top order on the top edge; the feed is a few lines
+   order sits flush on the box's bottom edge (any excess overflows - and is
+   clipped - at the top), top order on the top edge; the feed is a few lines
    short of the box when it has few messages, and pinning is what keeps the
    newest line on the entry edge. */
 .chat-element .chat-feed {
@@ -519,7 +519,7 @@ body {
 }
 
 /* A line starting with @username is a DM, wrapped in `.dm` by the element's
- * text decoration — dimmed so it recedes in the feed. */
+ * text decoration - dimmed so it recedes in the feed. */
 .chat-element .chat-feed .chat-line .dm {
     opacity: 0.55;
 }
@@ -569,7 +569,7 @@ body {
 }
 
 /* The top fade only makes sense once the feed is full enough to overflow
-   upward — mask only when there are at least 3 messages (a 3rd `.chat-line`
+   upward - mask only when there are at least 3 messages (a 3rd `.chat-line`
    child, the feed's only child type), so a fresh/short feed stays crisp. */
 .chat-element.chat-element-fade-top .chat-feed:has(.chat-line:nth-child(3)) {
     -webkit-mask-image: linear-gradient(

@@ -156,7 +156,7 @@ export async function detectInterfaces(modemList?: Modem[]): Promise<Iface[]> {
                         false,
                     connectionState: modem.state,
                     // Cellular gateways live only in the bearer, not the main
-                    // table — carry it so the plan can route off-link traffic.
+                    // table - carry it so the plan can route off-link traffic.
                     gateway: modem.gateway,
                 });
             }
@@ -172,7 +172,7 @@ async function getGateway(iface: string): Promise<string | null> {
 
 /** Gateway from the ISC `dhclient` lease, the router the server actually
  * handed the interface. The right source for RNDIS/NDIS modem-ethernet
- * uplinks — e.g. a USB LTE modem on usb0 whose `192.168.8.x/24` LAN gateway
+ * uplinks - e.g. a USB LTE modem on usb0 whose `192.168.8.x/24` LAN gateway
  * is DHCPed, so it is absent from the main table and has no ModemManager
  * bearer. Returns the first `option routers` of the newest lease for
  * `address` (`null` when the file is absent or has no matching lease). */
@@ -222,7 +222,7 @@ function getNetwork(ipAddr: string, prefix: number): string {
 
 /** Last-resort gateway for an interface that publishes no gateway anywhere
  * (no ModemManager bearer, main table, or DHCP lease): the subnet's first
- * host — e.g. 192.168.8.153/24 -> 192.168.8.1. `null` when that first host is
+ * host - e.g. 192.168.8.153/24 -> 192.168.8.1. `null` when that first host is
  * the interface's own address (a MobLink TUN, whose local IP is the first
  * host of its /24): its source table gets a plain `default dev <tun>` route. */
 export function leaselessGateway(addr: string, prefix: number): string | null {
@@ -232,7 +232,7 @@ export function leaselessGateway(addr: string, prefix: number): string | null {
 
 /** First usable host of the interface's subnet (network + 1). The gateway for
  * RNDIS/NDIS CPE/modem uplinks that publish no gateway anywhere (not in the
- * main table, no ModemManager bearer, no DHCP lease file) — e.g.
+ * main table, no ModemManager bearer, no DHCP lease file) - e.g.
  * 192.168.8.153/24 -> 192.168.8.1. `null` for a malformed IPv4. */
 function subnetFirstHost(ip: string, prefix: number): string | null {
     const octets = ip.split(".").map((o) => parseInt(o, 10));
@@ -346,7 +346,7 @@ const isManagedTable = (table: number): boolean =>
  * Seed `managedTableCount` from the live `ip rule` tables. After a process
  * restart the in-memory counter is 0, so monitor events for tables this
  * process has not re-applied yet would look foreign until the next full
- * re-apply — recognising them keeps the monitor quiet.
+ * re-apply - recognising them keeps the monitor quiet.
  */
 export async function seedManagedTableCount(): Promise<void> {
     try {
@@ -638,11 +638,11 @@ export async function reconfigure(): Promise<ReconfigureResult> {
                         // Resolve in priority order:
                         //  1. the ModemManager bearer gateway (cellular / wwan0),
                         //  2. an existing main-table default for the interface (ethernet),
-                        //  3. the dhclient lease router (RNDIS/NDIS modem-ethernet — a
+                        //  3. the dhclient lease router (RNDIS/NDIS modem-ethernet - a
                         //     USB LTE modem on usb0 whose gateway is DHCPed, not in main
                         //     and has no MM bearer),
                         //  4. the subnet's first host (.1) as a last resort for a
-                        //     lease-less RNDIS uplink (null for a TUN — it has no
+                        //     lease-less RNDIS uplink (null for a TUN - it has no
                         //     via-address, `default dev <tun>` is enough).
                         const gateway =
                             bearerGateway ??
@@ -720,7 +720,7 @@ let monitorProc: Bun.Subprocess<"ignore", "pipe", "pipe"> | null = null;
 let monitorDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let monitorBusy = false;
 let monitorPending = false;
-// One handler per SRTLA leg owner (relay, encoder) — each reloads its own
+// One handler per SRTLA leg owner (relay, encoder) - each reloads its own
 // srtla_send. Registered over the `network.uplinks` capability.
 const uplinksChangedHandlers = new Set<UplinksChangedHandler>();
 let monitorWanted = false;
@@ -774,7 +774,7 @@ async function rewriteUplinksWithExtras(): Promise<void> {
         (await Bun.file(UPLINKS_FILE)
             .text()
             .catch(() => null));
-    // Every legitimate line is a source IPv4 — anything else (e.g. stale
+    // Every legitimate line is a source IPv4 - anything else (e.g. stale
     // uplink ids an older build wrote) is dropped, not carried forward.
     const previousLines = (previous ?? "")
         .split("\n")
@@ -863,7 +863,7 @@ function carrierState(name: string): "up" | "down" {
 
 /** List the machine's own IPv4 interfaces. Filtered:
  * - loopback (never carries relay traffic)
- * - MobLink tunnel TUNs (`relay${slot}_${iface}`, e.g. `relay0_wg0`) —
+ * - MobLink tunnel TUNs (`relay${slot}_${iface}`, e.g. `relay0_wg0`) -
  *   tunnels to a relay's shared uplinks, not own interfaces: selecting one
  *   would loop traffic back through the relay (see `isMoblinkTun`). */
 export function listNetworkInterfaces(): NetworkInterfaceInfo[] {
@@ -898,7 +898,10 @@ export function onInterfaceChange(handler: () => void): () => void {
 export function fireInterfaceChangeIfChanged(): void {
     const signature = [
         ...listNetworkInterfaces()
-            .map((i) => `${i.name}:${i.addresses.join(",")}:${carrierState(i.name)}`)
+            .map(
+                (i) =>
+                    `${i.name}:${i.addresses.join(",")}:${carrierState(i.name)}`,
+            )
             .sort(),
     ].join("|");
     if (signature === lastInterfaceSignature) return;
@@ -935,14 +938,14 @@ async function runReconcile(reason: string): Promise<void> {
         if (result.changed) {
             // `Uplinks file updated: ...` (from reconfigure) carries the IPs.
             console.log(
-                `[monitor] ${reason}: uplinks changed — reloading srtla_send`,
+                `[monitor] ${reason}: uplinks changed - reloading srtla_send`,
             );
             await fireUplinksChanged();
         } else {
-            console.log(`[monitor] ${reason}: uplinks unchanged — no reload`);
+            console.log(`[monitor] ${reason}: uplinks unchanged - no reload`);
         }
         // The interface set (any interface, not only bonded ones) may have
-        // changed without the uplinks file changing — notify the
+        // changed without the uplinks file changing - notify the
         // per-interface consumers (moblink-relay).
         fireInterfaceChangeIfChanged();
     } catch (err: unknown) {

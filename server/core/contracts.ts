@@ -1,5 +1,5 @@
 /*
- * Page contracts — the only surface the control-server core knows.
+ * Page contracts - the only surface the control-server core knows.
  *
  * A page is a self-contained vertical slice under `server/pages/<id>/`:
  * server routes plus init (the only place services are received) and the
@@ -10,13 +10,13 @@
  *   pages/*  ->  shell/ -> ui (shared/ui) -> external
  *      \
  *       ->  core/ -> external
- * Cross-page state flows only through the capability map on PageServices —
+ * Cross-page state flows only through the capability map on PageServices -
  * one page never imports another, and the core stays entity-agnostic.
  */
 import type { Database } from "bun:sqlite";
 import type { Elysia } from "elysia";
-import type { createAuth } from "./auth/auth";
 import type { createFrontend } from "../../shared/frontend";
+import type { createAuth } from "./auth/auth";
 
 export type Auth = Awaited<ReturnType<typeof createAuth>>;
 export type Frontend = Awaited<ReturnType<typeof createFrontend>>;
@@ -36,7 +36,7 @@ export interface ServerConfig {
 /**
  * The capability map: pages register string-keyed capabilities in their
  * `init` and later pages pull the ones they declare in `dependencies`.
- * The core stores them opaquely — it never names what a capability is.
+ * The core stores them opaquely - it never names what a capability is.
  */
 export interface CapabilityRegistry {
     provide(name: string, value: unknown): void;
@@ -46,7 +46,7 @@ export interface CapabilityRegistry {
 }
 
 /**
- * Everything a page may receive — and the only way it may get them.
+ * Everything a page may receive - and the only way it may get them.
  * `db` is null in `--no-auth` mode, exactly like today's stores.
  */
 export interface PageServices {
@@ -72,7 +72,7 @@ export interface ProjectAccess {
     role(user: string, projectId: string): ProjectRole | null;
     /**
      * The user's role in the project, throwing `ApiError` (404 for a missing
-     * project / non-member, 403 for an insufficient role) — the guard an
+     * project / non-member, 403 for an insufficient role) - the guard an
      * entity route runs before dispatching to its store.
      */
     requireRole(
@@ -82,7 +82,7 @@ export interface ProjectAccess {
     ): ProjectRole;
     /**
      * The default project id for a project-scoped request (no `?project=`
-     * override) — the user's earliest project as a member. Not auto-created:
+     * override) - the user's earliest project as a member. Not auto-created:
      * throws a 404 `ApiError` when the user has no projects (the UI prompts
      * them to make one). `--no-auth` returns the local id.
      */

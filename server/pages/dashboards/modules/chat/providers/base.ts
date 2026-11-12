@@ -89,7 +89,7 @@ export abstract class ChatProvider {
      * `widget.snapshot` feed carry the flag) and broadcasts a `banned` frame
      * so live viewers strike/refresh the line and stop any in-flight TTS for
      * it. Ids not yet in history (already evicted) are carried to the frame
-     * as-is — the frontend drops them harmlessly. Returns the ids it touched.
+     * as-is - the frontend drops them harmlessly. Returns the ids it touched.
      */
     markBanned(ids: (string | number)[]): (string | number)[] {
         if (!ids.length) return [];
@@ -111,7 +111,7 @@ export abstract class ChatProvider {
     }
 
     /** The ids of this user's messages currently in the rolling history
-     * (case-insensitive on the display name) — for a platform "user banned"
+     * (case-insensitive on the display name) - for a platform "user banned"
      * signal that arrives without per-message ids. */
     historyIdsForUser(username: string): (string | number)[] {
         const want = username.trim().toLowerCase();
@@ -127,7 +127,7 @@ export abstract class ChatProvider {
      * `UserBannedEvent`) names only the person, not the messages, so this
      * resolves their messages in the rolling history and marks them banned.
      * Returns the ids it touched (empty when the name matches no one in
-     * history — a channel-wide clear's free-text reason marks nothing).
+     * history - a channel-wide clear's free-text reason marks nothing).
      */
     banUser(username: string): (string | number)[] {
         const name = (username ?? "").trim();

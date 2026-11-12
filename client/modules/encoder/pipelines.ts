@@ -39,7 +39,7 @@ export function pipelinePath(
 ): { root: string; path: string } {
     if (!PIPELINE_ID_RE.test(id))
         throw new ApiError(
-            `Invalid pipeline id "${id}" — use a relative path like "group/name"`,
+            `Invalid pipeline id "${id}" - use a relative path like "group/name"`,
         );
     const root = resolve(pipelinesDir);
     const path = resolve(root, id);
@@ -114,7 +114,7 @@ export async function deletePipelineFile(
 
 /**
  * File count under `dir` (recursive, dot entries skipped). 0 when the
- * directory is missing — a configured repository whose mirror was removed
+ * directory is missing - a configured repository whose mirror was removed
  * still appears in the list with zero pipelines.
  */
 export async function countPipelineFiles(dir: string): Promise<number> {

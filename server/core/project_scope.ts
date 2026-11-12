@@ -1,8 +1,8 @@
 /*
  * Project-scoping guards shared by every project-scoped page (devices,
- * dashboards, overlays, assets). A route resolves the target project — the
+ * dashboards, overlays, assets). A route resolves the target project - the
  * `?project=` query param, else the requesting user's Personal project (a
- * 404 when they have none) — and enforces the requested roles through the
+ * 404 when they have none) - and enforces the requested roles through the
  * "projectAccess" capability before dispatching to its store. Stores take the
  * resolved project id and scope their queries to it without doing auth
  * themselves.
@@ -37,7 +37,7 @@ export function apiGuard(
 
 /**
  * Resolve the project a request targets (`?project=`, else the user's Personal
- * project) and enforce the requested roles — throwing `ApiError` on a missing
+ * project) and enforce the requested roles - throwing `ApiError` on a missing
  * project / non-member / insufficient role, so the caller continues only when
  * authorized and scopes its store calls to the returned project id.
  */

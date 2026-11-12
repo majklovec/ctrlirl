@@ -1,5 +1,5 @@
 /**
- * Shared SRT stats sampling — the obs-srtla-source vendor read
+ * Shared SRT stats sampling - the obs-srtla-source vendor read
  * (CallVendorRequest → GetSrtStats) plus the recent-bitrate delta math. Pure:
  * no module state, no core bag. Both the box module (backend.ts) and the
  * standalone OBS proxy (obs-client.ts) sample through here, so the SRT
@@ -9,7 +9,7 @@
  * counters (`byteRecvTotal`, `pktRcvRetrans`, …) and `mbpsRecvRate` cover the
  * current connection since it started; to get a *recent* bitrate we take the
  * `byteRecvTotal` delta over the poll interval. RTT (`msRTT`) is instantaneous.
- * Counters reset when the sender reconnects — the byte baseline is dropped
+ * Counters reset when the sender reconnects - the byte baseline is dropped
  * whenever the total drops below the previous one, so a fresh connection starts
  * measuring cleanly.
  */
@@ -41,7 +41,7 @@ export interface SrtBaseline {
 }
 
 export interface SrtCollectResult {
-    /** The SRT sample (null: client/vendor/query unavailable — a metrics gap). */
+    /** The SRT sample (null: client/vendor/query unavailable - a metrics gap). */
     sample: SwitcherMetrics | null;
     /** The updated byte baseline to pass on the next poll (null after a drop). */
     baseline: SrtBaseline | null;
@@ -53,7 +53,7 @@ export interface SrtCollectResult {
  * query fails; the caller then sees a metrics gap and stays put.
  *
  * An idle or disconnected source answers `success: true, connected: false`
- * with no `stats` object — reported as a connected `false` sample (the engine
+ * with no `stats` object - reported as a connected `false` sample (the engine
  * sees it as an offline SRT link, not a metrics gap). The recent bitrate is a
  * delta of `byteRecvTotal` over the poll interval; RTT is the instantaneous
  * `msRTT`. The `warn` callback is invoked (throttling is the caller's) for

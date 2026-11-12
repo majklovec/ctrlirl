@@ -7,9 +7,9 @@
     "dev.ssh_stop_confirm": "Zastavit SSH server na tomto zařízení? Aktivní ssh připojení se ukončí.",
     "mlog.done.ssh_password_reset": "SSH heslo uživatele {{user}} obnoveno",
     "mlog.done.ssh_password_set": "Heslo SSH pro {{user}} nastaveno",
-    "set.ssh_desc": "Spravujte SSH server tohoto zařízení — spouštějte a zastavujte ho, zvolte přihlašovací účet a nastavte nebo obnovte heslo.",
-    "set.ssh_reset_done": "Heslo obnoveno — nové heslo pro {{user}} je uvedeno níže.",
-    "set.ssh_saved": "Heslo pro {{user}} uloženo — bude použito na účtu při spuštění SSH.",
-    "set.ssh_stop_hint": "Heslo lze měnit jen při zastaveném SSH — na účet se použije při spuštění SSH. Nejprve SSH zastavte.",
-    "ssh.reset_blocked": "Heslo lze generovat jen při zastaveném SSH — SSH nejdříve zastavte."
+    "set.ssh_desc": "Spravujte SSH server tohoto zařízení - spouštějte a zastavujte ho, zvolte přihlašovací účet a nastavte nebo obnovte heslo.",
+    "set.ssh_reset_done": "Heslo obnoveno - nové heslo pro {{user}} je uvedeno níže.",
+    "set.ssh_saved": "Heslo pro {{user}} uloženo - bude použito na účtu při spuštění SSH.",
+    "set.ssh_stop_hint": "Heslo lze měnit jen při zastaveném SSH - na účet se použije při spuštění SSH. Nejprve SSH zastavte.",
+    "ssh.reset_blocked": "Heslo lze generovat jen při zastaveném SSH - SSH nejdříve zastavte."
 }

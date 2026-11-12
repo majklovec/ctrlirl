@@ -30,7 +30,7 @@
     "set.obs_password": "Palavra-passe do OBS",
     "lowbs.title": "Comutador de baixo débito",
     "lowbs.idle": "inativo",
-    "lowbs.idle_hint": "Ainda não há nenhum motor em execução. Defina a fonte SRT do OBS acima, escolha as cenas e guarde — o comutador inicia quando a configuração for guardada.",
+    "lowbs.idle_hint": "Ainda não há nenhum motor em execução. Defina a fonte SRT do OBS acima, escolha as cenas e guarde - o comutador inicia quando a configuração for guardada.",
     "lowbs.state_normal": "normal",
     "lowbs.state_low": "baixo débito",
     "lowbs.state_offline": "offline",

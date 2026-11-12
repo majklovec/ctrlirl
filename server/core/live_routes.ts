@@ -1,13 +1,17 @@
 /*
  * The core live feed: /dashboards/ws is the shared realtime channel of
  * the control UI (widget hub + dashboards + devices snapshots/changes),
- * consumed by the devices, dashboards AND overlays pages — which is why
+ * consumed by the devices, dashboards AND overlays pages - which is why
  * it lives in core rather than in any single page slice.
  */
 import { Elysia } from "elysia";
 import { originAllowed, text, upgradeRequired } from "../../shared/http";
-import { widgetHubSnapshot } from "../../shared/registry";
 import { projectParam } from "../../shared/project_param";
+import { widgetHubSnapshot } from "../../shared/registry";
+import {
+    authenticatedHandler,
+    unauthenticatedResponse,
+} from "./auth/authenticated";
 import type { PageServices, ProjectAccess } from "./contracts";
 import {
     dashboardsTopic,
@@ -15,10 +19,6 @@ import {
     event,
     WIDGET_HUB_TOPIC,
 } from "./runtime";
-import {
-    authenticatedHandler,
-    unauthenticatedResponse,
-} from "./auth/authenticated";
 
 /** Any member of the project may subscribe to its live feed. */
 const READ_ROLES = ["viewer", "editor", "owner"] as const;
@@ -51,9 +51,8 @@ export function liveFeedRoutes(s: PageServices) {
                 if (!user) return ws.close(1008, "Authentication required");
                 // The feed is per-project: `?project=` (the shell's active
                 // project) else the user's Personal project.
-                const access = capabilities.require<ProjectAccess>(
-                    "projectAccess",
-                );
+                const access =
+                    capabilities.require<ProjectAccess>("projectAccess");
                 const projectId =
                     projectParam(new URL(request.url)) ??
                     access.personalProjectId(user);
@@ -62,9 +61,8 @@ export function liveFeedRoutes(s: PageServices) {
                 } catch {
                     return ws.close(1008, "Access denied");
                 }
-                const dashboards = capabilities.require<DashboardsFeed>(
-                    "dashboards",
-                );
+                const dashboards =
+                    capabilities.require<DashboardsFeed>("dashboards");
                 const devices = capabilities.require<DevicesFeed>("devices");
 
                 ws.subscribe(WIDGET_HUB_TOPIC);
@@ -76,7 +74,9 @@ export function liveFeedRoutes(s: PageServices) {
                         dashboards: dashboards.dashboardsFor(projectId),
                     }),
                 );
-                ws.send(event("devices.snapshot", devices.summaries(projectId)));
+                ws.send(
+                    event("devices.snapshot", devices.summaries(projectId)),
+                );
             },
         });
 }

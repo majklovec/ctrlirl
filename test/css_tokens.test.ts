@@ -17,11 +17,16 @@ function walk(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
         if (e.name === "node_modules") return [];
         const path = join(dir, e.name);
-        return e.isDirectory() ? walk(path) : path.endsWith(".css") ? [path] : [];
+        return e.isDirectory()
+            ? walk(path)
+            : path.endsWith(".css")
+              ? [path]
+              : [];
     });
 }
 
-const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, "");
+const stripComments = (css: string): string =>
+    css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("css design tokens", () => {
     test("colour literals only appear as custom-property values", () => {
@@ -35,17 +40,33 @@ describe("css design tokens", () => {
                         // even-numbered line after a match
                         COLOR_LITERAL.lastIndex = 0;
                         if (!COLOR_LITERAL.test(line)) return;
-                        // `--name: <value>;` declares a token — allowed anywhere
+                        // `--name: <value>;` declares a token - allowed anywhere
                         if (/^\s*--[\w-]+\s*:/.test(line)) return;
-                        offenders.push(`${relative(ROOT, file)}:${i + 1}: ${line.trim()}`);
+                        offenders.push(
+                            `${relative(ROOT, file)}:${i + 1}: ${line.trim()}`,
+                        );
                     });
             }
         expect(offenders).toEqual([]);
     });
 
     test("the theme is defined once, in shared/css/tokens.css", () => {
-        const tokens = readFileSync(join(ROOT, "shared/css/tokens.css"), "utf8");
-        for (const name of ["--accent", "--bg", "--text", "--muted", "--border", "--ok", "--warn", "--bad", "--radius", "--on-accent"])
+        const tokens = readFileSync(
+            join(ROOT, "shared/css/tokens.css"),
+            "utf8",
+        );
+        for (const name of [
+            "--accent",
+            "--bg",
+            "--text",
+            "--muted",
+            "--border",
+            "--ok",
+            "--warn",
+            "--bad",
+            "--radius",
+            "--on-accent",
+        ])
             expect(tokens, `${name} missing`).toContain(`${name}:`);
         const style = readFileSync(join(ROOT, "shared/css/style.css"), "utf8");
         expect(style).toContain('@import "./tokens.css";');

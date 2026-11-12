@@ -45,7 +45,7 @@ The implementing agent must work with the following components:
     -   `--stall-min-in-flight` (default **32**): minimum in-flight packet count for stall evaluation.
     -   `--conn-timeout-ms` (default **5000**): overall connection timeout.
 -   **Recommended values for this deployment:** `--stall-ack-stale-ms 400 --stall-min-in-flight 1 --conn-timeout-ms 1500`.
--   These values are tuned for the failover scenario: a dead gateway link is deselected within hundreds of milliseconds, while `srtla_send` continues sending over remaining uplinks. This is **complementary** to the RPC-driven target switch — it shortens the period during which packets are sent into a dead gateway even before the monitoring script reacts.
+-   These values are tuned for the failover scenario: a dead gateway link is deselected within hundreds of milliseconds, while `srtla_send` continues sending over remaining uplinks. This is **complementary** to the RPC-driven target switch - it shortens the period during which packets are sent into a dead gateway even before the monitoring script reacts.
 
 ## 3. Implementation Steps for `set_target` RPC Method
 
@@ -201,13 +201,13 @@ WantedBy=multi-user.target
 
 ## 6. Important Cautions
 
--   **Address reachability (critical):** The primary target (`192.168.1.1` in this example) is a **private LAN address**. Only the encoder's Wi-Fi uplink can reach it directly. The encoder's USB modem, being on a separate cellular network, **cannot reach a private LAN IP** without a tunnel or a publicly routable address on the gateway. If the encoder's modem uplink is expected to participate in the primary (gateway-bound) SRTLA bond, this must be resolved beforehand (e.g., VPN tunnel between encoder and gateway, or a public IPv4 on the gateway). If the modem is only intended to serve as a fallback via the direct-to-public-IP path, this limitation is acceptable — but it must be validated against the intended topology.
+-   **Address reachability (critical):** The primary target (`192.168.1.1` in this example) is a **private LAN address**. Only the encoder's Wi-Fi uplink can reach it directly. The encoder's USB modem, being on a separate cellular network, **cannot reach a private LAN IP** without a tunnel or a publicly routable address on the gateway. If the encoder's modem uplink is expected to participate in the primary (gateway-bound) SRTLA bond, this must be resolved beforehand (e.g., VPN tunnel between encoder and gateway, or a public IPv4 on the gateway). If the modem is only intended to serve as a fallback via the direct-to-public-IP path, this limitation is acceptable - but it must be validated against the intended topology.
 -   **SRTLA is experimental:** The README explicitly states the tool is experimental and requires troubleshooting. Thorough testing is mandatory.
 -   **Re-home consistency:** The manual re-home must move **all uplinks simultaneously** to avoid splitting the bond across two receivers.
 -   **Control socket security:** The Unix socket should be protected by file permissions to prevent unauthorized configuration changes.
 -   **Startup-only parameters:** `stall_ack_stale_ms`, `stall_min_in_flight`, and `conn_timeout_ms` cannot be changed at runtime. If the RPC method is extended in the future to modify them, it must be documented separately and explicitly. For now, they must be set at process start (via CLI or config file) and the monitoring script must not attempt to change them.
 -   **Aggressive thresholds are scenario-specific:** The values `400 ms / 1 packet / 1500 ms` are tuned for low-latency failover between a local gateway and a public fallback. On high-latency (satellite) or lossy links, these thresholds may cause spurious deselection. Validate against the actual link characteristics before production use.
--   **Ping-based detection granularity:** The sample script uses `ping` to a single address with a 3-second polling interval. For sub-second failover, consider replacing or augmenting this with an event-driven trigger — for example, subscribing to `srtla_send`'s `get_stats` RPC and firing `set_target` when the primary uplink's ACK rate drops below a threshold.
+-   **Ping-based detection granularity:** The sample script uses `ping` to a single address with a 3-second polling interval. For sub-second failover, consider replacing or augmenting this with an event-driven trigger - for example, subscribing to `srtla_send`'s `get_stats` RPC and firing `set_target` when the primary uplink's ACK rate drops below a threshold.
 
 ## 7. References
 

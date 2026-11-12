@@ -1,17 +1,19 @@
 /*
  * Device-side module lifecycle: the registry's registrations driven by the
- * device process — settings slices (defaults, backfill, enable/disable),
+ * device process - settings slices (defaults, backfill, enable/disable),
  * start/stop/restart, RPC ownership and gating, status / settings / setup
  * contributions, and autostart. Nothing here names a module id, method
  * prefix or status key: every decision reads the registration contract
  * (shared/contracts/backend_module.ts).
  */
+
+import { argFail } from "../../shared/args";
+import { provideCapability } from "../../shared/capabilities";
 import type {
     BackendModule,
     ModuleSlice,
     Params,
 } from "../../shared/contracts/backend_module";
-import { argFail } from "../../shared/args";
 import {
     ALL_MODULES,
     isRegisteredRole,
@@ -21,9 +23,8 @@ import {
 import { deepMerge } from "../../shared/util";
 import type { Role } from "../../shared/validate";
 import { runAutostart as runAutostartWith } from "./autostart";
-import { provideCapability } from "../../shared/capabilities";
-import { logEvent } from "./eventlog";
 import { ROLE } from "./config";
+import { logEvent } from "./eventlog";
 import { buildModuleCore, type ModuleCore } from "./module_core";
 import { pushModuleEvent } from "./push";
 import {
@@ -42,12 +43,20 @@ const DEVICE_MODULES = ALL_MODULES.filter(
 ) as Module[];
 
 if (!isRegisteredRole(ROLE))
-    argFail("--role", ROLE, roleDefinitions().map((role) => role.id).join(" | "));
+    argFail(
+        "--role",
+        ROLE,
+        roleDefinitions()
+            .map((role) => role.id)
+            .join(" | "),
+    );
 if (state.settings.role && !isRegisteredRole(state.settings.role))
     argFail(
         "config role",
         state.settings.role,
-        roleDefinitions().map((role) => role.id).join(" | "),
+        roleDefinitions()
+            .map((role) => role.id)
+            .join(" | "),
     );
 
 // ---------------------------------------------------------------------------
@@ -153,7 +162,7 @@ for (const mod of ALL_MODULES)
 
 /**
  * Bind the process bag into every device module. Runs at discovery, before
- * start: a module's lazy objects must work — reporting "stopped" — even when
+ * start: a module's lazy objects must work - reporting "stopped" - even when
  * its start never runs. Tests that bind a stub bag into a module call it
  * again to restore the real one (the test suite shares one process).
  */
@@ -217,7 +226,7 @@ export const moduleSettings = (): Record<string, unknown> =>
     Object.assign({}, ...applicable().map((m) => m.settings?.() ?? {}));
 
 /** Setup wizard data: merge the setup info of every module that provides it.
- * Not filtered by the process role — the wizard lets the user pick any role,
+ * Not filtered by the process role - the wizard lets the user pick any role,
  * so a relay process must still return the encoder's pipelines & audio sources
  * when the user selects the encoder role. */
 export async function moduleSetupInfo(): Promise<Record<string, unknown>> {

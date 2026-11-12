@@ -5,17 +5,17 @@
  * that:
  *
  *   1. every server/pages/<id>/ is a valid PageModule whose id (and menu id)
- *      equals the directory name — validated by the same assertPageModule
+ *      equals the directory name - validated by the same assertPageModule
  *      the runtime registry uses;
  *   2. a page never imports another page (cross-page needs go through
  *      named capabilities on PageServices, reached via core);
  *   3. core code and shared/ never import a page (only the generated
  *      manifests under generated/ may name a page);
  *   4. the shell (server/shell) reaches only shell, core, shared and the
- *      generated manifests — never a page's code.
+ *      generated manifests - never a page's code.
  */
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync, type Dirent } from "node:fs";
+import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { assertPageModule } from "../server/core/registry";
 
@@ -97,7 +97,9 @@ describe("page slices", () => {
         for (const id of PAGE_DIRS) {
             const mod = (await import(
                 join(ROOT, PAGES_ROOT, id, "index.ts")
-            )) as { default?: unknown };
+            )) as {
+                default?: unknown;
+            };
             // throws with the page id in the message when invalid
             assertPageModule(mod.default, id);
         }
@@ -152,13 +154,13 @@ describe("page slices", () => {
  * in overlay/fields.tsx) and is consumed by the overlay element editors.
  * These rules pin its layering and its i18n hygiene:
  *
- *   1. dynamic_form.tsx is a shared leaf — no runtime import from server/;
+ *   1. dynamic_form.tsx is a shared leaf - no runtime import from server/;
  *   2. overlay/fields.tsx reaches server/ only via type imports (its values
  *      come from the caller, never from a page);
- *   3. element editors are leaf UI — no runtime import from another page;
+ *   3. element editors are leaf UI - no runtime import from another page;
  *   4. the overlay i18n catalogues keep key-set parity across every locale;
  *   5. every labelKey an element editor references resolves in its
- *      catalogue — the stale-key detector that catches a missing translation.
+ *      catalogue - the stale-key detector that catches a missing translation.
  */
 describe("dynamic form boundaries", () => {
     test("dynamic_form.tsx is a shared leaf (no runtime import from server/)", () => {
@@ -177,7 +179,7 @@ describe("dynamic form boundaries", () => {
         const offenders: string[] = [];
         for (const imp of importsOf(file)) {
             if (!isUnder(imp.target, "server")) continue;
-            if (imp.typeOnly) continue; // erased — the caller supplies the values
+            if (imp.typeOnly) continue; // erased - the caller supplies the values
             offenders.push(describeOffender(file, imp));
         }
         expect(offenders).toEqual([]);
@@ -186,7 +188,10 @@ describe("dynamic form boundaries", () => {
     test("element editors are leaf UI (no runtime import from another page)", () => {
         const offenders: string[] = [];
         for (const file of walk(
-            join(ROOT, "server/pages/overlays/modules/overlay_elements/elements"),
+            join(
+                ROOT,
+                "server/pages/overlays/modules/overlay_elements/elements",
+            ),
         )) {
             const own = pageOf(file);
             for (const imp of importsOf(file)) {
@@ -237,13 +242,18 @@ describe("dynamic form boundaries", () => {
         const en = (dir: string) =>
             new Set(
                 Object.keys(
-                    JSON.parse(readFileSync(join(ROOT, dir, "en.json"), "utf8")),
+                    JSON.parse(
+                        readFileSync(join(ROOT, dir, "en.json"), "utf8"),
+                    ),
                 ),
             );
         const union = new Set<string>([...en(oeDir), ...en(dcDir)]);
         const offenders: string[] = [];
         for (const file of walk(
-            join(ROOT, "server/pages/overlays/modules/overlay_elements/elements"),
+            join(
+                ROOT,
+                "server/pages/overlays/modules/overlay_elements/elements",
+            ),
         ))
             for (const m of stripComments(readFileSync(file, "utf8")).matchAll(
                 /labelKey:\s*"([^"]+)"/g,

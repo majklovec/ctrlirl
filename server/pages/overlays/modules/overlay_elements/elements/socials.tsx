@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Socials widget — a row of social/handle chips (platform label + handle)
+ * Socials widget - a row of social/handle chips (platform label + handle)
  * that slides through the list one at a time. Inner component owns the
  * rotation interval; the chips render inline.
  */
@@ -17,8 +17,8 @@ import { numProp, strProp } from "@ui/overlay/element";
 import { bindableForm } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import { ListField } from "../lib/list_field";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
+import { ListField } from "../lib/list_field";
 import { textRows } from "./schema_utils";
 
 /* ── socials ──────────────────────────────────────────────────────────── */
@@ -76,16 +76,18 @@ const SocialsBox: m.Component<SBAttrs, SBState> = {
 		const p = vnode.attrs.props;
 		const s = vnode.state;
 		const rawEntries = Array.isArray(p.entries) ? p.entries : [];
-		const entries: SocialEntry[] = rawEntries.map((item) => {
-			const rec =
-				typeof item === "object" && item !== null
-					? (item as Record<string, unknown>)
-					: {};
-			return {
-				label: typeof rec.label === "string" ? rec.label : "",
-				handle: typeof rec.handle === "string" ? rec.handle : "",
-			};
-		}).filter((e) => e.label || e.handle);
+		const entries: SocialEntry[] = rawEntries
+			.map((item) => {
+				const rec =
+					typeof item === "object" && item !== null
+						? (item as Record<string, unknown>)
+						: {};
+				return {
+					label: typeof rec.label === "string" ? rec.label : "",
+					handle: typeof rec.handle === "string" ? rec.handle : "",
+				};
+			})
+			.filter((e) => e.label || e.handle);
 		const slide = p.slide === true;
 		const interval = numProp(p, "interval", 4000);
 		const color = strProp(p, "color", "#ffffff");
@@ -143,7 +145,12 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode<any, any> {
 	return m(SocialsBox, { props: element.props });
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const p = e.props;
 	return bindableForm({
 		element: e,
@@ -236,14 +243,7 @@ export const socialsElement: OverlayElementDef & OverlayElementSchema = {
 	order: 95,
 	defaultProps: { ...DEFAULT_SOCIALS_PROPS },
 	/** `entries` is one composite control (a row table), not a bindField scalar. */
-	propKeys: [
-		"slide",
-		"interval",
-		"color",
-		"background",
-		"accent",
-		"fontSize",
-	],
+	propKeys: ["slide", "interval", "color", "background", "accent", "fontSize"],
 	defaultSize: { width: 460, height: 80 },
 	draw,
 	editForm,

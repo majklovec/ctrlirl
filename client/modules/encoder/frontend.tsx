@@ -442,9 +442,9 @@ const encoderSummaryColumns = [
 		available: (device: DeviceSummary) => device.role === "encoder",
 		header: () => t("mgmt.th.stream"),
 		cell: (device: DeviceSummary) => {
-			if (!device.online) return "—";
+			if (!device.online) return "-";
 			const { encoder, activeLinks } = device as EncoderDeviceSummary;
-			if (!encoder) return "—";
+			if (!encoder) return "-";
 			if (hasEncoderIssue(encoder)) return <EncoderIssueBadge e={encoder} />;
 			if (activeLinks === 0)
 				return <Badge text={t("dev.badge.no_links")} kind="warn" />;
@@ -472,7 +472,7 @@ const encoderSummaryColumns = [
 						{live} / <span class="muted">{max}</span>
 					</span>
 				);
-			return live ?? max ?? "—";
+			return live ?? max ?? "-";
 		},
 	},
 	{
@@ -482,7 +482,7 @@ const encoderSummaryColumns = [
 		header: () => [encoderIcon(), ` ${t("wtype.encoder")}`],
 		cell: (device: DeviceSummary) => {
 			const { encoder } = device as EncoderDeviceSummary;
-			if (!encoder) return "—";
+			if (!encoder) return "-";
 			return encoder.running ? (
 				<Badge
 					text={encoder.config?.pipeline ?? t("dev.badge.streaming")}

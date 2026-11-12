@@ -10,7 +10,7 @@ import type { Children, Vnode } from "mithril";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
 
 // A group is a container: it renders no content of its own (children are the
-// elements that set `parentId` to it) and shows no resize handles — it is
+// elements that set `parentId` to it) and shows no resize handles - it is
 // edited by selecting and moving its children.
 function draw(_element: OverlayElement, _ctx: ElementContext): Children {
 	return null;

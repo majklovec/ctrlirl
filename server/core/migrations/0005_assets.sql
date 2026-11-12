@@ -1,7 +1,7 @@
 -- Assets manager: per-user folder tree + file storage. Each user gets a single
 -- "Root" folder (created lazily by the store); folders nest via parent_id.
 -- File bytes ride in the database as BLOBs (the `dashboards.widgets` blob
--- precedent) — a control server works with modest file sizes.
+-- precedent) - a control server works with modest file sizes.
 CREATE TABLE IF NOT EXISTS asset_folders (
     id TEXT PRIMARY KEY,
     owner TEXT NOT NULL,

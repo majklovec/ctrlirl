@@ -21,12 +21,12 @@ import {
 	Toolbar,
 	useToast,
 } from "@ui/components/";
-import { ServerNav } from "../../../shell/nav";
 import { confirmDialog } from "@ui/components/confirm";
 import { Icon } from "@ui/components/icons";
 import { t } from "@ui/i18n";
 import { mountPage } from "@ui/util";
 import m from "mithril";
+import { ServerNav } from "../../../shell/nav";
 import {
 	type AssetFile,
 	collapse,
@@ -230,12 +230,11 @@ function treeNode(folder: FolderNode): m.Vnode {
 				state.dragging = null;
 				m.redraw();
 				// The dragged folder moves into the (target) folder it is
-				// dropped on — standard file-manager semantics.
+				// dropped on - standard file-manager semantics.
 				if (draggedFolder) {
 					const dNode = findFolder(draggedFolder);
 					if (dNode) await moveFolder(dNode, folder.id);
-				}
-				else if (draggedFile) await moveFileToFolder(draggedFile, folder.id);
+				} else if (draggedFile) await moveFileToFolder(draggedFile, folder.id);
 				else if (dt?.files.length)
 					await uploadFiles(folder.id, Array.from(dt.files));
 			}}
@@ -315,8 +314,7 @@ function treeLevel(id: string): number {
 
 function treeNodes(folder: FolderNode): m.Vnode[] {
 	const out: m.Vnode[] = [treeNode(folder)];
-	if (state.expanded.has(folder.id))
-		out.push(...treeChildren(folder));
+	if (state.expanded.has(folder.id)) out.push(...treeChildren(folder));
 	return out;
 }
 
@@ -338,7 +336,7 @@ function treeChildren(folder: FolderNode): m.Vnode[] {
 	];
 }
 
-/** The tree shows the contents of the root — the root itself is not a node. */
+/** The tree shows the contents of the root - the root itself is not a node. */
 function folderTree(): m.Vnode {
 	const roots = state.children.get("");
 	const root = Array.isArray(roots) ? (roots[0] ?? null) : null;
@@ -518,19 +516,19 @@ function filesPanel(): m.Vnode {
 								}}
 							>
 								<td class="dash-name">
-									{state.renamingFileId === file.id
-										? renameFileInput(file)
-										: (
-												<span class="asset-file-name">
-													<span class="asset-file-icon">
-														<Icon
-															name={fileIcon(file.mimeType, file.name)}
-															class="role-icon"
-														/>
-													</span>
-													{file.name}
-												</span>
-											)}
+									{state.renamingFileId === file.id ? (
+										renameFileInput(file)
+									) : (
+										<span class="asset-file-name">
+											<span class="asset-file-icon">
+												<Icon
+													name={fileIcon(file.mimeType, file.name)}
+													class="role-icon"
+												/>
+											</span>
+											{file.name}
+										</span>
+									)}
 								</td>
 								<td class="muted">{formatBytes(file.size)}</td>
 								<td class="muted">{formatDateTime(file.updatedAt)}</td>
@@ -637,12 +635,10 @@ async function trashDrop(ev: DragEvent): Promise<void> {
 		const folder = findFolder(folderId);
 		if (
 			folder &&
-			(
-				await confirmDialog(
-					t("assets.confirm_delete_folder", { name: folder.name }),
-					{ danger: true },
-				)
-			)
+			(await confirmDialog(
+				t("assets.confirm_delete_folder", { name: folder.name }),
+				{ danger: true },
+			))
 		)
 			await deleteFolder(folder);
 	} else if (fileId) {
@@ -653,11 +649,12 @@ async function trashDrop(ev: DragEvent): Promise<void> {
 		}
 		if (
 			file &&
-			(
-				await confirmDialog(t("assets.confirm_delete_file", { name: file.name }), {
+			(await confirmDialog(
+				t("assets.confirm_delete_file", { name: file.name }),
+				{
 					danger: true,
-				})
-			)
+				},
+			))
 		)
 			await deleteFile(file);
 	}

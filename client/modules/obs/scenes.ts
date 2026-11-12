@@ -2,7 +2,7 @@
  * OBS scene tracker: the scene list and the live (program) scene, kept current
  * from obs-websocket events.
  * Shared by the in-process obs module and the standalone
- * obs-client box — both publish `list()` / `current()` as `status.obs.scenes`
+ * obs-client box - both publish `list()` / `current()` as `status.obs.scenes`
  * / `status.obs.currentScene`, which the module's `dashboardActions` factory
  * turns into one switch button per scene (the live one marked).
  *

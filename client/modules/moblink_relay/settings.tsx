@@ -1,7 +1,7 @@
 /**
  * MobLink LAN relay settings: the first listen port, the interface
  * allow/ignore filters and the log level (spec 100-moblink §5.4). The relays
- * transparently bridge the shared interfaces (no destination — SRTLA lives on
+ * transparently bridge the shared interfaces (no destination - SRTLA lives on
  * the encoder). Start / stop live on the device card.
  */
 import {

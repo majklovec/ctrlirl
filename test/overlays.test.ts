@@ -1,9 +1,9 @@
-import { APP_VERSION } from "../generated/version";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { APP_VERSION } from "../generated/version";
 
 const projectRoot = join(import.meta.dir, "..");
 const username = "overlay-test";
@@ -90,7 +90,7 @@ async function login(): Promise<string> {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ username, password }),
     });
-    // 201 on first use; a reused user name 403s — the login below is what
+    // 201 on first use; a reused user name 403s - the login below is what
     // matters, so both are fine
     expect([201, 403]).toContain(registration.status);
     const response = await fetch(`${baseUrl}/api/login`, {
@@ -106,10 +106,12 @@ async function login(): Promise<string> {
 
 /** Create a device token for the session user and return the raw value.
  * Tokens are project-scoped (`/api/projects/:id/tokens`), so this resolves a
- * project to use first — creating one when the user has none (there is no
+ * project to use first - creating one when the user has none (there is no
  * auto-created Personal project). */
 async function personalProjectToken(cookie: string): Promise<string> {
-    const list = await fetch(`${baseUrl}/api/projects`, { headers: { cookie } });
+    const list = await fetch(`${baseUrl}/api/projects`, {
+        headers: { cookie },
+    });
     const projects = (await list.json()) as {
         projects: { id: string; name: string }[];
     };
@@ -182,7 +184,7 @@ async function connectSocket(
 
 /** Connect and expect the server to refuse the socket (no snapshot).
  * Bun reports a close that races the client handshake as 1002, while a
- * clean post-open close reports the server's 1008 — accept both. */
+ * clean post-open close reports the server's 1008 - accept both. */
 async function connectRefused(url: string): Promise<void> {
     const socket = new BunWebSocket(url);
     let receivedMessage = false;
@@ -216,7 +218,8 @@ function nextFrame(
     const queue = frameQueues.get(socket);
     if (queue) {
         for (let i = 0; i < queue.length; i++) {
-            if (matches(queue[i])) return Promise.resolve(queue.splice(i, 1)[0]);
+            if (matches(queue[i]))
+                return Promise.resolve(queue.splice(i, 1)[0]);
         }
     }
     return new Promise((resolve, reject) => {
@@ -299,7 +302,8 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
         // unauthenticated access: the API is refused, the editor page
         // redirects to the login/registration form
         expect(
-            (await fetch(`${baseUrl}/overlays/`, { redirect: "manual" })).status,
+            (await fetch(`${baseUrl}/overlays/`, { redirect: "manual" }))
+                .status,
         ).toBe(302);
         expect((await fetch(`${baseUrl}/api/overlays`)).status).toBe(401);
 
@@ -318,9 +322,12 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
         const listHtml = await page.text();
         expect(listHtml.toLowerCase()).toContain("overlays");
         expect(listHtml).toContain("/assets/overlay_list-");
-        const editorPage = await fetch(`${baseUrl}/overlays/edit/some-overlay/`, {
-            headers: { cookie },
-        });
+        const editorPage = await fetch(
+            `${baseUrl}/overlays/edit/some-overlay/`,
+            {
+                headers: { cookie },
+            },
+        );
         expect(editorPage.status).toBe(200);
         expect(await editorPage.text()).toContain("/assets/overlay_update-");
         expect(
@@ -376,14 +383,14 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 editorSocket,
                 (f) =>
                     f.event === "overlays.overlays" &&
-                    ((f.data as { overlays?: OverlaySummary[] })?.overlays?.some(
-                        (o) => o.id === overlayId,
-                    ) ??
+                    ((
+                        f.data as { overlays?: OverlaySummary[] }
+                    )?.overlays?.some((o) => o.id === overlayId) ??
                         false),
             );
             const listSummary = (
-                (listEvent.data as { overlays: OverlaySummary[] }).overlays
-            ).find((o) => o.id === overlayId)!;
+                listEvent.data as { overlays: OverlaySummary[] }
+            ).overlays.find((o) => o.id === overlayId)!;
             expect(listSummary.name).toBe("Intro");
             expect(listSummary.elementCount).toBe(0);
 
@@ -425,10 +432,10 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 editorSocket,
                 (f) =>
                     f.event === "overlays.overlay" &&
-                    typeof (f.data as { overlay?: { name?: string } })
-                        ?.overlay?.name === "string" &&
-                    (f.data as { overlay: Overlay }).overlay.elements
-                        .length === 1,
+                    typeof (f.data as { overlay?: { name?: string } })?.overlay
+                        ?.name === "string" &&
+                    (f.data as { overlay: Overlay }).overlay.elements.length ===
+                        1,
             );
             expect(
                 (overlayEvent.data as { overlay: Overlay }).overlay.elements
@@ -452,11 +459,10 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             expect(dupBody.overlay.name).toBe("Intro (copy)");
             expect(dupBody.overlay.elements).toHaveLength(1);
             expect(
-                (dupBody.overlay.elements[0] as OverlayElement).props
-                    ?.text,
+                (dupBody.overlay.elements[0] as OverlayElement).props?.text,
             ).toBe("Live");
 
-            // the clone is an independent copy — editing it does not touch
+            // the clone is an independent copy - editing it does not touch
             // the source overlay
             const dupEditRes = await fetch(
                 `${baseUrl}/api/overlays/${dupBody.id}/elements`,
@@ -495,27 +501,31 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             ).toMatchObject({ overlay: { name: "Intro (copy)" } });
             dupSocket.close();
 
-            const delDupRes = await fetch(`${baseUrl}/api/overlays/${dupBody.id}`, {
-                method: "DELETE",
-                headers: { cookie },
-            });
+            const delDupRes = await fetch(
+                `${baseUrl}/api/overlays/${dupBody.id}`,
+                {
+                    method: "DELETE",
+                    headers: { cookie },
+                },
+            );
             expect(delDupRes.status).toBe(200);
             const listAfterDelete = await nextFrame(
                 editorSocket,
                 (f) =>
                     f.event === "overlays.overlays" &&
                     !(
-                        (f.data as { overlays?: OverlaySummary[] })
-                            ?.overlays ?? []
+                        (f.data as { overlays?: OverlaySummary[] })?.overlays ??
+                        []
                     ).some((o) => o.id === dupBody.id),
             );
             expect(
-                (listAfterDelete.data as { overlays: OverlaySummary[] })
-                    .overlays.map((o) => o.id),
+                (
+                    listAfterDelete.data as { overlays: OverlaySummary[] }
+                ).overlays.map((o) => o.id),
             ).toEqual([overlayId]);
 
             // a binding to a nonexistent variable is rejected with a 400 and
-            // must not wedge the in-memory overlay — the overlay stays
+            // must not wedge the in-memory overlay - the overlay stays
             // editable afterwards (a failed revalidate used to leave stale
             // state and 500 every later mutation)
             const staleBindingRes = await fetch(
@@ -571,11 +581,14 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             ).toBe("Healed");
 
             // rename via the single-overlay PUT
-            const renameRes = await fetch(`${baseUrl}/api/overlays/${overlayId}`, {
-                method: "PUT",
-                headers: { cookie, "content-type": "application/json" },
-                body: JSON.stringify({ name: "Intro show" }),
-            });
+            const renameRes = await fetch(
+                `${baseUrl}/api/overlays/${overlayId}`,
+                {
+                    method: "PUT",
+                    headers: { cookie, "content-type": "application/json" },
+                    body: JSON.stringify({ name: "Intro show" }),
+                },
+            );
             expect(renameRes.status).toBe(200);
             const renameBody = (await renameRes.json()) as {
                 ok: boolean;
@@ -600,11 +613,9 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 headers: { cookie, "content-type": "application/json" },
                 body: JSON.stringify({ name: "Second" }),
             });
-            const secondOverlay = (
-                (await secondOverlayRes.json()) as {
-                    id: string;
-                }
-            );
+            const secondOverlay = (await secondOverlayRes.json()) as {
+                id: string;
+            };
             expect(secondOverlay.id).not.toBe(overlayId);
             const delSecondRes = await fetch(
                 `${baseUrl}/api/overlays/${secondOverlay.id}`,
@@ -664,12 +675,14 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 editorSocket,
                 (f) =>
                     f.event === "overlays.overlay" &&
-                    variablesOf(f).some((v) =>
-                        v.name === "score" && v.value === 42,
+                    variablesOf(f).some(
+                        (v) => v.name === "score" && v.value === 42,
                     ),
             );
             expect(variablesOf(variablesEvent).map((v) => v.value)).toEqual([
-                42, 0, false,
+                42,
+                0,
+                false,
             ]);
 
             // variable type is enforced
@@ -703,10 +716,14 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 editorSocket,
                 (f) =>
                     f.event === "overlays.overlay" &&
-                    variablesOf(f).some((v) => v.name === "score" && v.value === 7),
+                    variablesOf(f).some(
+                        (v) => v.name === "score" && v.value === 7,
+                    ),
             );
             expect(variablesOf(tokenVarEvent).map((v) => v.value)).toEqual([
-                7, 0, false,
+                7,
+                0,
+                false,
             ]);
 
             // bad token → 404 (no existence leak), bad value → 400,
@@ -741,8 +758,11 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             ).toBe(404);
             // a bare token (no <name> params) sets nothing → 400
             expect(
-                (await fetch(`${baseUrl}/overlay/${overlayId}/variables?token=${token}`))
-                    .status,
+                (
+                    await fetch(
+                        `${baseUrl}/overlay/${overlayId}/variables?token=${token}`,
+                    )
+                ).status,
             ).toBe(400);
 
             // the boolean variable maps the querystring's "true"/"false"
@@ -779,17 +799,20 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 (f) =>
                     f.event === "overlays.overlay" &&
                     variablesOf(f).length === 3 &&
-                    variablesOf(f).every((v) =>
-                        (
-                            { score: 9, lives: 3, live: true } as Record<
-                                string,
-                                unknown
-                            >
-                        )[v.name] === v.value,
+                    variablesOf(f).every(
+                        (v) =>
+                            (
+                                ({ score: 9, lives: 3, live: true }) as Record<
+                                    string,
+                                    unknown
+                                >
+                            )[v.name] === v.value,
                     ),
             );
             expect(variablesOf(batchEvent).map((v) => v.name)).toEqual([
-                "score", "lives", "live",
+                "score",
+                "lives",
+                "live",
             ]);
 
             // empty value → clear: the variable is emptied to its type's
@@ -811,17 +834,20 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 (f) =>
                     f.event === "overlays.overlay" &&
                     variablesOf(f).length === 3 &&
-                    variablesOf(f).every((v) =>
-                        (
-                            { score: 0, lives: 3, live: true } as Record<
-                                string,
-                                unknown
-                            >
-                        )[v.name] === v.value,
+                    variablesOf(f).every(
+                        (v) =>
+                            (
+                                ({ score: 0, lives: 3, live: true }) as Record<
+                                    string,
+                                    unknown
+                                >
+                            )[v.name] === v.value,
                     ),
             );
             expect(variablesOf(clearVarEvent).map((v) => v.name)).toEqual([
-                "score", "lives", "live",
+                "score",
+                "lives",
+                "live",
             ]);
 
             // the runtime feed gets the revalue and the clear (this is
@@ -850,12 +876,14 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                     clearSocket,
                     (f) =>
                         f.event === "overlays.overlay" &&
-                        variablesOf(f).some((v) => v.name === "score" && v.value === 5),
+                        variablesOf(f).some(
+                            (v) => v.name === "score" && v.value === 5,
+                        ),
                 );
                 expect(
-                    (clearLive.data as { overlay: Overlay }).overlay.variables.map(
-                        (v) => v.value,
-                    ),
+                    (
+                        clearLive.data as { overlay: Overlay }
+                    ).overlay.variables.map((v) => v.value),
                 ).toEqual([5, 3, true]);
                 expect(
                     (
@@ -870,9 +898,7 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                         f.event === "overlays.overlay" &&
                         variablesOf(f).length === 3 &&
                         variablesOf(f).every((v) =>
-                            [0, 3, true].includes(
-                                v.value as number | boolean,
-                            ),
+                            [0, 3, true].includes(v.value as number | boolean),
                         ),
                 );
                 expect(
@@ -921,17 +947,20 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 (f) =>
                     f.event === "overlays.overlay" &&
                     variablesOf(f).length === 3 &&
-                    variablesOf(f).every((v) =>
-                        (
-                            { score: 11, lives: 2, live: true } as Record<
-                                string,
-                                unknown
-                            >
-                        )[v.name] === v.value,
+                    variablesOf(f).every(
+                        (v) =>
+                            (
+                                ({ score: 11, lives: 2, live: true }) as Record<
+                                    string,
+                                    unknown
+                                >
+                            )[v.name] === v.value,
                     ),
             );
             expect(variablesOf(postVarEvent).map((v) => v.name)).toEqual([
-                "score", "lives", "live",
+                "score",
+                "lives",
+                "live",
             ]);
 
             // null (and "") clear; JSON booleans need no string mapping
@@ -940,7 +969,11 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ score: null, lives: "", live: false }),
+                    body: JSON.stringify({
+                        score: null,
+                        lives: "",
+                        live: false,
+                    }),
                 },
             );
             expect(postClearRes.status).toBe(200);
@@ -965,20 +998,26 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             expect(badJsonRes.status).toBe(400);
             expect(
                 (
-                    await fetch(`${baseUrl}/overlay/${overlayId}/variables?token=${token}`, {
-                        method: "POST",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify([1, 2, 3]),
-                    })
+                    await fetch(
+                        `${baseUrl}/overlay/${overlayId}/variables?token=${token}`,
+                        {
+                            method: "POST",
+                            headers: { "content-type": "application/json" },
+                            body: JSON.stringify([1, 2, 3]),
+                        },
+                    )
                 ).status,
             ).toBe(400);
             expect(
                 (
-                    await fetch(`${baseUrl}/overlay/${overlayId}/variables?token=${token}`, {
-                        method: "POST",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({}),
-                    })
+                    await fetch(
+                        `${baseUrl}/overlay/${overlayId}/variables?token=${token}`,
+                        {
+                            method: "POST",
+                            headers: { "content-type": "application/json" },
+                            body: JSON.stringify({}),
+                        },
+                    )
                 ).status,
             ).toBe(400);
             expect(
@@ -995,11 +1034,14 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             ).toBe(404);
             expect(
                 (
-                    await fetch(`${baseUrl}/overlay/${overlayId}/variables?token=deadbeef`, {
-                        method: "POST",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ score: 1 }),
-                    })
+                    await fetch(
+                        `${baseUrl}/overlay/${overlayId}/variables?token=deadbeef`,
+                        {
+                            method: "POST",
+                            headers: { "content-type": "application/json" },
+                            body: JSON.stringify({ score: 1 }),
+                        },
+                    )
                 ).status,
             ).toBe(404);
             expect(
@@ -1060,9 +1102,9 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 ).toHaveLength(3);
                 // the runtime page compares this to its own bundled version
                 // and reloads when a new deployment replaced the server
-                expect(
-                    (snapshot.data as { version: string }).version,
-                ).toBe(APP_VERSION);
+                expect((snapshot.data as { version: string }).version).toBe(
+                    APP_VERSION,
+                );
 
                 const patchRes = await fetch(
                     `${baseUrl}/api/overlays/${overlayId}/elements`,
@@ -1080,9 +1122,8 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                     runtimeSocket,
                     (f) => f.event === "overlays.overlay",
                 );
-                const liveEl = (
-                    live.data as { overlay: Overlay }
-                ).overlay.elements[0] as OverlayElement;
+                const liveEl = (live.data as { overlay: Overlay }).overlay
+                    .elements[0] as OverlayElement;
                 expect(liveEl.props?.text).toBe("Updated");
             } finally {
                 runtimeSocket.close();
@@ -1091,7 +1132,7 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             // ── GET /overlay/:id/event/<name>: the universal event endpoint ──
             // an alert element listens for a named event; the endpoint fires
             // it by name and optional ?<name>=<value> pairs ride with the
-            // event — they are written to the overlay variables when the
+            // event - they are written to the overlay variables when the
             // element plays it (the runtime uplinks `overlays.applyEvent`),
             // so a queued element's values never clobber the on-air ones
             // early
@@ -1136,7 +1177,7 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
 
                 // values ride along as query pairs, the trigger is the
                 // URL's <name>; the response no longer carries (revalued)
-                // variables — they persist only when the element plays it
+                // variables - they persist only when the element plays it
                 const alertRes = await fetch(
                     `${baseUrl}/overlay/${overlayId}/event/test.alert?token=${token}&score=4&live=true`,
                 );
@@ -1148,7 +1189,7 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
 
                 // the event lands on the runtime socket with the
                 // validated + type-coerced payload (string query values
-                // → 4 / true); no `overlays.overlay` frame accompanies it —
+                // → 4 / true); no `overlays.overlay` frame accompanies it -
                 // nothing is written to the overlay yet
                 const alertEvent = await nextFrame(
                     alertSocket,
@@ -1191,13 +1232,15 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                     (f) =>
                         f.event === "overlays.overlay" &&
                         variablesOf(f).length === 3 &&
-                        variablesOf(f).every((v) =>
-                            (
-                                { score: 4, lives: 0, live: true } as Record<
-                                    string,
-                                    unknown
-                                >
-                            )[v.name] === v.value,
+                        variablesOf(f).every(
+                            (v) =>
+                                (
+                                    ({
+                                        score: 4,
+                                        lives: 0,
+                                        live: true,
+                                    }) as Record<string, unknown>
+                                )[v.name] === v.value,
                         ),
                 );
                 const afterPlay = (await (
@@ -1207,7 +1250,10 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 ).json()) as { overlay: Overlay };
                 expect(
                     Object.fromEntries(
-                        afterPlay.overlay.variables.map((v) => [v.name, v.value]),
+                        afterPlay.overlay.variables.map((v) => [
+                            v.name,
+                            v.value,
+                        ]),
                     ),
                 ).toMatchObject({ score: 4, lives: 0, live: true });
 
@@ -1227,7 +1273,7 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                     ).status,
                 ).toBe(404);
 
-                // a bare trigger (no values) is fine — the name just needs
+                // a bare trigger (no values) is fine - the name just needs
                 // to match an element on the client; the event frame is
                 // published either way
                 const bareAlertRes = await fetch(
@@ -1306,7 +1352,10 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 (
                     await fetch(
                         `${baseUrl}/api/overlays/${overlayId}/elements/nope`,
-                        { method: "DELETE", headers: { cookie } },
+                        {
+                            method: "DELETE",
+                            headers: { cookie },
+                        },
                     )
                 ).status,
             ).toBe(404);
@@ -1321,8 +1370,8 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
                 (f) =>
                     f.event === "overlays.overlays" &&
                     !(
-                        (f.data as { overlays?: OverlaySummary[] })
-                            ?.overlays ?? []
+                        (f.data as { overlays?: OverlaySummary[] })?.overlays ??
+                        []
                     ).some((o) => o.id === overlayId),
             );
             expect(
@@ -1464,10 +1513,10 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
         ).toBe(404);
 
         // tidy up so the user is back to no overlays
-        const mediaDelete = await fetch(
-            `${baseUrl}/api/overlays/${media.id}`,
-            { method: "DELETE", headers: { cookie } },
-        );
+        const mediaDelete = await fetch(`${baseUrl}/api/overlays/${media.id}`, {
+            method: "DELETE",
+            headers: { cookie },
+        });
         expect(mediaDelete.status).toBe(200);
 
         // the overlays from the test are gone; the user is back to none
@@ -1496,7 +1545,14 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             id: crypto.randomUUID(),
             name: "headline",
             type: "text",
-            transform: { x: 40, y: 60, width: 500, height: 100, rotation: 0, opacity: 1 },
+            transform: {
+                x: 40,
+                y: 60,
+                width: 500,
+                height: 100,
+                rotation: 0,
+                opacity: 1,
+            },
             visible: true,
             locked: false,
             parentId: null,
@@ -1573,7 +1629,11 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
         expect(notAnOverlay.status).toBe(400);
         // the import path is POST-only
         expect(
-            (await fetch(`${baseUrl}/api/overlays/import`, { headers: { cookie } })).status,
+            (
+                await fetch(`${baseUrl}/api/overlays/import`, {
+                    headers: { cookie },
+                })
+            ).status,
         ).toBe(405);
         // an unknown overlay does not export (no existence leak)
         expect(
@@ -1643,7 +1703,7 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             expect(await res.json()).toMatchObject({ ok: true, name });
         };
 
-        // the one variable the map centre is bound to — the phone pushes
+        // the one variable the map centre is bound to - the phone pushes
         // fixes as `pos` in the `"lon,lat"` wire format and the server
         // records them into the open routes
         const varRes = await fetch(
@@ -1694,7 +1754,7 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
         // no routes yet
         expect(await history()).toEqual({ ok: true, paths: [] });
 
-        // the first fix opens the implicit `default` route — a live trace is
+        // the first fix opens the implicit `default` route - a live trace is
         // visible from the very first position
         await pushFix(50.1, 12.4);
         let body = await history();
@@ -1756,11 +1816,8 @@ describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
             ).status,
         ).toBe(404);
         expect(
-            (
-                await fetch(
-                    `${baseUrl}/overlay/nope/map-history?token=${token}`,
-                )
-            ).status,
+            (await fetch(`${baseUrl}/overlay/nope/map-history?token=${token}`))
+                .status,
         ).toBe(404);
 
         // tidying up drops the overlay's history rows with it

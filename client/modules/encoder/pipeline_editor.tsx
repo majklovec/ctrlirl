@@ -1,7 +1,7 @@
 /*
  * Dedicated pipeline editor: /pipelines/new/ and /pipelines/edit/<id>/.
  * Replaces the inline pipeline editor that used to live in the encoder
- * settings card — the list there now links here.
+ * settings card - the list there now links here.
  *
  * The page sits one folder deeper than /settings/ in both the control
  * server (/d/<id>/pipelines/…) and the device-local API (/pipelines/…), so

@@ -23,32 +23,26 @@ interface TickerState {
 }
 
 /** Re-run `render(now)` every `every` ms; stops on removal. The render
- * function keeps the ticking inside the element subtree — a removed element
+ * function keeps the ticking inside the element subtree - a removed element
  * never keeps its interval alive. */
 export const Ticker: m.Component<TickerAttrs, TickerState> = {
 	oncreate(vnode) {
 		vnode.state.now = Date.now();
 		vnode.state.every = vnode.attrs.every;
-		vnode.state.timer = setInterval(
-			() => {
-				vnode.state.now = Date.now();
-				m.redraw();
-			},
-			vnode.attrs.every,
-		);
+		vnode.state.timer = setInterval(() => {
+			vnode.state.now = Date.now();
+			m.redraw();
+		}, vnode.attrs.every);
 	},
 	onupdate(vnode) {
-		// Period changed — restart the interval at the new rate.
+		// Period changed - restart the interval at the new rate.
 		if (vnode.attrs.every !== vnode.state.every) {
 			clearInterval(vnode.state.timer);
 			vnode.state.every = vnode.attrs.every;
-			vnode.state.timer = setInterval(
-				() => {
-					vnode.state.now = Date.now();
-					m.redraw();
-				},
-				vnode.attrs.every,
-			);
+			vnode.state.timer = setInterval(() => {
+				vnode.state.now = Date.now();
+				m.redraw();
+			}, vnode.attrs.every);
 		}
 	},
 	onremove(vnode) {

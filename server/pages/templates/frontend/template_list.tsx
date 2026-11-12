@@ -1,13 +1,13 @@
 /** @jsx m */
 /* The templates editor: the overlay HTML templates (assets/overlay_templates)
- * as a two-pane page — the template list on the left, and for the selected
+ * as a two-pane page - the template list on the left, and for the selected
  * template an HTML editor, the :root CSS-variable knobs, the data-bind slot
  * fields and a live preview (an iframe fed with the document the runtime
  * would bake). Saving writes the file; the control server serves the same
  * directory, so the template is live for OBS with no reload.
  *
  * The HTML textarea is the source of truth: the variables and bindings
- * panels are editing sugar on it — a knob change rewrites the document
+ * panels are editing sugar on it - a knob change rewrites the document
  * (the :root value / the slot's default text), and a document change
  * re-derives the knobs, keeping the values of the survivors.
  */
@@ -80,7 +80,7 @@ const editor = {
 const createBox = { open: false, id: "" };
 
 /** The preview frame's box: "fit" fills the pane at 16:9 (like the canvas);
- * unchecked, it renders at the author's w×h — the OBS element's size. */
+ * unchecked, it renders at the author's w×h - the OBS element's size. */
 const previewSize = { fit: true, w: 640, h: 360 };
 
 let previewDoc = "";

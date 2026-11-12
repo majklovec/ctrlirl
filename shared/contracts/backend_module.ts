@@ -1,5 +1,5 @@
 /**
- * The backend module registration contract — the only shape the core knows
+ * The backend module registration contract - the only shape the core knows
  * about a module. `modules/<id>/backend.ts` default-exports one of these;
  * the registry (shared/registry.ts) discovers and validates it, the device
  * lifecycle (client/backend/modules.ts) drives it.
@@ -10,10 +10,11 @@
  * settings / setup / log wording / pages / widgets through the optional hooks
  * below. The core never names a module id, method prefix or status key.
  */
-import type { LogWording } from "../log_messages";
+
 import type { AnyElysia } from "elysia";
-import type { ServerDashboard, Status, WidgetConfigField } from "./wire";
+import type { LogWording } from "../log_messages";
 import type { Role, RoleDefinition } from "./roles";
+import type { ServerDashboard, Status, WidgetConfigField } from "./wire";
 
 export type Params = Record<string, unknown>;
 
@@ -42,7 +43,7 @@ export interface DashboardAction {
 
 /** A dashboard action as published in `status.actions`: tagged with its owning module. */
 export interface DashboardActionEntry extends DashboardAction {
-    /** `<module id>.<action id>` — what a widget config refers to. */
+    /** `<module id>.<action id>` - what a widget config refers to. */
     key: string;
     module: string;
     moduleTitle: string;
@@ -50,7 +51,7 @@ export interface DashboardActionEntry extends DashboardAction {
 
 /**
  * The actions a module offers to the Buttons widget. Either a fixed list, or a
- * factory of the device's live `status` — for actions that depend on runtime
+ * factory of the device's live `status` - for actions that depend on runtime
  * state (e.g. one mute button per OBS audio source, only as many as OBS
  * currently has). A factory resolves to the actions for the device's current
  * status; returning `[]` hides the module from the catalogue.
@@ -86,7 +87,7 @@ export type ModuleLogWording = LogWording;
 /** A module-owned page route: `match` tests the request path (device-relative). */
 export interface ModulePage {
     match: RegExp;
-    /** Page name — `modules/<id>/pages/<page>.html`. */
+    /** Page name - `modules/<id>/pages/<page>.html`. */
     page: string;
 }
 
@@ -134,7 +135,7 @@ export interface WidgetConfigContext {
 export interface ModuleWidget {
     type: string;
     defaultSize: { w: number; h: number };
-    /** Fleet widget: not bound to one device — it is offered once and its
+    /** Fleet widget: not bound to one device - it is offered once and its
      * config names the devices it drives (so `deviceId` stays empty). */
     fleet?: boolean;
     /** Config parameters the widget stores (string values, validated like the channel widgets'). */
@@ -170,7 +171,7 @@ export interface ChannelHub {
     /**
      * Refcounted keep-attached for viewers (e.g. a standalone overlay chat
      * element) that need these channels even when no dashboard widget does.
-     * Optional — only hubs whose channels can be viewer-attached implement it.
+     * Optional - only hubs whose channels can be viewer-attached implement it.
      */
     acquire?(specs: string[]): void;
     release?(specs: string[]): void;
@@ -260,7 +261,7 @@ export interface BackendModule<TCore = unknown> {
      * Operator actions offered to the dashboard's Buttons widget (each fires one
      * of `methods`). Either a fixed list, or a factory of the device's live
      * `status` for actions that depend on runtime state (e.g. one mute button
-     * per OBS audio source) — the registry resolves the factory against the
+     * per OBS audio source) - the registry resolves the factory against the
      * freshest status it holds.
      */
     dashboardActions?: DashboardActions;

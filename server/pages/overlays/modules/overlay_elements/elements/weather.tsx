@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Weather widget — a self-contained live weather card/pill fed by MET
+ * Weather widget - a self-contained live weather card/pill fed by MET
  * Norway's open forecast API (no API key, CORS-enabled). The element fetches
  * its own location in the browser (editor and OBS runtime alike) on an
  * interval, so there is no server dependency. The WMO weather code maps to a
@@ -122,7 +122,7 @@ const WeatherFetch: m.Component<
 > = {
 	// State defaults live on the component object: Mithril derives the
 	// per-vnode state with the component as prototype, so hooks must mutate
-	// `vnode.state`'s fields only — never reassign `vnode.state` itself.
+	// `vnode.state`'s fields only - never reassign `vnode.state` itself.
 	...({
 		data: undefined,
 		loading: true,
@@ -188,9 +188,7 @@ async function refresh(
 		const now = json.properties.timeseries[0];
 		const d = now.data.instant.details;
 		const code = now.data.next_1_hours?.summary?.symbol?.code
-			? Number(
-					now.data.next_1_hours?.summary?.symbol?.code?.split("-")?.[1],
-			  )
+			? Number(now.data.next_1_hours?.summary?.symbol?.code?.split("-")?.[1])
 			: 0;
 		const [symbol, label] = WMO[code] ?? ["🌡", "unknown"];
 		s.data = {
@@ -210,7 +208,10 @@ async function refresh(
 	}
 }
 
-function render(p: Record<string, unknown>, data: WeatherData | undefined): Vnode {
+function render(
+	p: Record<string, unknown>,
+	data: WeatherData | undefined,
+): Vnode {
 	const format = strProp(p, "format", "card");
 	const color = strProp(p, "color", "#ffffff");
 	const bg = strProp(p, "background", "#1f2937");
@@ -227,20 +228,39 @@ function render(p: Record<string, unknown>, data: WeatherData | undefined): Vnod
 	const inner: Vnode[] = [];
 	if (data) {
 		inner.push(
-			m("span", { key: "sym", style: { fontSize: `${Math.round(fontSize * 1.2)}px`, lineHeight: 1 } }, data.symbol),
+			m(
+				"span",
+				{
+					key: "sym",
+					style: { fontSize: `${Math.round(fontSize * 1.2)}px`, lineHeight: 1 },
+				},
+				data.symbol,
+			),
 		);
 		if (showTemp)
 			inner.push(
-				m("span", { key: "t", style: { fontWeight: "700" } }, `${Math.round(data.temp)}°`),
+				m(
+					"span",
+					{ key: "t", style: { fontWeight: "700" } },
+					`${Math.round(data.temp)}°`,
+				),
 			);
 		if (!isPill) {
 			if (showWind)
 				inner.push(
-					m("span", { key: "w", style: { opacity: "0.8" } }, `${Math.round(data.wind * 3.6)} km/h`),
+					m(
+						"span",
+						{ key: "w", style: { opacity: "0.8" } },
+						`${Math.round(data.wind * 3.6)} km/h`,
+					),
 				);
 			if (showHumidity)
 				inner.push(
-					m("span", { key: "h", style: { opacity: "0.8" } }, `${Math.round(data.humidity)}%`),
+					m(
+						"span",
+						{ key: "h", style: { opacity: "0.8" } },
+						`${Math.round(data.humidity)}%`,
+					),
 				);
 		}
 	}
@@ -260,7 +280,9 @@ function render(p: Record<string, unknown>, data: WeatherData | undefined): Vnod
 				alignItems: "center",
 				justifyContent: isPill ? "center" : "center",
 				gap: isPill ? "10px" : "4px",
-				padding: isPill ? `${fontSize * 0.4}px ${fontSize * 0.7}px` : `${fontSize * 0.4}px`,
+				padding: isPill
+					? `${fontSize * 0.4}px ${fontSize * 0.7}px`
+					: `${fontSize * 0.4}px`,
 				background: bg,
 				border: `1px solid ${accent}`,
 				borderRadius: `${radius}px`,
@@ -281,7 +303,14 @@ function render(p: Record<string, unknown>, data: WeatherData | undefined): Vnod
 				{inner}
 			</div>
 			{sub.length > 0 && (
-				<div style={{ display: "flex", gap: "8px", opacity: "0.85", fontSize: `${Math.round(fontSize * 0.7)}px` }}>
+				<div
+					style={{
+						display: "flex",
+						gap: "8px",
+						opacity: "0.85",
+						fontSize: `${Math.round(fontSize * 0.7)}px`,
+					}}
+				>
 					{sub}
 				</div>
 			)}
@@ -337,7 +366,9 @@ const GeoFillButton: m.Component<
 					}}
 				>
 					<Icon name="target" class="role-icon" />
-					{s.locating ? t("overlay.weather_geo_locating") : t("overlay.weather_geo_use")}
+					{s.locating
+						? t("overlay.weather_geo_locating")
+						: t("overlay.weather_geo_use")}
 				</button>
 				{s.error && <span class="ov-geofill-err">{s.error}</span>}
 			</div>
@@ -345,7 +376,12 @@ const GeoFillButton: m.Component<
 	},
 };
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	return bindableForm({
 		element: e,
 		mutate,
@@ -462,7 +498,8 @@ function validate(e: OverlayElement): string[] {
 	const lat = numProp(e.props, "latitude", 50);
 	const lon = numProp(e.props, "longitude", 14);
 	if (lat < -90 || lat > 90) problems.push("latitude out of range (-90–90)");
-	if (lon < -180 || lon > 180) problems.push("longitude out of range (-180–180)");
+	if (lon < -180 || lon > 180)
+		problems.push("longitude out of range (-180–180)");
 	return problems;
 }
 
@@ -503,8 +540,7 @@ export const weatherElement: OverlayElementDef & OverlayElementSchema = {
 			refreshSec: read.num("refreshSec", d.refreshSec, 60, 3600),
 			// `read.bool` can't express a `true` default (a missing key reads
 			// `false`), so keep the stored value unless it is a real boolean.
-			showTemp:
-				typeof _p.showTemp === "boolean" ? _p.showTemp : d.showTemp,
+			showTemp: typeof _p.showTemp === "boolean" ? _p.showTemp : d.showTemp,
 			showWind: read.bool("showWind"),
 			showHumidity: read.bool("showHumidity"),
 			color: read.hex("color", d.color),

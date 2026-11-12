@@ -1,6 +1,6 @@
 /** Chat message decoration: escaped HTML with linked URLs and bold @mentions. */
 
-/** A message starting with @username is a DM — render it muted. */
+/** A message starting with @username is a DM - render it muted. */
 export const DM_RE = /^\s*@[A-Za-z0-9_-]+/;
 
 export function decorateText(text: string): string {

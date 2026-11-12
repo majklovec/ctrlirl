@@ -4,13 +4,13 @@
  * session user's projects. The choice persists in localStorage
  * (`activeProjectId`) and every change is broadcast as the global
  * `project-changed` CustomEvent so the open pages can rescope. It is purely a
- * switcher — projects are created on the Projects page, not here — and it
+ * switcher - projects are created on the Projects page, not here - and it
  * hides itself when the user has none. An authenticated user without a
  * project is redirected to the Projects page (where they create one) so no
  * project-scoped page renders for an empty account.
  *
  * Shell-owned: it talks to the API over HTTP only (the shell never imports
- * page code — the projects page just consumes the same storage key).
+ * page code - the projects page just consumes the same storage key).
  */
 import { apiTry } from "@ui/api_client";
 import { t } from "@ui/i18n";
@@ -94,7 +94,7 @@ async function load(): Promise<void> {
 	m.redraw();
 }
 
-/** The selector shows only once the API answered and the user has projects —
+/** The selector shows only once the API answered and the user has projects -
  * projects are created on the Projects page, not from the main menu. */
 function visible(): boolean {
 	return state.projects !== null && state.projects.length > 0;
@@ -110,9 +110,7 @@ const ProjectSelectComponent: m.Component = {
 				class="project-select"
 				aria-label={t("projects.select.label")}
 				value={state.active ?? ""}
-				onchange={(e: Event) =>
-					select((e.target as HTMLSelectElement).value)
-				}
+				onchange={(e: Event) => select((e.target as HTMLSelectElement).value)}
 			>
 				{state.projects!.map((p) => (
 					<option key={p.id} value={p.id}>

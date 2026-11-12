@@ -1,7 +1,7 @@
 /** @jsx m */
 /*
  * The ambient background element: an animated canvas background. The set of
- * backgrounds is open-ended — see `ambient_backgrounds/` (one class per
+ * backgrounds is open-ended - see `ambient_backgrounds/` (one class per
  * background over a shared engine); this file only wires the element
  * contract around the `AMBIENT_VARIANTS` catalog.
  */
@@ -36,7 +36,7 @@ export interface AmbientProps {
 	kind: string;
 	/** animation tempo, 0.1–4× the background's base speed */
 	speed: number;
-	/** 1–10 trail multiplier — higher fades each frame less, longer trails */
+	/** 1–10 trail multiplier - higher fades each frame less, longer trails */
 	trail: number;
 	/** solid colour painted under the animation */
 	background: string;

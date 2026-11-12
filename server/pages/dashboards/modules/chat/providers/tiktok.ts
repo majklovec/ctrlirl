@@ -1,5 +1,5 @@
 /**
- * TikTok chat provider — one tiktok-live-connector connection per channel
+ * TikTok chat provider - one tiktok-live-connector connection per channel
  * (TikTok chat is public, no auth). The connector has no built-in
  * auto-reconnect, so the provider owns the reconnection loop (backoff from
  * the base class); `fetchRoomId` can hang (offline room, slow CDN), so each
@@ -39,8 +39,8 @@ export class TiktokChatProvider extends ChatProvider {
         // TikTok, unlike YouTube, broadcasts moderations (`imDelete`) to every
         // viewer: a mod deleting one message clears its id, while a ban/kick
         // clears all of the user's recent message ids in one event. Both arrive
-        // here as `deleteMsgIds` — the same `msgId`s stored as each line's
-        // `id` — so the matching history lines can be marked banned.
+        // here as `deleteMsgIds` - the same `msgId`s stored as each line's
+        // `id` - so the matching history lines can be marked banned.
         conn.on(WebcastEvent.IM_DELETE, (raw: unknown) => {
             if (this.stopped || !this.connected) return;
             const ids = imDeleteMessageIds(raw);
@@ -73,7 +73,7 @@ export class TiktokChatProvider extends ChatProvider {
                       : String(err),
             );
         });
-        // fetchRoomId can hang (offline room, slow CDN) — cap the attempt.
+        // fetchRoomId can hang (offline room, slow CDN) - cap the attempt.
         this.#connectTimer = setTimeout(
             () => this.#onConnectFail("connect timeout"),
             CONNECT_TIMEOUT_MS,

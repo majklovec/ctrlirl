@@ -5,14 +5,14 @@
  * Single-socket, kernel-NAT design (see TODO/optimize-udp-relay.md): ONE UDP
  * listener on 0.0.0.0 + one bare-L3 TUN per uplink leg. The kernel does the
  * NAT per leg (leg routing table + iif rule + MASQUERADE + FORWARD), so replies
- * leave each uplink with that uplink's source IP — no user-space NAT, no
+ * leave each uplink with that uplink's source IP - no user-space NAT, no
  * source-routing pin (the b6db3 fix).
  *
  * The encoder's TUN (vif /32) dials each leg on (vifIp, listenPort); the kernel
  * forwards vif traffic out the leg's uplink. `LEG_A vif 10.3.3.2 :4010`
  * egresses enx7eafd60ad1a2, `LEG_B vif 10.3.3.3 :4000` egresses eth0.
  *
- * Usage (root — TUN + iptables):
+ * Usage (root - TUN + iptables):
  *   sudo bun scripts/run_udp_relay.ts
  *
  * Env:
@@ -22,9 +22,9 @@
 import { execFileSync } from "node:child_process";
 import {
     applyLegPlan,
+    type CommandRunner,
     createUdpRelay,
     relayTunName,
-    type CommandRunner,
 } from "../shared/lib/udp_relay/src/index";
 
 const LEGS = (process.env.LEGS ?? "enx7eafd60ad1a2:4010,eth0:4000")
@@ -74,17 +74,22 @@ for (let slot = 0; slot < LEGS.length; slot++) {
         onStats: (s) => {
             if (s.encRxPackets > 0 && s.encRxPackets % 500 === 0)
                 process.stderr.write(
-                    `[relay ${iface}:${port}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} vifRx=${s.vifRxPackets} vifTx=${s.vifTxPackets} drops=${s.drops}\n`
+                    `[relay ${iface}:${port}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} vifRx=${s.vifRxPackets} vifTx=${s.vifTxPackets} drops=${s.drops}\n`,
                 );
         },
     });
     await relay.start();
     // Bring the leg's TUN up + install its kernel netplan.
     await rootRun("ip", "link", "set", tunName, "up");
-    await applyLegPlan(rootRun, { slot, tun: tunName, uplinkIface: iface, vifIp });
+    await applyLegPlan(rootRun, {
+        slot,
+        tun: tunName,
+        uplinkIface: iface,
+        vifIp,
+    });
     relays.push(relay);
     console.log(
-        `[relay] leg up: ${iface} vif ${vifIp} :${port} (tun ${tunName}, table ${slot + 40})`
+        `[relay] leg up: ${iface} vif ${vifIp} :${port} (tun ${tunName}, table ${slot + 40})`,
     );
 }
 
@@ -92,7 +97,7 @@ setInterval(() => {
     for (const r of relays) {
         const s = r.stats();
         process.stderr.write(
-            `[stats ${r.interfaceName}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} vifRx=${s.vifRxPackets} vifTx=${s.vifTxPackets} drops=${s.drops}\n`
+            `[stats ${r.interfaceName}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} vifRx=${s.vifRxPackets} vifTx=${s.vifTxPackets} drops=${s.drops}\n`,
         );
     }
 }, 15000);

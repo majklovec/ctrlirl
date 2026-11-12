@@ -22,7 +22,7 @@
     "set.service_group_common": "Comunes",
     "set.service_group_other": "Otros",
     "set.broadcaster": "Salidas RTMP",
-    "set.broadcaster_desc": "Servicio, URL y clave de cada destino al que se publica el stream — todos usan el mismo perfil de ffmpeg. Las claves de stream son solo de escritura. El stream se reinicia tras guardar.",
+    "set.broadcaster_desc": "Servicio, URL y clave de cada destino al que se publica el stream - todos usan el mismo perfil de ffmpeg. Las claves de stream son solo de escritura. El stream se reinicia tras guardar.",
     "set.broadcaster_profile": "Perfil de salida",
     "role.broadcaster": "broadcaster",
     "setup.role.broadcaster_tag": "Transmite a destinos RTMP"

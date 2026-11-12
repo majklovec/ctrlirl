@@ -44,7 +44,7 @@ const WIDGET_IDS = ["stats", "chat"];
  * registration whose `id` matches its directory, and whose `kind` splits the
  * set into device cards (matching the backend registry) and widgets. A module
  * can register several (e.g. a device-card plus a dashboard widget) by
- * default-exporting an array of them — the registry flattens it.
+ * default-exporting an array of them - the registry flattens it.
  */
 const appDir = join(import.meta.dir, "..");
 /** Every module directory across the module roots (client/modules, server/pages/<page>/modules). */
@@ -52,7 +52,10 @@ const moduleDirs = (): { id: string; path: string }[] =>
     MODULE_ROOTS.flatMap((root) =>
         readdirSync(join(appDir, root), { withFileTypes: true })
             .filter((dir) => dir.isDirectory())
-            .map((dir) => ({ id: dir.name, path: join(appDir, root, dir.name) })),
+            .map((dir) => ({
+                id: dir.name,
+                path: join(appDir, root, dir.name),
+            })),
     );
 const moduleDir = (id: string): string => {
     const found = moduleDirs().find((dir) => dir.id === id);
@@ -84,7 +87,7 @@ function scanFrontends(): {
         try {
             src = readFileSync(file, "utf8");
         } catch {
-            continue; // module without a frontend (backend-only) — fine
+            continue; // module without a frontend (backend-only) - fine
         }
         expect(
             src,
@@ -171,19 +174,19 @@ describe("module registries", () => {
         const front = new Set(cardIds);
         const expectsCard = new Set(
             fronts
-                .filter((fe) => fe.registrations.some((r) => r.kind !== "contributions"))
+                .filter((fe) =>
+                    fe.registrations.some((r) => r.kind !== "contributions"),
+                )
                 .map((fe) => fe.dir),
         );
         const missing = DEVICE_ORDER.filter(
             (id) => !front.has(id) && expectsCard.has(id),
         );
-        const extra = [...front].filter(
-            (id) => !DEVICE_ORDER.includes(id),
-        );
+        const extra = [...front].filter((id) => !DEVICE_ORDER.includes(id));
         expect(missing).toEqual([]);
         expect(extra).toEqual([]);
         // The network card owns the interfaces table and the modems card
-        // owns the modem panels — the relay card is SRTLA-only.
+        // owns the modem panels - the relay card is SRTLA-only.
         const networkSrc = readFileSync(
             join(moduleDir("network"), "frontend.tsx"),
             "utf8",
@@ -262,7 +265,7 @@ describe("module registries", () => {
         );
         expect(src).not.toMatch(/modules\/[\w-]+\/backend/);
         expect(src).toMatch(/for \(const root of MODULE_ROOTS\)/);
-        // Compiled binaries (bun build --compile) cannot run the scan — they
+        // Compiled binaries (bun build --compile) cannot run the scan - they
         // fall back to the generated manifest, like the frontend registry.
         expect(src).toMatch(/"\.\.\/generated\/modules\.backend"/);
         const manifest = join(
@@ -287,25 +290,35 @@ describe("module registries", () => {
             readFileSync(join(appDir, "client", "frontend", name), "utf8");
         const app = readClientPage("device_page.tsx");
         const dashboard = readFileSync(
-            join(appDir, "server", "pages", "dashboards", "frontend", "dashboard_widgets.tsx"),
+            join(
+                appDir,
+                "server",
+                "pages",
+                "dashboards",
+                "frontend",
+                "dashboard_widgets.tsx",
+            ),
             "utf8",
         );
         const setup = readClientPage("setup.tsx");
         /* The device list page is a page-slice page now (01-refactor):
          * server/pages/devices/frontend/device_list.tsx. */
         const devices = readFileSync(
-            join(appDir, "server", "pages", "devices", "frontend", "device_list.tsx"),
+            join(
+                appDir,
+                "server",
+                "pages",
+                "devices",
+                "frontend",
+                "device_list.tsx",
+            ),
             "utf8",
         );
 
-        expect(app).not.toMatch(
-            /moduleCard\(["'](encoder|relay|obs)/,
-        );
+        expect(app).not.toMatch(/moduleCard\(["'](encoder|relay|obs)/);
         expect(app).not.toMatch(/status\.role\s*[!=]|status\.modules/);
         expect(dashboard).not.toMatch(/ROLE_WIDGET_TYPES|CARD_MODULE/);
-        expect(dashboard).not.toMatch(
-            /case ["'](encoder|srtla|relay|obs)["']/,
-        );
+        expect(dashboard).not.toMatch(/case ["'](encoder|srtla|relay|obs)["']/);
         expect(dashboard).not.toContain("modules/obs");
         expect(setup).not.toMatch(
             /encoderHost|srtlaRemoteHost|setup\.step\.encoder/,
@@ -335,13 +348,25 @@ describe("module registries", () => {
     // test/boundaries.test.ts ("a module never imports another module").
 
     test("the encoder owns its dedicated pipeline editor page", () => {
-        const modulePage = join(moduleDir("encoder"), "pages", "pipelineedit.html");
+        const modulePage = join(
+            moduleDir("encoder"),
+            "pages",
+            "pipelineedit.html",
+        );
         expect(existsSync(modulePage)).toBe(true);
         expect(readFileSync(modulePage, "utf8")).toContain(
             "../pipeline_editor.tsx",
         );
         expect(
-            existsSync(join(appDir, "client", "frontend", "pages", "pipelineedit.html")),
+            existsSync(
+                join(
+                    appDir,
+                    "client",
+                    "frontend",
+                    "pages",
+                    "pipelineedit.html",
+                ),
+            ),
         ).toBe(false);
     });
 });
@@ -391,7 +416,7 @@ describe("role presets from the registrations", () => {
         const role = state.settings.role;
         try {
             state.settings.modules = {
-                "obs": {
+                obs: {
                     enabled: true,
                     obsUrl: "ws://1.2.3.4:4455",
                 },

@@ -373,7 +373,7 @@ function listProfiles(): Profile[] {
             if (!isRecord(raw)) {
                 log(
                     "warn",
-                    `profile file ${filename} must be an object — skipped`,
+                    `profile file ${filename} must be an object - skipped`,
                 );
                 continue;
             }
@@ -393,7 +393,7 @@ function listProfiles(): Profile[] {
                 args: args.length > 0 ? args : COPY_ARGS,
             });
         } catch (error: unknown) {
-            log("warn", `profile file ${filename} is invalid JSON — skipped`);
+            log("warn", `profile file ${filename} is invalid JSON - skipped`);
         }
     }
     return profiles.sort((a, b) => a.id.localeCompare(b.id));
@@ -549,7 +549,7 @@ function onChildExit(
     ) {
         if (wantsRunning) scheduleStreamRestart(`${label} is down`);
         else {
-            log("warn", `${label} is down — stopping stream`);
+            log("warn", `${label} is down - stopping stream`);
             void stopStream();
         }
     }
@@ -809,7 +809,7 @@ function scheduleStreamRestart(reason: string): void {
     streamBackoff = Math.min(streamBackoff * 2, BACKOFF_MAX_MS);
     log(
         "warn",
-        `${reason} — restarting stream in ${Math.round(delay / 1000)}s (restart #${streamRestarts})`,
+        `${reason} - restarting stream in ${Math.round(delay / 1000)}s (restart #${streamRestarts})`,
     );
     void stopStream().then(() => {
         if (!wantsRunning || generation !== restartGeneration) return;
@@ -864,7 +864,7 @@ function startHealthMonitor(): void {
         const reason = `SRTLA port ${config.srtlaPort} not open for ${seconds} s`;
         if (wantsRunning) scheduleStreamRestart(reason);
         else {
-            log("warn", `${reason} — stopping stream`);
+            log("warn", `${reason} - stopping stream`);
             void stopStream();
         }
     }, HEALTH_CHECK_INTERVAL_MS);

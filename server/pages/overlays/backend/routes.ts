@@ -50,11 +50,11 @@ import { APP_VERSION } from "../../../../shared/app_version";
 import type { createFrontend } from "../../../../shared/frontend";
 import { upgradeRequired } from "../../../../shared/http";
 import { socketMessage } from "../../../../shared/socket_message";
-import type { PageServices, ProjectAccess } from "../../../core/contracts";
-import type { Assets } from "../../assets/server/registry";
 import { authenticatedHandler } from "../../../core/auth/authenticated";
+import type { PageServices, ProjectAccess } from "../../../core/contracts";
 import { apiGuard, scopedProject } from "../../../core/project_scope";
 import { event } from "../../../core/runtime";
+import type { Assets } from "../../assets/server/registry";
 import { ApiError, type Overlays, overlayRuntimeTopic } from "./registry";
 
 type Frontend = Awaited<ReturnType<typeof createFrontend>>;
@@ -78,9 +78,7 @@ function ownerJson(
                 {
                     ok: false,
                     error:
-                        err instanceof Error
-                            ? err.message
-                            : "Internal error",
+                        err instanceof Error ? err.message : "Internal error",
                     code,
                 },
                 { status: code },
@@ -129,14 +127,13 @@ function runtimeToken(request: Request): string {
 }
 
 /** The runtime page HTML: served even for a bad token so OBS shows a blank
- * (transparent) page — no error text, no background (handoff §7.3). */
+ * (transparent) page - no error text, no background (handoff §7.3). */
 function runtimePage(frontend: Frontend): Response {
     const response = frontend.htmlResponse("overlay_view");
     for (const [key, value] of Object.entries(RUNTIME_HEADERS))
         response.headers.set(key, value);
     return response;
 }
-
 
 export function mountOverlayRoutes(
     routes: Elysia,
@@ -171,83 +168,75 @@ export function mountOverlayRoutes(
                 frontend.htmlResponse("overlay_update"),
             ),
         )
-        // before /overlay/:id — the static paths must win over the scene id
-        .get(
-            "/overlay/:id/variables",
-            ({ request, params }) =>
-                ownerJson(() => {
-                    const project = runtimeProject(request);
-                    if (!project) return null;
-                    return overlays.setVariables(
-                        project,
-                        decodeURIComponent(params.id),
-                        queryValues(request),
-                    );
-                }),
+        // before /overlay/:id - the static paths must win over the scene id
+        .get("/overlay/:id/variables", ({ request, params }) =>
+            ownerJson(() => {
+                const project = runtimeProject(request);
+                if (!project) return null;
+                return overlays.setVariables(
+                    project,
+                    decodeURIComponent(params.id),
+                    queryValues(request),
+                );
+            }),
         )
-        .post(
-            "/overlay/:id/variables",
-            ({ request, params }) =>
-                ownerJson(async () => {
-                    const project = runtimeProject(request);
-                    if (!project) return null;
-                    // JSON body: {<name>: value|null} — null/"" clears
-                    let body: unknown;
-                    try {
-                        body = await request.json();
-                    } catch {
-                        throw new ApiError("body must be valid JSON", 400);
-                    }
-                    if (
-                        typeof body !== "object" ||
-                        body === null ||
-                        Array.isArray(body)
-                    )
-                        throw new ApiError(
-                            "body must be a JSON object of variable name → value",
-                            400,
-                        );
-                    return overlays.setVariables(
-                        project,
-                        decodeURIComponent(params.id),
-                        body as Record<string, unknown>,
+        .post("/overlay/:id/variables", ({ request, params }) =>
+            ownerJson(async () => {
+                const project = runtimeProject(request);
+                if (!project) return null;
+                // JSON body: {<name>: value|null} - null/"" clears
+                let body: unknown;
+                try {
+                    body = await request.json();
+                } catch {
+                    throw new ApiError("body must be valid JSON", 400);
+                }
+                if (
+                    typeof body !== "object" ||
+                    body === null ||
+                    Array.isArray(body)
+                )
+                    throw new ApiError(
+                        "body must be a JSON object of variable name → value",
+                        400,
                     );
-                }),
+                return overlays.setVariables(
+                    project,
+                    decodeURIComponent(params.id),
+                    body as Record<string, unknown>,
+                );
+            }),
         )
         // a wildcard (not `:name`): the event name may carry a path segment
-        // of its own — `path.end/<route>` renames the live-map default route
+        // of its own - `path.end/<route>` renames the live-map default route
         // to <route> (TODO/09-map.md)
-        .get(
-            "/overlay/:id/event/*",
-            ({ request, params }) =>
-                ownerJson(() => {
-                    const project = runtimeProject(request);
-                    if (!project) return null;
-                    // query pairs (if any) set project variables; the
-                    // trigger itself is the URL's <name>
-                    return overlays.triggerEvent(
-                        project,
-                        decodeURIComponent(params.id),
-                        safeDecodeURIComponent(
-                            (params as Record<string, string>)["*"] ?? "",
-                        ),
-                        queryValues(request),
-                    );
-                }),
+        .get("/overlay/:id/event/*", ({ request, params }) =>
+            ownerJson(() => {
+                const project = runtimeProject(request);
+                if (!project) return null;
+                // query pairs (if any) set project variables; the
+                // trigger itself is the URL's <name>
+                return overlays.triggerEvent(
+                    project,
+                    decodeURIComponent(params.id),
+                    safeDecodeURIComponent(
+                        (params as Record<string, string>)["*"] ?? "",
+                    ),
+                    queryValues(request),
+                );
+            }),
         )
         // Live-map route history (keep_history): the OBS runtime page polls
         // this while a keep_history map element renders active paths.
-        .get(
-            "/overlay/:id/map-history",
-            ({ request, params }) =>
-                ownerJson(() => {
-                    const project = runtimeProject(request);
-                    if (!project) return null;
-                    return overlays.mapHistory(
-                        project,
-                        decodeURIComponent(params.id),
-                    );
-                }),
+        .get("/overlay/:id/map-history", ({ request, params }) =>
+            ownerJson(() => {
+                const project = runtimeProject(request);
+                if (!project) return null;
+                return overlays.mapHistory(
+                    project,
+                    decodeURIComponent(params.id),
+                );
+            }),
         )
         // Media of an image/video element that references the owner's asset
         // library (`libraryAssetId`). Token-scoped like the rest of the
@@ -255,46 +244,46 @@ export function mountOverlayRoutes(
         // that owner's files can be served through it. A bad token, unknown
         // overlay, a foreign overlay, or a file that is not the owner's all
         // 404 (probes must not leak).
-        .get(
-            "/overlay/:id/files/:fileId",
-            ({ request, params }) => {
-                const project = runtimeProject(request);
-                const feed = project
-                    ? overlays.runtimeOverlay(project, decodeURIComponent(params.id))
-                    : null;
-                if (!feed)
-                    return Response.json(
-                        { ok: false, error: "Not found", code: 404 },
-                        { status: 404 },
-                    );
-                let file: { mime: string; data: Uint8Array };
-                try {
-                    const blob = assets.fileBlob(feed.project, params.fileId);
-                    file = { mime: blob.file.mimeType, data: blob.data };
-                } catch (err: unknown) {
-                    const code = err instanceof ApiError ? err.code : 500;
-                    return Response.json(
-                        {
-                            ok: false,
-                            error:
-                                err instanceof Error
-                                    ? err.message
-                                    : "Internal error",
-                            code,
-                        },
-                        { status: code },
-                    );
-                }
-                return new Response(file.data as BodyInit, {
-                    status: 200,
-                    headers: {
-                        "content-type": file.mime,
-                        "content-length": String(file.data.byteLength),
-                        ...RUNTIME_HEADERS,
+        .get("/overlay/:id/files/:fileId", ({ request, params }) => {
+            const project = runtimeProject(request);
+            const feed = project
+                ? overlays.runtimeOverlay(
+                      project,
+                      decodeURIComponent(params.id),
+                  )
+                : null;
+            if (!feed)
+                return Response.json(
+                    { ok: false, error: "Not found", code: 404 },
+                    { status: 404 },
+                );
+            let file: { mime: string; data: Uint8Array };
+            try {
+                const blob = assets.fileBlob(feed.project, params.fileId);
+                file = { mime: blob.file.mimeType, data: blob.data };
+            } catch (err: unknown) {
+                const code = err instanceof ApiError ? err.code : 500;
+                return Response.json(
+                    {
+                        ok: false,
+                        error:
+                            err instanceof Error
+                                ? err.message
+                                : "Internal error",
+                        code,
                     },
-                });
-            },
-        )
+                    { status: code },
+                );
+            }
+            return new Response(file.data as BodyInit, {
+                status: 200,
+                headers: {
+                    "content-type": file.mime,
+                    "content-length": String(file.data.byteLength),
+                    ...RUNTIME_HEADERS,
+                },
+            });
+        })
         .get("/overlay/:id", () => runtimePage(frontend))
         .all(
             "/api/overlays",
@@ -334,7 +323,9 @@ export function mountOverlayRoutes(
                 );
                 if (!m) return ws.close(1008, "Unknown overlay route");
                 const overlayId = decodeURIComponent(m[1]);
-                const project = auth.projectForToken(runtimeToken(ws.data.request));
+                const project = auth.projectForToken(
+                    runtimeToken(ws.data.request),
+                );
                 const feed = project
                     ? overlays.runtimeOverlay(project, overlayId)
                     : null;
@@ -365,9 +356,10 @@ export function mountOverlayRoutes(
                 // restores the raw string
                 let frame: { event?: string; data?: unknown };
                 try {
-                    frame = JSON.parse(
-                        `${socketMessage(message)}`,
-                    ) as { event?: string; data?: unknown };
+                    frame = JSON.parse(`${socketMessage(message)}`) as {
+                        event?: string;
+                        data?: unknown;
+                    };
                 } catch {
                     return;
                 }
@@ -388,7 +380,7 @@ export function mountOverlayRoutes(
                 } catch {
                     // the values came from this page's own validated
                     // trigger payload; an apply failure means the overlay
-                    // changed underneath — the event already played, there
+                    // changed underneath - the event already played, there
                     // is nothing safe to surface over a fire-and-forget WS
                 }
             },

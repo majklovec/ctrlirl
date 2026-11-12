@@ -2,11 +2,11 @@
 /*
  * Asset library picker: a modal listing the user's media files from the
  * server-side asset manager (GET /api/assets/browse). Overlay elements
- * REUSE an already-uploaded file by referencing its id — image/video take
+ * REUSE an already-uploaded file by referencing its id - image/video take
  * an `image`/`video` file, alert elements take a media file and an
  * `audio` sting.
  * The list is flattened across the folder tree (folder path as a dimmed
- * subtitle). The result is cached per kind for the page's lifetime — the
+ * subtitle). The result is cached per kind for the page's lifetime - the
  * library rarely changes while an editor session is open, and re-opening the
  * picker must not refetch (Mithril view functions are re-created per render,
  * so the cache is module-scoped, like the field pickers in fields.tsx).
@@ -81,7 +81,8 @@ export function libraryAssetField(
 			? (element.props[propKey] as string)
 			: "";
 	const openKey = `${element.id}:${propKey}`;
-	const files = cache[kind]?.status === "ready" ? cache[kind]!.files : undefined;
+	const files =
+		cache[kind]?.status === "ready" ? cache[kind]!.files : undefined;
 	const selected = files?.find((f) => f.id === selectedId);
 	// preload the list while the field is visible (a cached no-op after load)
 	void loadLibraryFiles(kind);
@@ -98,7 +99,8 @@ export function libraryAssetField(
 							pickerOpen.add(openKey);
 							void loadLibraryFiles(kind);
 							m.redraw();
-						}}>
+						}}
+					>
 						{selected ? selected.name : t("overlay.library_pick")}
 					</button>
 					{selectedId ? (
@@ -111,7 +113,8 @@ export function libraryAssetField(
 								mutate((el) => {
 									el.props[propKey] = "";
 								})
-							}>
+							}
+						>
 							×
 						</button>
 					) : null}
@@ -144,10 +147,7 @@ export function assetLibraryPicker({
 }: assetLibraryPickerProps): m.Vnode {
 	const state = cache[kind] ?? { status: "loading" as const };
 	return (
-		<Modal
-			title={t("overlay.library")}
-			class="ov-lib-modal"
-			onClose={onClose}>
+		<Modal title={t("overlay.library")} class="ov-lib-modal" onClose={onClose}>
 			<p class="ov-lib-hint">
 				<a class="muted" href="/assets/" target="_blank" rel="noreferrer">
 					{t("overlay.library_manage")}
@@ -166,18 +166,15 @@ export function assetLibraryPicker({
 							key={f.id}
 							type="button"
 							class={
-								f.id === selectedId
-									? "ov-lib-row ov-lib-row-sel"
-									: "ov-lib-row"
+								f.id === selectedId ? "ov-lib-row ov-lib-row-sel" : "ov-lib-row"
 							}
 							onclick={() => {
 								onPick(f);
 								onClose();
-							}}>
+							}}
+						>
 							<span class="ov-lib-name">{f.name}</span>
-							{f.path ? (
-								<span class="ov-lib-path">{f.path}</span>
-							) : null}
+							{f.path ? <span class="ov-lib-path">{f.path}</span> : null}
 						</button>
 					))
 				)}

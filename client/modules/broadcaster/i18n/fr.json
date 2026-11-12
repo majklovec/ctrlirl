@@ -22,7 +22,7 @@
     "set.service_group_common": "Courants",
     "set.service_group_other": "Autres",
     "set.broadcaster": "Sorties RTMP",
-    "set.broadcaster_desc": "Service, URL et clé de chaque destination vers laquelle le flux est publié — tous utilisent le même profil ffmpeg. Les clés de stream sont en écriture seule. Le flux redémarre après enregistrement.",
+    "set.broadcaster_desc": "Service, URL et clé de chaque destination vers laquelle le flux est publié - tous utilisent le même profil ffmpeg. Les clés de stream sont en écriture seule. Le flux redémarre après enregistrement.",
     "set.broadcaster_profile": "Profil de sortie",
     "role.broadcaster": "broadcaster",
     "setup.role.broadcaster_tag": "Diffuse vers les destinations RTMP"

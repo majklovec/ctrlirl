@@ -3,8 +3,8 @@
 **Target repository:** https://github.com/majklovec/irlctrl
 **Reference implementations:**
 
--   `moblink-rust` — https://github.com/datagutt/moblink-rust (auth + WebSocket protocol)
--   Moblin iOS app — https://github.com/eerimoq/moblin (original concept)
+-   `moblink-rust` - https://github.com/datagutt/moblink-rust (auth + WebSocket protocol)
+-   Moblin iOS app - https://github.com/eerimoq/moblin (original concept)
 
 **This document covers three deliverables:**
 
@@ -20,7 +20,7 @@ The library (A) is the transport primitive. The modules (B, C) build on it and o
 
 ## 1. Goal
 
-Extend an encoder's SRTLA bond with the uplinks of a separate relay box — **without** the relay box needing a public IP or creating duplicate streams.
+Extend an encoder's SRTLA bond with the uplinks of a separate relay box - **without** the relay box needing a public IP or creating duplicate streams.
 
 ```
 [ ENCODER (role: encoder) ]
@@ -36,7 +36,7 @@ Extend an encoder's SRTLA bond with the uplinks of a separate relay box — **wi
    └─ Relay on usb1 ──▶  srtla_rec
 ```
 
-The encoder sees extra "uplinks" in its SRTLA bond. The relay box makes them physically traverse its own interfaces. Neither side terminates SRTLA — the connection to `srtla_rec` stays transparent.
+The encoder sees extra "uplinks" in its SRTLA bond. The relay box makes them physically traverse its own interfaces. Neither side terminates SRTLA - the connection to `srtla_rec` stays transparent.
 
 ---
 
@@ -46,14 +46,14 @@ These override any older specs, CLI flags in `moblink-rust`, or hints in the sou
 
 ### 2.1 No CLI flags
 
-**Only** `--role` selects behaviour. Everything else — password, streamer URL(s), interface allow/ignore regexes, TUN network, destination address/port, paths — lives in the standard config store (`ctx.state` / `ctx.saveState`) and is edited in the Settings UI.
+**Only** `--role` selects behaviour. Everything else - password, streamer URL(s), interface allow/ignore regexes, TUN network, destination address/port, paths - lives in the standard config store (`ctx.state` / `ctx.saveState`) and is edited in the Settings UI.
 
 ```bash
 # Correct
 bun client/backend/client.ts --role moblink-relay
 bun client/backend/client.ts --role encoder
 
-# WRONG — do not add these
+# WRONG - do not add these
 --moblink-password ...
 --moblink-streamer-url ...
 --moblink-database ...
@@ -75,7 +75,7 @@ Do **not** add Moblink protocol messages, auth, or discovery to the library. Do 
 
 ### 2.5 Transport mode
 
-The modules use the **UDP transport** provided by `@irlctrl/udp-relay`. Do **not** implement the WebSocket-based Moblink relay protocol (challenge–response, `Hello`/`Identify`/`startTunnel`) in v1 — it belongs to a future transport mode and is out of scope for this document. If you find yourself porting `moblink-rust/src/protocol.rs`, stop: that code is **not** part of this task.
+The modules use the **UDP transport** provided by `@irlctrl/udp-relay`. Do **not** implement the WebSocket-based Moblink relay protocol (challenge–response, `Hello`/`Identify`/`startTunnel`) in v1 - it belongs to a future transport mode and is out of scope for this document. If you find yourself porting `moblink-rust/src/protocol.rs`, stop: that code is **not** part of this task.
 
 ---
 
@@ -87,14 +87,14 @@ The modules use the **UDP transport** provided by `@irlctrl/udp-relay`. Do **not
 | `shared/contracts/backend_module.ts` | The module contract.                                                                                         |
 | `client/modules/relay/backend.ts`    | Canonical example of a module with long-running processes, RPC, status.                                      |
 | `client/modules/network/backend.ts`  | Interface enumeration + uplinks capability (to be extended per §7.2).                                        |
-| `shared/registry.ts`                 | Module + role discovery — new modules auto-register from `client/modules/<name>/`.                           |
+| `shared/registry.ts`                 | Module + role discovery - new modules auto-register from `client/modules/<name>/`.                           |
 | `client/modules/README.md`           | Dashboard / settings / i18n conventions.                                                                     |
 
 **Role vs module:** role = entrypoint selector (`--role`), module = discoverable unit under `client/modules/`, with `backend.ts`, `frontend.tsx`, `settings.tsx`, `types.ts`, optional `styles.css`.
 
 ---
 
-## 4. Deliverable A — `@irlctrl/udp-relay` Library
+## 4. Deliverable A - `@irlctrl/udp-relay` Library
 
 ### 4.1 Purpose
 
@@ -107,7 +107,7 @@ Two primitives for tunnelling UDP across a network hop:
 
 Together: encoder's TUN ↔ encoder's UDP socket ↔ wire ↔ relay's UDP socket ↔ relay's physical interface.
 
-The library is **protocol-agnostic** (moves payloads, no SRTLA), **auth-agnostic** (no handshake, no password — module handles auth separately), **discovery-agnostic** (caller supplies endpoints).
+The library is **protocol-agnostic** (moves payloads, no SRTLA), **auth-agnostic** (no handshake, no password - module handles auth separately), **discovery-agnostic** (caller supplies endpoints).
 
 ### 4.2 Package layout
 
@@ -248,7 +248,7 @@ UDP datagrams between the two sides. Big-endian. Two message types.
 ```
 
 -   `flags`/`reserved` MUST be 0 on send, MUST be ignored on receive.
--   No IPs or ports in the frame — flow state is out-of-band (§4.6, §4.7).
+-   No IPs or ports in the frame - flow state is out-of-band (§4.6, §4.7).
 
 **Keepalive frame (type `0x02`):**
 
@@ -260,22 +260,22 @@ UDP datagrams between the two sides. Big-endian. Two message types.
 
 **Size:** header 4 B; max payload = `mtu - 28` (IPv4 + UDP headers). Oversized payloads dropped and counted.
 
-### 4.5 Encoder side — TUN lifecycle
+### 4.5 Encoder side - TUN lifecycle
 
 1. Open `/dev/net/tun` with `O_RDWR`.
 2. `ioctl(TUNSETIFF)` with `IFF_TUN | IFF_NO_PI` and padded name. Capture the actual assigned name.
-3. Assign IP and bring up — prefer netlink; shelling out to `ip addr add` + `ip link set up` is acceptable for v1 (marked `TODO: netlink`).
+3. Assign IP and bring up - prefer netlink; shelling out to `ip addr add` + `ip link set up` is acceptable for v1 (marked `TODO: netlink`).
 4. Store fd, start read loop.
 5. **`stop()`:** close fd (Linux removes the interface), then best-effort `ip link del`. Close UDP socket. Idempotent.
 
-**`IFF_NO_PI` is mandatory** — without it the kernel prepends 4 bytes to every packet and the parser corrupts everything.
+**`IFF_NO_PI` is mandatory** - without it the kernel prepends 4 bytes to every packet and the parser corrupts everything.
 
-### 4.6 Encoder side — read loop and flow tracking
+### 4.6 Encoder side - read loop and flow tracking
 
 Each `read(fd, buf)` returns one complete IPv4 packet.
 
 1. Parse IPv4 header. Reject non-IPv4.
-2. **Reject non-UDP** (`protocol != 17`) — count `txDropped`. This is a UDP relay, not a general IP tunnel.
+2. **Reject non-UDP** (`protocol != 17`) - count `txDropped`. This is a UDP relay, not a general IP tunnel.
 3. Read `ihl`, skip IP header, parse UDP header, extract `payload`.
 4. Validate size ≤ `mtu - 28`. Drop otherwise.
 5. Record flow: `lastFlow = { srcIp, srcPort, dstIp, dstPort, updatedAt }`.
@@ -290,14 +290,14 @@ Each `read(fd, buf)` returns one complete IPv4 packet.
 
 **Non-blocking read:** `read(2)` must not block Bun's event loop. Use a worker thread, `Bun.file(fd).stream()`, or `O_NONBLOCK` + poll. Document the chosen approach in `tun-linux.ts`.
 
-### 4.7 Relay side — two sockets, two directions
+### 4.7 Relay side - two sockets, two directions
 
 The relay does **not** create a TUN. It forwards raw UDP payloads.
 
 1. Resolve `interfaceName → IPv4` via `os.networkInterfaces()`. Allow explicit `interfaceAddress` override.
-2. **`encoderSocket`** = `Bun.udpSocket({ hostname: interfaceAddress, port: listenPort })` — receives from encoder, sends responses back.
-3. **`outboundSocket`** = `Bun.udpSocket({ hostname: interfaceAddress, port: 0 })` — sends to `srtla_rec`, receives responses.
-4. **Never bind to `0.0.0.0`.** That is the #1 bug — packets leak out the wrong interface.
+2. **`encoderSocket`** = `Bun.udpSocket({ hostname: interfaceAddress, port: listenPort })` - receives from encoder, sends responses back.
+3. **`outboundSocket`** = `Bun.udpSocket({ hostname: interfaceAddress, port: 0 })` - sends to `srtla_rec`, receives responses.
+4. **Never bind to `0.0.0.0`.** That is the #1 bug - packets leak out the wrong interface.
 
 **Encoder → destination:**
 
@@ -309,7 +309,7 @@ The relay does **not** create a TUN. It forwards raw UDP payloads.
 
 **Hotplug:** the library does **not** watch interfaces. The caller (module) restarts the relay when an interface's IP changes.
 
-### 4.8 `buildUdpIpPacket(opts)` — `ip.ts`
+### 4.8 `buildUdpIpPacket(opts)` - `ip.ts`
 
 Construct a full IPv4/UDP packet from scratch:
 
@@ -321,7 +321,7 @@ Construct a full IPv4/UDP packet from scratch:
 
 ### 4.9 Security (library level)
 
--   **No auth on the wire.** Caller must implement policy if needed (the module can inspect `encoderAddr` from stats and enforce an allowlist — the library exposes what's needed but does not enforce).
+-   **No auth on the wire.** Caller must implement policy if needed (the module can inspect `encoderAddr` from stats and enforce an allowlist - the library exposes what's needed but does not enforce).
 -   **No encryption.** Documented: use WireGuard or similar for untrusted links.
 -   **Root required for TUN.** Use minimum capabilities.
 -   **No shell injection.** Pass `ip` args as an array; validate interface names against `^[a-zA-Z0-9_.-]{1,15}$`.
@@ -329,7 +329,7 @@ Construct a full IPv4/UDP packet from scratch:
 
 ---
 
-## 5. Deliverable B — Role `moblink-relay`
+## 5. Deliverable B - Role `moblink-relay`
 
 ### 5.1 Purpose
 
@@ -346,14 +346,14 @@ client/modules/moblink-relay/
 └── styles.css
 ```
 
-Role registration: add `"moblink-relay"` to the role list in `shared/registry.ts` (or wherever `--role` is parsed). The role's module set includes at least: `network`, `moblink-relay`, plus common modules (auth, logging, web UI). **Excludes** the SRTLA bridge `relay` module — a relay box does not terminate SRTLA.
+Role registration: add `"moblink-relay"` to the role list in `shared/registry.ts` (or wherever `--role` is parsed). The role's module set includes at least: `network`, `moblink-relay`, plus common modules (auth, logging, web UI). **Excludes** the SRTLA bridge `relay` module - a relay box does not terminate SRTLA.
 
 ### 5.3 Backend responsibilities
 
 1. **Enumerate interfaces** via the `network` module's capability. Apply `interfaceAllow` / `interfaceIgnore` regexes from config.
 2. **Persistent relay IDs:** `ctx.state.moblink.relayIds` is a `Record<interfaceName, uuid>`. Generate on first sight, reuse thereafter.
 3. **One relay per interface** using `createUdpRelay({ interfaceName, listenPort, destination })`. Track `listenPort` per interface in config (default 5000, sequential for multiples).
-4. **No hotplug in the library** — the module subscribes to interface changes (via `network` module capability if available) and `stop()`s + recreates the affected relay.
+4. **No hotplug in the library** - the module subscribes to interface changes (via `network` module capability if available) and `stop()`s + recreates the affected relay.
 5. **Runtime status file** (path from config, default `/tmp/moblink-status.json`) written on every state change. Format in §9.1.
 6. **Logs** via `ctx.logEvent`.
 
@@ -372,7 +372,7 @@ interface MoblinkRelayConfig {
 }
 ```
 
-No `moblink-relay-service.json`. Relay IDs live in `ctx.state.moblink.relayIds`. No password (this transport has no auth — see §4.9).
+No `moblink-relay-service.json`. Relay IDs live in `ctx.state.moblink.relayIds`. No password (this transport has no auth - see §4.9).
 
 ### 5.5 RPC methods
 
@@ -380,7 +380,7 @@ No `moblink-relay-service.json`. Relay IDs live in `ctx.state.moblink.relayIds`.
 -   `moblink-relay.stop`
 -   `moblink-relay.status` → runtime status object (same shape as status file)
 -   `moblink-relay.getConfig`
--   `moblink-relay.setConfig` — apply, restart affected relays
+-   `moblink-relay.setConfig` - apply, restart affected relays
 
 ### 5.6 Frontend
 
@@ -391,7 +391,7 @@ Follow `client/modules/relay/frontend.tsx` and `settings.tsx` patterns.
 
 ---
 
-## 6. Deliverable C — Module `moblink-streamer`
+## 6. Deliverable C - Module `moblink-streamer`
 
 ### 6.1 Purpose
 
@@ -426,7 +426,7 @@ export default defineBackendModule({
 4. **Runtime status file** (§9.1).
 5. **Teardown:** `vif.stop()`, deregister uplink, idempotent.
 
-The module owns only one VIF in v1 (single relay endpoint). Multi-relay (one VIF per relay) is an extension — the library supports it (one `createVirtualInterface` per relay), but the module ships single-relay.
+The module owns only one VIF in v1 (single relay endpoint). Multi-relay (one VIF per relay) is an extension - the library supports it (one `createVirtualInterface` per relay), but the module ships single-relay.
 
 ### 6.4 Config schema (`ctx.state.moblinkStreamer`)
 
@@ -439,7 +439,7 @@ interface MoblinkStreamerConfig {
     relay: { host: string; port: number }; // REQUIRED to start
     mtu: number; // default 1400
     keepaliveIntervalMs: number; // default 5000
-    autoRegisterUplink: boolean; // default TRUE — §2.3
+    autoRegisterUplink: boolean; // default TRUE - §2.3
     runtimeStatusFile: string; // default "/tmp/moblink-status.json"
     logLevel: "trace" | "debug" | "info" | "warn" | "error"; // default "info"
 }
@@ -466,7 +466,7 @@ interface MoblinkStreamerConfig {
 
 Both modules implement `shared/contracts/backend_module.ts`. Model `onStart`/`onStop`/`dispatch`/`status` on `client/modules/relay/backend.ts`.
 
-### 7.2 Extend `network` module — uplinks capability
+### 7.2 Extend `network` module - uplinks capability
 
 If `network` does **not** already expose a programmatic uplinks API, add:
 
@@ -490,7 +490,7 @@ await ctx.capabilities.network.uplinks.add({
 });
 ```
 
-On stop, `remove(id)`. This is the **whole point** of §2.3 — do not skip it, and never fall back to direct file editing from the moblink module.
+On stop, `remove(id)`. This is the **whole point** of §2.3 - do not skip it, and never fall back to direct file editing from the moblink module.
 
 ### 7.3 Coexistence with `relay` module
 
@@ -563,7 +563,7 @@ On the encoder side, `relays[0]` describes the single VIF:
 }
 ```
 
-Written on every state change (connect, disconnect, uplink add/remove, config change). Not a config store — output only.
+Written on every state change (connect, disconnect, uplink add/remove, config change). Not a config store - output only.
 
 ---
 
@@ -571,21 +571,21 @@ Written on every state change (connect, disconnect, uplink add/remove, config ch
 
 ### 10.1 Library unit tests (`bun test` under `shared/lib/udp-relay/test/`)
 
--   **`protocol.test.ts`** — encode/decode round-trips for data + keepalive. Malformed (truncated header, unknown type) rejected, not thrown. Oversized payload rejected.
--   **`ip.test.ts`** — `buildUdpIpPacket` byte-exact against a hard-coded reference (checksum, length, addresses). Parse-then-rebuild a captured packet and assert equality.
--   **`relay.test.ts`** — with mocked `Bun.udpSocket` or real localhost sockets:
+-   **`protocol.test.ts`** - encode/decode round-trips for data + keepalive. Malformed (truncated header, unknown type) rejected, not thrown. Oversized payload rejected.
+-   **`ip.test.ts`** - `buildUdpIpPacket` byte-exact against a hard-coded reference (checksum, length, addresses). Parse-then-rebuild a captured packet and assert equality.
+-   **`relay.test.ts`** - with mocked `Bun.udpSocket` or real localhost sockets:
     -   encoder → destination forwarding;
     -   destination → encoder response forwarded;
     -   non-`0x01` frames dropped;
     -   responses from wrong source dropped;
     -   counters increment correctly.
--   **`virtual-interface.test.ts`** — with a mocked TUN fd:
+-   **`virtual-interface.test.ts`** - with a mocked TUN fd:
     -   outbound IP packet → UDP payload forwarded as data frame;
     -   non-UDP packet dropped, counter increments;
     -   inbound frame → correct IP packet built with swapped addresses and written to fd;
     -   inbound before any outbound → dropped;
     -   `stop()` idempotent.
--   **`tun-linux.test.ts`** — `TUNSETIFF` struct layout and name padding vs known values. Gated by root capability.
+-   **`tun-linux.test.ts`** - `TUNSETIFF` struct layout and name padding vs known values. Gated by root capability.
 
 ### 10.2 Library integration test
 
@@ -603,7 +603,7 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
     -   `srtla_send` shows the extra uplink automatically.
     -   Traffic leaves VM B through the intended physical interface (`tcpdump`).
     -   Stopping either module removes the uplink and frees all ports; `ip link show` shows no residual `moblink0`.
-    -   Restart encoder without restarting relay — new flow is accepted.
+    -   Restart encoder without restarting relay - new flow is accepted.
 
 ---
 
@@ -626,8 +626,8 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
 
 -   [ ] `client/modules/moblink-relay/` with `backend.ts`, `frontend.tsx`, `settings.tsx`, `types.ts`, `styles.css`
 -   [ ] `"moblink-relay"` added to role registry
--   [ ] Config in `ctx.state.moblink` (§5.4) — no CLI flags, no DB file
--   [ ] Relay IDs in `ctx.state.moblink.relayIds` — **not** a separate JSON file
+-   [ ] Config in `ctx.state.moblink` (§5.4) - no CLI flags, no DB file
+-   [ ] Relay IDs in `ctx.state.moblink.relayIds` - **not** a separate JSON file
 -   [ ] Runtime status file per §9.1
 -   [ ] Uses `createUdpRelay()` from `@irlctrl/udp-relay`
 -   [ ] Interface list from `network` module capability (not re-implemented)
@@ -637,7 +637,7 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
 
 -   [ ] `client/modules/moblink-streamer/` with the same file set
 -   [ ] `roles: ["encoder"]`
--   [ ] Config in `ctx.state.moblinkStreamer` (§6.4) — no CLI flags
+-   [ ] Config in `ctx.state.moblinkStreamer` (§6.4) - no CLI flags
 -   [ ] Uses `createVirtualInterface()` from `@irlctrl/udp-relay`
 -   [ ] **Auto-registers uplink via `network.uplinks.add/remove`** (§7.2, §2.3)
 -   [ ] Runtime status file per §9.1
@@ -667,7 +667,7 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
 11. **Adding `--moblink-*` CLI flags.** Forbidden. §2.1.
 12. **Creating `moblink-relay-service.json`.** Forbidden. §2.2.
 13. **Manually editing the uplinks file from the Moblink module.** Use the `network` capability. §7.2, §2.3.
-14. **Two `srtla_send` instances fighting over the same TUN.** Document the single-flow assumption. If user needs multiple paths, they need multiple TUNs (one per relay) and multiple SRTLA senders — that is a module-level concern, not the library's.
+14. **Two `srtla_send` instances fighting over the same TUN.** Document the single-flow assumption. If user needs multiple paths, they need multiple TUNs (one per relay) and multiple SRTLA senders - that is a module-level concern, not the library's.
 15. **Skipping rollback on partial start.** If relay #2 fails after relay #1 started, stop #1. Same for VIF + uplink registration: if uplink add fails, stop the VIF.
 
 ---
@@ -676,15 +676,15 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
 
 Ship each layer green before moving on.
 
-1. **Library scaffolding** — `package.json`, `tsconfig.json`, empty `index.ts`, passing `bun test`.
-2. **`protocol.ts` + `ip.ts`** with unit tests — no sockets, no TUN. This is the foundation.
-3. **`relay.ts`** — two sockets, forwarding, unit tests on `127.0.0.1`.
-4. **`tun-linux.ts`** — open/close/read helpers, struct tests against known values.
-5. **`virtual-interface.ts`** — wire TUN + UDP + protocol + ip, unit tests with mocked fd.
-6. **Library integration test** — dummy interface, real end-to-end, gated by env var.
-7. **`network` module uplinks capability** — add if missing.
-8. **`moblink-streamer` module** — backend only, wire VIF + uplink registration, then frontend + settings.
-9. **`moblink-relay` role + module** — backend only (supervisor over `createUdpRelay`), then frontend + settings.
+1. **Library scaffolding** - `package.json`, `tsconfig.json`, empty `index.ts`, passing `bun test`.
+2. **`protocol.ts` + `ip.ts`** with unit tests - no sockets, no TUN. This is the foundation.
+3. **`relay.ts`** - two sockets, forwarding, unit tests on `127.0.0.1`.
+4. **`tun-linux.ts`** - open/close/read helpers, struct tests against known values.
+5. **`virtual-interface.ts`** - wire TUN + UDP + protocol + ip, unit tests with mocked fd.
+6. **Library integration test** - dummy interface, real end-to-end, gated by env var.
+7. **`network` module uplinks capability** - add if missing.
+8. **`moblink-streamer` module** - backend only, wire VIF + uplink registration, then frontend + settings.
+9. **`moblink-relay` role + module** - backend only (supervisor over `createUdpRelay`), then frontend + settings.
 10. **Manual two-VM validation.**
 11. **Docs + README updates.**
 
@@ -692,14 +692,14 @@ Ship each layer green before moving on.
 
 ## 14. References
 
--   `irlctrl` — https://github.com/majklovec/irlctrl
--   `moblink-rust` — https://github.com/datagutt/moblink-rust (for future transport mode; **not** to be ported in v1)
--   Moblin iOS — https://github.com/eerimoq/moblin (conceptual only)
--   BELABOX / SRTLA — https://github.com/BELABOX
--   Bun UDP — https://bun.sh/docs/api/udp
--   Linux TUN — `Documentation/networking/tuntap.rst` in the kernel source
--   `ioctl(TUNSETIFF)` — `linux/if_tun.h`
+-   `irlctrl` - https://github.com/majklovec/irlctrl
+-   `moblink-rust` - https://github.com/datagutt/moblink-rust (for future transport mode; **not** to be ported in v1)
+-   Moblin iOS - https://github.com/eerimoq/moblin (conceptual only)
+-   BELABOX / SRTLA - https://github.com/BELABOX
+-   Bun UDP - https://bun.sh/docs/api/udp
+-   Linux TUN - `Documentation/networking/tuntap.rst` in the kernel source
+-   `ioctl(TUNSETIFF)` - `linux/if_tun.h`
 
 ---
 
-**Note for the implementing agent:** the library is the hard part; the modules are wiring. Do not invert this. Build, test, and ship the library in isolation before touching `client/modules/`. If a module needs a library feature that doesn't exist, add it to the library with a test — not inline in the module.
+**Note for the implementing agent:** the library is the hard part; the modules are wiring. Do not invert this. Build, test, and ship the library in isolation before touching `client/modules/`. If a module needs a library feature that doesn't exist, add it to the library with a test - not inline in the module.

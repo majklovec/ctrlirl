@@ -35,7 +35,7 @@ export interface Status {
     modules: ModulesView;
     /** Device-list summary fields contributed by the modules (the control server copies them). */
     summary?: Record<string, unknown>;
-    /** Operator actions of the enabled modules — merged in by the control server
+    /** Operator actions of the enabled modules - merged in by the control server
      * from the module registrations (absent on a status read straight from the device). */
     actions?: readonly DashboardActionEntry[];
     [key: string]: unknown;

@@ -1,5 +1,5 @@
 /*
- * `shift` — large soft circles drifting, their hue cycling over time.
+ * `shift` - large soft circles drifting, their hue cycling over time.
  * Port of `shift.js` from crnacura/AmbientCanvasBackgrounds (CC BY-SA).
  */
 
@@ -27,24 +27,44 @@ import {
 
 const CUSTOM_PROPS = [
     {
-        key: "circle_count", labelKey: "overlay.ambient_circle_count",
-        defaultValue: 150, min: 1, max: 1000, step: 1,
+        key: "circle_count",
+        labelKey: "overlay.ambient_circle_count",
+        defaultValue: 150,
+        min: 1,
+        max: 1000,
+        step: 1,
     },
     {
-        key: "base_hue", labelKey: "overlay.ambient_base_hue",
-        defaultValue: 220, min: 0, max: 360, step: 1,
+        key: "base_hue",
+        labelKey: "overlay.ambient_base_hue",
+        defaultValue: 220,
+        min: 0,
+        max: 360,
+        step: 1,
     },
     {
-        key: "range_hue", labelKey: "overlay.ambient_range_hue",
-        defaultValue: 60, min: 0, max: 360, step: 1,
+        key: "range_hue",
+        labelKey: "overlay.ambient_range_hue",
+        defaultValue: 60,
+        min: 0,
+        max: 360,
+        step: 1,
     },
     {
-        key: "base_radius", labelKey: "overlay.ambient_base_radius",
-        defaultValue: 100, min: 1, max: 1000, step: 1,
+        key: "base_radius",
+        labelKey: "overlay.ambient_base_radius",
+        defaultValue: 100,
+        min: 1,
+        max: 1000,
+        step: 1,
     },
     {
-        key: "range_radius", labelKey: "overlay.ambient_range_radius",
-        defaultValue: 200, min: 0, max: 2000, step: 1,
+        key: "range_radius",
+        labelKey: "overlay.ambient_range_radius",
+        defaultValue: 200,
+        min: 0,
+        max: 2000,
+        step: 1,
     },
 ] as const;
 
@@ -72,9 +92,10 @@ const P_HUE = 7;
 export class Shift extends AmbientVariant {
     readonly id = "shift";
     readonly labelKey = "overlay.ambient_shift";
-    override readonly customDefaults: Record<string, number> = Object.fromEntries(
-        CUSTOM_PROPS.map(({ key, defaultValue }) => [key, defaultValue]),
-    );
+    override readonly customDefaults: Record<string, number> =
+        Object.fromEntries(
+            CUSTOM_PROPS.map(({ key, defaultValue }) => [key, defaultValue]),
+        );
 
     override normalizeCustomProps(
         _props: Readonly<Record<string, unknown>>,
@@ -83,7 +104,10 @@ export class Shift extends AmbientVariant {
         return Object.fromEntries(
             CUSTOM_PROPS.map(({ key, defaultValue, min, max }) => {
                 const value = read.num(key, defaultValue, min, max);
-                return [key, key === "circle_count" ? Math.round(value) : value];
+                return [
+                    key,
+                    key === "circle_count" ? Math.round(value) : value,
+                ];
             }),
         );
     }
@@ -103,10 +127,8 @@ export class Shift extends AmbientVariant {
     }
 
     start(env: AmbientEnv, opts: AmbientOptions): () => void {
-        const {
-            circle_count, base_hue, range_hue,
-            base_radius, range_radius,
-        } = opts.custom;
+        const { circle_count, base_hue, range_hue, base_radius, range_radius } =
+            opts.custom;
         const simplex: SimplexNoise3D = createSimplexNoise();
         const circles = new ParticlePool(Math.round(circle_count), 8);
         let baseHue = base_hue;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Trigger a universal event on the runtime endpoint.
 #
-# The event is the URL's <name> — the runtime page routes it to every
+# The event is the URL's <name> - the runtime page routes it to every
 # trigger-driven element (alerts, spin wheel, …) whose Event prop equals it
 # (consecutive triggers queue FIFO).
 # Optional name=value pairs set project variables in the same call; the

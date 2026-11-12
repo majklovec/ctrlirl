@@ -31,7 +31,7 @@ export interface HistEntry {
 export interface Drag {
     elementId: string;
     mode: "move" | "resize" | "line";
-    handle: string; // n, s, e, w, ne, nw, se, sw — or a, b for line endpoints
+    handle: string; // n, s, e, w, ne, nw, se, sw - or a, b for line endpoints
     startX: number;
     startY: number;
     start: Transform;
@@ -139,7 +139,7 @@ export function selElement(): OverlayElement | undefined {
 const libraryUrls = new Map<string, string>();
 const libraryLoads = new Map<string, Promise<void>>();
 // ids that failed to load (e.g. a file removed from the library). Cached so a
-// missing file is fetched once and then shown as missing — re-fetching on every
+// missing file is fetched once and then shown as missing - re-fetching on every
 // redraw would spam the endpoint with 404s (the `ctx()` runs each frame).
 const libraryMisses = new Set<string>();
 
@@ -221,7 +221,7 @@ export function ctx(): ElementContext {
     };
 }
 
-/** Resolved display transform (bindings applied) — for drag start, snapping,
+/** Resolved display transform (bindings applied) - for drag start, snapping,
  * and the selection box, so bound elements behave like their shown geometry. */
 export function resolvedTransform(e: OverlayElement): Transform {
     return resolveElement(e, ctx().variables).transform;
@@ -280,7 +280,7 @@ export async function copyOverlayUrl(id: string): Promise<void> {
             m.redraw();
         }, 1500);
     } catch {
-        /* clipboard unavailable — the URL text is visible on the row */
+        /* clipboard unavailable - the URL text is visible on the row */
     }
 }
 
@@ -452,9 +452,7 @@ export function exportOverlay(id: string): void {
  * validates it (schema migration included) and creates a fresh overlay.
  * `null` on success, otherwise the server's error message (the list
  * refreshes through the store's `overlays.overlays` frame). */
-export async function importOverlay(
-    raw: unknown,
-): Promise<string | null> {
+export async function importOverlay(raw: unknown): Promise<string | null> {
     try {
         await apiJson("/api/overlays/import", { method: "POST", body: raw });
         return null;
@@ -484,7 +482,7 @@ const LIVE_SAVE_INTERVAL_MS = 100;
 let liveSave: { overlayId: string; t: ReturnType<typeof setTimeout> } | null =
     null;
 
-/** Schedule the trailing save (a pending one for the same overlay is kept —
+/** Schedule the trailing save (a pending one for the same overlay is kept -
  * it saves the state that is CURRENT when it fires, since the editor feed
  * can replace `state.overlay` mid-drag and any captured reference would go
  * stale). Skipped off an editor page (no selected overlay yet). */
@@ -540,7 +538,7 @@ export function mutateElementOf(
 }
 
 /** Set the lock state of an element. Deliberately NOT routed through
- * `mutateElementOf` — its `e.locked` guard is what protects locked elements
+ * `mutateElementOf` - its `e.locked` guard is what protects locked elements
  * from edits, and it would also block the very action that unlocks them. */
 export function setElementLocked(elementId: string, locked: boolean): void {
     const o = state.overlay;
@@ -554,7 +552,7 @@ export function setElementLocked(elementId: string, locked: boolean): void {
 }
 
 /** Types the user can create from the canvas toolbar. Each type's default
- * props and size come from its `OverlayElementDef` — the core never
+ * props and size come from its `OverlayElementDef` - the core never
  * hardcodes element-specific defaults. `initialProps` (catalog card picks,
  * e.g. a preselected template) win over both. */
 export function addElement(
@@ -613,7 +611,7 @@ export function deleteElement(id: string): void {
 
 /**
  * Reorder an element within `overlay.elements` (back-to-front array order =
- * z-order). Works on locked elements too — stacking is not a positional edit.
+ * z-order). Works on locked elements too - stacking is not a positional edit.
  */
 export function reorderElement(
     elementId: string,
@@ -694,7 +692,7 @@ export async function copyRuntimeUrl(id: string): Promise<void> {
             m.redraw();
         }, 1500);
     } catch {
-        /* clipboard unavailable — the URL text is visible on the page */
+        /* clipboard unavailable - the URL text is visible on the page */
     }
 }
 
@@ -707,7 +705,7 @@ export async function copyVariableUrl(name: string): Promise<void> {
             m.redraw();
         }, 1500);
     } catch {
-        /* clipboard unavailable — the URL stays usable via curl/copy-paste */
+        /* clipboard unavailable - the URL stays usable via curl/copy-paste */
     }
 }
 
@@ -732,7 +730,7 @@ export function startInlineEdit(elementId: string): void {
     const e = state.overlay?.elements.find((x) => x.id === elementId);
     const inline = e && elementDef(e.type)?.inlineEdit;
     if (!e || !inline || e.locked) return;
-    // a bound prop wins over the raw value — inline editing the raw value
+    // a bound prop wins over the raw value - inline editing the raw value
     // would be a no-op on screen, so don't offer it
     if (e.bindings[`props.${inline.prop}`]) return;
     snapshot();
@@ -748,7 +746,7 @@ export function stopInlineEdit(): void {
 }
 
 /** A pushed overlay is stale when it carries a lower server rev than the copy
- * we already have locally — an out-of-order broadcast must not clobber a
+ * we already have locally - an out-of-order broadcast must not clobber a
  * newer applied state. Overlays without revs (pre-rev data) are never stale. */
 export function overlayIsStale(
     local: Overlay | undefined,

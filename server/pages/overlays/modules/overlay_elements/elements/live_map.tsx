@@ -22,15 +22,15 @@
  * pushes GPS fixes as the variable bound to `centerPosition` (a `"lon,lat"`
  * string); the server stores every fix into the live `default` route and a
  * `path.end/{name}` event (which also stamps the centre position time)
- * renames that route to `{name}`, archiving the segment — the next fix starts
+ * renames that route to `{name}`, archiving the segment - the next fix starts
  * a fresh `default`. The element then fetches the owner-token `map-history`
- * endpoint (runtime page and editor alike) — immediately on every new
- * centre fix and on a schedule as a safety net — and draws the live
+ * endpoint (runtime page and editor alike) - immediately on every new
+ * centre fix and on a schedule as a safety net - and draws the live
  * `default` route as a bold `historyColor` path under the live markers.
  *
  * Leaflet (JS + CSS) and the Marker.SlideTo plugin are vendored
  * (shared/assets/vendor/leaflet) and lazy-loaded from the server's own
- * `/assets/vendor/leaflet/*` on first render — they are NOT assumed globally
+ * `/assets/vendor/leaflet/*` on first render - they are NOT assumed globally
  * available. The `L` global is created by the script; the `declare` below only
  * satisfies the type checker.
  */
@@ -58,7 +58,7 @@ import { cleanBool, cleanHex, cleanNum, cleanStr } from "./schema_utils";
 
 export type LiveMapProvider = "osm" | "arcgis" | "mapy";
 
-/** Single-colour text glyphs — they inherit the marker's `color` prop. */
+/** Single-colour text glyphs - they inherit the marker's `color` prop. */
 const SINGLE_COLOR_ICONS: readonly string[] = [
 	"●",
 	"▲",
@@ -72,7 +72,7 @@ const SINGLE_COLOR_ICONS: readonly string[] = [
 	"⚡",
 ];
 
-/** Full-colour emoji — rendered in their own colours regardless of `color`. */
+/** Full-colour emoji - rendered in their own colours regardless of `color`. */
 const COLOR_ICONS: readonly string[] = ["📍", "🏁", "🏠", "🚗"];
 
 /** Marker glyphs offered in the icon selects (both markers share the set).
@@ -88,7 +88,7 @@ export const LIVE_MAP_ICONS: readonly string[] = [
 const DEFAULT_MARKER_ICON = "▶";
 const DEFAULT_MARKER_COLOR = "#d6007f";
 
-/** CSS class of the info box — the map container uses it to find its
+/** CSS class of the info box - the map container uses it to find its
  * companion info node in `oncreate`. */
 const INFO_CLASS = "live-map-info";
 
@@ -126,7 +126,7 @@ export interface LiveMapProps {
 	provider: LiveMapProvider;
 	zoom: number;
 	/** Centre map position as a `"lon,lat"` string (e.g. `"12.4034,50.1635"`)
-	 * — a single bindable prop a GPS variable can update. */
+	 * - a single bindable prop a GPS variable can update. */
 	centerPosition: string;
 	mapyKey: string;
 	/** UTF-8 glyph of the centre marker (one of `LIVE_MAP_ICONS`). */
@@ -241,10 +241,10 @@ function safeProps(rawInput: unknown): LiveMapProps {
 				: d.provider,
 		zoom: cleanNum(raw.zoom, d.zoom, 0, 25),
 		// The raw string is kept verbatim (in-flight edits, in-progress
-		// variable updates) — parsing happens at render time; an unparseable
+		// variable updates) - parsing happens at render time; an unparseable
 		// value leaves the view where it is (initMap falls back to the
 		// default position, syncMap keeps the current one). An empty
-		// `markerPositions` means "no markers" — never the default marker.
+		// `markerPositions` means "no markers" - never the default marker.
 		centerPosition: cleanStr(raw.centerPosition, 50) || d.centerPosition,
 		mapyKey: cleanStr(raw.mapyKey, 200),
 		centerIcon: iconOf(raw.centerIcon, d.centerIcon),
@@ -292,7 +292,7 @@ async function ensureLeaflet(): Promise<void> {
 	if (typeof (window as any).L !== "undefined") return;
 	loadCSS("/assets/vendor/leaflet/leaflet.css");
 	await loadScript("/assets/vendor/leaflet/leaflet.js");
-	// Marker.SlideTo: `marker.slideTo(latlng, {keepAtCenter})` — the centre
+	// Marker.SlideTo: `marker.slideTo(latlng, {keepAtCenter})` - the centre
 	// glyph slides and the map follows it, so prop-driven repositions never
 	// snap (gitlab.com/IvanSanchez/Leaflet.Marker.SlideTo).
 	await loadScript("/assets/vendor/leaflet/leaflet.marker.slideto.js");
@@ -360,7 +360,7 @@ function formatClock(totalSeconds: number): string {
 interface MapState {
 	map: any;
 	container: HTMLElement;
-	// The element id this map instance belongs to — onTrigger has no DOM
+	// The element id this map instance belongs to - onTrigger has no DOM
 	// handle, so it finds its state through this.
 	elementId: string;
 	resizeObserver: ResizeObserver;
@@ -402,7 +402,7 @@ interface MapState {
 	lastProps: LiveMapProps;
 }
 
-/** Per-container state — `L.map()` initialises a node exactly once, so
+/** Per-container state - `L.map()` initialises a node exactly once, so
  * Mithril redraws (prop changes) re-use the live map and patch it via
  * `syncMap` instead of rebuilding; `onremove` disposes it. `starting`
  * tracks containers whose async Leaflet load is in flight. */
@@ -478,7 +478,7 @@ function setGlyph(
 }
 
 /** Switch the visible tile layer to `p.provider` (falling back to the first
- * available one — mapy needs a key). */
+ * available one - mapy needs a key). */
 function setProvider(state: MapState, p: LiveMapProps): void {
 	const { map } = state;
 	const want =
@@ -524,15 +524,15 @@ function refreshInfo(state: MapState): void {
 				: formatClock((Date.now() - state.lastAt) / 1000),
 		status: statusText(state, p),
 	};
-	// `state.markerPos` is the parsed form of `state.markerPositions` —
-	// maintained by `syncMap` — so we don't re-parse here every second.
+	// `state.markerPos` is the parsed form of `state.markerPositions` -
+	// maintained by `syncMap` - so we don't re-parse here every second.
 	state.markerPos.forEach((m, i) => {
 		computed[`distance${i + 1}`] = formatDistance(
 			distanceMeters(m.lat, m.lon, c.lat, c.lng),
 		);
 	});
 	if (state.markerPos.length > 0) computed.distance = computed.distance1;
-	// A project variable of a token's name wins over the computed tokens —
+	// A project variable of a token's name wins over the computed tokens -
 	// the same precedence the other templated elements use.
 	box.textContent = parseTemplate(p.infoTemplate)
 		.map((seg) => {
@@ -555,8 +555,8 @@ interface MapHistoryPath {
 }
 
 /** The owner-token history endpoint this overlay polls. Both contexts carry
- * what it needs — the runtime page the token from its URL, the editor the
- * owner's own — and the owner-scoped endpoint serves it to both. */
+ * what it needs - the runtime page the token from its URL, the editor the
+ * owner's own - and the owner-scoped endpoint serves it to both. */
 function mapHistoryUrl(ctx: ElementContext): string | null {
 	if (!ctx.overlayId || !ctx.token) return null;
 	return (
@@ -569,7 +569,7 @@ function mapHistoryUrl(ctx: ElementContext): string | null {
 
 /** Draw the live `default` route: bold in `historyColor` with a white
  * casing, like the live trace. The runtime page renders only the `default`
- * route — segments archived by `path.end/<name>` are kept server-side,
+ * route - segments archived by `path.end/<name>` are kept server-side,
  * not drawn. */
 function drawHistory(state: MapState, paths: MapHistoryPath[]): void {
 	const layer = state.historyLayer;
@@ -663,7 +663,7 @@ function trackCenter(state: MapState): void {
 	refreshInfo(state);
 }
 
-/** Apply a resolved props object to the live map in place — the single place
+/** Apply a resolved props object to the live map in place - the single place
  * props changes become visible. */
 function syncMap(state: MapState, p: LiveMapProps): void {
 	// Capture the previous props before updating, so change detection below
@@ -674,7 +674,7 @@ function syncMap(state: MapState, p: LiveMapProps): void {
 
 	const { map } = state;
 
-	// Tile layer URLs embed the mapy key — (re)build the layer set when the
+	// Tile layer URLs embed the mapy key - (re)build the layer set when the
 	// key changed (`null` on the first sync always rebuilds).
 	if (state.mapyKey !== p.mapyKey) {
 		for (const k of Object.keys(state.layers) as LiveMapProvider[])
@@ -690,7 +690,7 @@ function syncMap(state: MapState, p: LiveMapProps): void {
 	setProvider(state, p);
 
 	// A new `centerPosition` string slides the centre glyph to it and keeps
-	// the map centred on the glyph (Marker.SlideTo `keepAtCenter`) — no snap.
+	// the map centred on the glyph (Marker.SlideTo `keepAtCenter`) - no snap.
 	// An unparseable string (e.g. an in-flight variable update) leaves the
 	// view where it is.
 	const center = parsePosition(p.centerPosition);
@@ -698,13 +698,13 @@ function syncMap(state: MapState, p: LiveMapProps): void {
 		state.centerPos = p.centerPosition;
 		state.centerLat = center.lat;
 		state.centerLon = center.lon;
-		// A prop-driven move IS a new position — stamp it (trackCenter does).
+		// A prop-driven move IS a new position - stamp it (trackCenter does).
 		state.lastAt = Date.now();
 		state.centerMarker.slideTo([center.lat, center.lon], {
 			duration: 600,
 			keepAtCenter: true,
 		});
-		// A new fix was also just recorded into the live route server-side —
+		// A new fix was also just recorded into the live route server-side -
 		// refetch so the path shows it (a line needs the second point, but
 		// there's no 5 s poll latency for the rest) instead of waiting for
 		// the next poll.
@@ -752,7 +752,7 @@ function syncMap(state: MapState, p: LiveMapProps): void {
 	}
 
 	// Centre-marker position is owned by slideTo (prop moves) and
-	// trackCenter (panning) — restyle the glyph only. A setLatLng here would
+	// trackCenter (panning) - restyle the glyph only. A setLatLng here would
 	// fire a `move` and cancel an in-flight slide (SlideTo's on('move',
 	// slideCancel) hook).
 	state.centerMarker.setIcon(
@@ -784,7 +784,7 @@ function initMap(
 		})
 		.addTo(map);
 	// Leaflet does not reflow when the container size changes (overlay
-	// elements are drag-resizable) — invalidate the size to re-tile.
+	// elements are drag-resizable) - invalidate the size to re-tile.
 	const resizeObserver = new ResizeObserver(() => map.invalidateSize());
 	resizeObserver.observe(container);
 
@@ -809,7 +809,7 @@ function initMap(
 			)
 			.addTo(map),
 	);
-	// Recorded routes render below the marker panes — the layer group is
+	// Recorded routes render below the marker panes - the layer group is
 	// added first, so the polyline z-order keeps the markers on top.
 	const historyLayer = L.layerGroup().addTo(map);
 
@@ -852,7 +852,7 @@ function initMap(
 
 /** Runtime trigger: a `path.end/…` event named for this element stamps the
  * centre position time, flipping `{status}` live. The element is persistent
- * — it renders all the time and only reacts; the claim itself is declined
+ * - it renders all the time and only reacts; the claim itself is declined
  * (no trigger state). */
 function onTrigger(
 	element: OverlayElement,
@@ -865,7 +865,7 @@ function onTrigger(
 	if (state) {
 		state.lastAt = Date.now();
 		refreshInfo(state);
-		// The server has just archived the live route — re-fetch so the map
+		// The server has just archived the live route - re-fetch so the map
 		// shows it without waiting for the next 5 s poll.
 		if (state.lastProps.keepHistory) void fetchHistory(state);
 	}
@@ -894,7 +894,7 @@ const MapContainer: m.Component<MapContainerAttrs> = {
 				injectStyles();
 				void ensureLeaflet()
 					.then(() => {
-						// Cancelled by onremove while Leaflet was loading — the
+						// Cancelled by onremove while Leaflet was loading - the
 						// element was torn down, drop the work.
 						if (!starting.has(container)) return;
 						starting.delete(container);
@@ -908,9 +908,8 @@ const MapContainer: m.Component<MapContainerAttrs> = {
 							ctx,
 						);
 						// The info box, if rendered, may already be in the DOM
-						// — pick it up so the first tick paints it.
-						const infoEl =
-							container.nextElementSibling as HTMLElement | null;
+						// - pick it up so the first tick paints it.
+						const infoEl = container.nextElementSibling as HTMLElement | null;
 						if (infoEl?.classList.contains(INFO_CLASS)) {
 							state.info = infoEl;
 							refreshInfo(state);
@@ -919,7 +918,7 @@ const MapContainer: m.Component<MapContainerAttrs> = {
 					.catch(() => starting.delete(container));
 			},
 			// Prop changes re-render into the same DOM node (oncreate does
-			// not re-run) — apply them to the live map in place.
+			// not re-run) - apply them to the live map in place.
 			onupdate: (vnode) => {
 				const state = maps.get(vnode.dom as HTMLElement);
 				if (state) {
@@ -929,7 +928,7 @@ const MapContainer: m.Component<MapContainerAttrs> = {
 			},
 			onremove: (vnode) => {
 				const container = vnode.dom as HTMLElement;
-				// In-flight init: signal cancellation and bail — there's no
+				// In-flight init: signal cancellation and bail - there's no
 				// state to clean up yet.
 				if (starting.has(container)) {
 					starting.delete(container);
@@ -953,7 +952,7 @@ interface InfoBoxAttrs {
 }
 
 /** The templated info box below the map. Its text is refreshed by
- * `refreshInfo` from the companion `MapState` — found via the map container
+ * `refreshInfo` from the companion `MapState` - found via the map container
  * that immediately precedes this node. */
 const InfoBox: m.Component<InfoBoxAttrs> = {
 	view: (v: Vnode<InfoBoxAttrs>): Vnode => {
@@ -997,7 +996,7 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 		},
 		[
 			m(MapContainer, { p, element, ctx }),
-			// The info box sits BELOW the map — the map's move/zoom events and
+			// The info box sits BELOW the map - the map's move/zoom events and
 			// the 1 s tick refresh its text (see `refreshInfo`).
 			p.showInfo ? m(InfoBox, { p }) : null,
 		],
@@ -1152,7 +1151,7 @@ function editForm({
 	const sp = { mutate, variables, variableUrl };
 	const groups = iconOptionGroups();
 
-	// `markerPositions` is one bindable string (`lon,lat;lon,lat`) — the
+	// `markerPositions` is one bindable string (`lon,lat;lon,lat`) - the
 	// marker count (and the rows in `MarkerSlots`) is derived from its `";"`
 	// slots.
 	const markerPositionsField: Vnode = bindField(
@@ -1418,7 +1417,7 @@ export const liveMapElement: OverlayElementDef & OverlayElementSchema = {
 			),
 			centerColor: read.hex("centerColor", d.centerColor),
 			centerSize: read.num("centerSize", d.centerSize, 8, 96),
-			// A stored value is kept verbatim — including the empty string
+			// A stored value is kept verbatim - including the empty string
 			// (no markers), which must not fall back to the default marker.
 			markerPositions: read.str("markerPositions", d.markerPositions, 1000),
 			// Kept verbatim (like markerPositions): slots are index-aligned

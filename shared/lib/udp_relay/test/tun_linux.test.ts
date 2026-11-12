@@ -1,17 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import {
+    buildTunsetName,
     IF_NAME_LEN,
     IFF_NO_PI,
     IFF_TUN,
-    TUNSETIFF,
-    buildTunsetName,
     openTun,
     readTunsetName,
     resolveBinary,
     runCmd,
+    TUNSETIFF,
 } from "../src/tun_linux";
 
-describe("tun_linux.ts — TUNSETIFF struct layout", () => {
+describe("tun_linux.ts - TUNSETIFF struct layout", () => {
     test("buildTunsetName pads to 16 bytes with a NUL terminator", () => {
         const buf = buildTunsetName("moblink0");
         expect(buf.length).toBe(IF_NAME_LEN);
@@ -42,24 +42,21 @@ describe("tun_linux.ts — TUNSETIFF struct layout", () => {
     });
 });
 
-describe("tun_linux.ts — constants", () => {
+describe("tun_linux.ts - constants", () => {
     test("expected ioctl/flag values", () => {
         expect(IFF_TUN).toBe(0x0001);
         expect(IFF_NO_PI).toBe(0x1000);
-        // _IOW('T', 202, int) — verified against <linux/if_tun.h>.
+        // _IOW('T', 202, int) - verified against <linux/if_tun.h>.
         expect(TUNSETIFF).toBe(0x400454ca);
         // The combined flag set the device is opened with.
         expect(IFF_TUN | IFF_NO_PI).toBe(0x1001);
     });
 });
 
-describe("tun_linux.ts — openTun guard", () => {
+describe("tun_linux.ts - openTun guard", () => {
     test("openTun rejects non-Linux platforms", async () => {
         const before = process.platform;
-        const desc = Object.getOwnPropertyDescriptor(
-            process,
-            "platform",
-        )!;
+        const desc = Object.getOwnPropertyDescriptor(process, "platform")!;
         Object.defineProperty(process, "platform", {
             value: "darwin",
             configurable: true,
@@ -73,7 +70,7 @@ describe("tun_linux.ts — openTun guard", () => {
     });
 });
 
-describe("tun_linux.ts — runCmd / resolveBinary (spawn never hangs)", () => {
+describe("tun_linux.ts - runCmd / resolveBinary (spawn never hangs)", () => {
     test("resolveBinary finds a common system binary as an absolute path", () => {
         const p = resolveBinary("sh");
         expect(p.startsWith("/")).toBe(true);
@@ -82,9 +79,9 @@ describe("tun_linux.ts — runCmd / resolveBinary (spawn never hangs)", () => {
 
     test("resolveBinary returns the bare name when nothing matches", () => {
         // A name that exists nowhere on the system.
-        expect(
-            resolveBinary("definitely-not-a-real-binary-xyz-12345"),
-        ).toBe("definitely-not-a-real-binary-xyz-12345");
+        expect(resolveBinary("definitely-not-a-real-binary-xyz-12345")).toBe(
+            "definitely-not-a-real-binary-xyz-12345",
+        );
     });
 
     test("runCmd resolves with stdout on exit 0", async () => {

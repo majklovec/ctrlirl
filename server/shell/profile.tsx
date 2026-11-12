@@ -1,5 +1,5 @@
 /* Profile page: change the login password. (Device tokens live on the
- * project page now — they are project-scoped, not per-user.) */
+ * project page now - they are project-scoped, not per-user.) */
 
 import { apiJson } from "@ui/api_client";
 import {
@@ -13,10 +13,10 @@ import {
 	Input,
 	Page,
 } from "@ui/components/";
-import { ServerNav } from "./nav";
 import { i18nReady, LanguageSelect, t } from "@ui/i18n";
 import { mountPage } from "@ui/util";
 import m from "mithril";
+import { ServerNav } from "./nav";
 
 interface Invitation {
 	code: string;
@@ -241,7 +241,7 @@ const App: m.Component = {
 											<td>
 												{inv.expires_at
 													? new Date(inv.expires_at).toLocaleString()
-													: "—"}
+													: "-"}
 											</td>
 											<td>
 												<Badge text={status} kind={kind} />

@@ -1,6 +1,6 @@
 // Select config fields for the dashboard edit form and the add-widget form.
 // A module can override one field's options at runtime (`configSelectOptions`
-// — e.g. the chat widget's speech voices, which only the browser knows);
+// - e.g. the chat widget's speech voices, which only the browser knows);
 // until those arrive the select shows a placeholder and the saved value, if
 // any.
 

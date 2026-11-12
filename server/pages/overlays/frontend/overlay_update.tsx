@@ -3,7 +3,7 @@
  * Overlay editor page (/overlays/edit/<overlay id>/):
  *   toolbar:    undo/redo + one "add" button per registered element type,
  *               and the runtime URL (dialog: the OBS source URL, copy/rotate)
- *   center:     zoomable canvas — select / drag / resize / nudge / snap
+ *   center:     zoomable canvas - select / drag / resize / nudge / snap
  *   right rail: the layers list, each row expanding into the element's
  *               inspector (transform, props, bindings)
  *   modal:      variables (live, opened from the toolbar icon)
@@ -19,10 +19,10 @@
  */
 
 import { Page } from "@ui/components/";
-import { ServerNav } from "../../../shell/nav";
 import { t } from "@ui/i18n";
 import { mountPage } from "@ui/util";
 import m from "mithril";
+import { ServerNav } from "../../../shell/nav";
 import { canvasArea } from "./editor/canvas";
 import { onKey } from "./editor/keyboard";
 import { inspector } from "./editor/layers";

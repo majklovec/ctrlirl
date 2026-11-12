@@ -1,23 +1,23 @@
 /**
- * Frontend module contracts — the shapes a modules/<id>/frontend.tsx
+ * Frontend module contracts - the shapes a modules/<id>/frontend.tsx
  * default-exports and the contribution interfaces the core pages compose.
  * Modules import these by type only; the registry (module_registry.ts)
  * discovers the registrations through the generated manifest.
  */
 import type m from "mithril";
 import type { LogWording } from "../log_messages";
+import type { DeviceCard } from "../ui/device/store";
+import type { RpcClient } from "../ui/services/rpc";
 import type {
     DeviceSummary,
+    ModulesView,
     Role,
     ServerDashboardWidget,
     Settings,
     SetupInfo,
     Status,
-    ModulesView,
     WidgetConfigField,
 } from "./wire";
-import type { DeviceCard } from "../ui/device/store";
-import type { RpcClient } from "../ui/services/rpc";
 
 export interface ModuleSetupStep {
     id: string;
@@ -48,7 +48,7 @@ export interface FleetDashboardContext {
     devices: readonly DeviceSummary[];
     /** The live link of a device the widget names (`devicesFor`), once connected. */
     link(deviceId: string): DeviceLink | undefined;
-    /** Open (and return) a live link to any of the user's devices on demand —
+    /** Open (and return) a live link to any of the user's devices on demand -
      * for the config editor's catalogue. Links no saved widget needs are
      * dropped when the editor closes; undefined for an unknown device. */
     connect(deviceId: string): DeviceLink | undefined;
@@ -101,7 +101,7 @@ export interface FrontendModuleContributions {
 }
 
 /** A card-less registration: a module that only contributes (role icons,
- * log wording) — e.g. a module that exists to own a role. */
+ * log wording) - e.g. a module that exists to own a role. */
 export interface ContributionsModule
     extends Pick<FrontendModuleContributions, "roleIcons" | "log"> {
     kind: "contributions";
@@ -141,7 +141,7 @@ export interface ChannelWidgetModule<TWidget = ServerDashboardWidget> {
     configFields: readonly WidgetConfigField[];
     /**
      * Dynamic options for one of this module's select config fields (by
-     * field name) — for values the browser only knows at runtime (e.g.
+     * field name) - for values the browser only knows at runtime (e.g.
      * available speech voices). `undefined` = no dynamic options for this
      * field; the edit/add forms fall back to the field's static options.
      * Option labels render as the raw option value.
@@ -178,7 +178,7 @@ export interface FleetDashboardWidget {
 }
 
 /** A dashboard-widgets-only registration: a module that adds widgets to the
- * dashboards without a card on the device page — device-bound ones
+ * dashboards without a card on the device page - device-bound ones
  * (`dashboardWidgets`) and/or fleet ones (`fleetWidgets`; the Buttons widget
  * composes other modules' actions across devices this way). */
 export interface DashboardWidgetModule {

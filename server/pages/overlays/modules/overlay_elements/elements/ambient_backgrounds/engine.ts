@@ -6,7 +6,7 @@
  * paint into, and the VISIBLE canvas `b` the composited (blurred / glow)
  * frame is drawn to. The engine creates and sizes the canvases, hands a
  * background its contexts, and gives it one rAF loop helper. A background
- * is a concrete `AmbientVariant` subclass (one class per file) — adding one
+ * is a concrete `AmbientVariant` subclass (one class per file) - adding one
  * is a class + one entry in index.ts, nothing touches the element itself.
  */
 
@@ -18,9 +18,9 @@ import { fadeCanvas, trailFade } from "./utils";
 /** One running background's canvases + geometry. `b` is the canvas the
  * element's Mithril vnode owns (visible); `a` is kept out of the DOM. */
 export interface AmbientEnv {
-    /** Offscreen canvas — backgrounds draw their raw shapes here */
+    /** Offscreen canvas - backgrounds draw their raw shapes here */
     a: HTMLCanvasElement;
-    /** Visible canvas — the composited result the element displays */
+    /** Visible canvas - the composited result the element displays */
     b: HTMLCanvasElement;
     /** 2d context of the offscreen canvas */
     aw: CanvasRenderingContext2D;
@@ -36,12 +36,12 @@ export interface AmbientEnv {
 export interface AmbientOptions {
     /** 0.1–4 multiplier over the background's base motion speed */
     speed: number;
-    /** 1–10 multiplier over the background's base trail fade — higher
+    /** 1–10 multiplier over the background's base trail fade - higher
      * values fade each frame less, leaving longer-lasting trails */
     trail: number;
     /** Solid back colour painted under each frame */
     background: string;
-    /** This background's own props (see `customDefaults` on the variant) —
+    /** This background's own props (see `customDefaults` on the variant) -
      * merged over its defaults by the element before calling `start`, so
      * backgrounds may tune themselves beyond the shared trio. */
     custom: Record<string, number>;
@@ -57,7 +57,7 @@ export abstract class AmbientVariant {
     abstract readonly id: string;
     /** i18n key of the variant's label in the edit form. */
     abstract readonly labelKey: string;
-    /** Defaults of this background's own props — stored flat in
+    /** Defaults of this background's own props - stored flat in
      * `element.props`. Empty for backgrounds that only use the shared
      * `speed`/`trail`/`background` trio. */
     readonly customDefaults: Record<string, number> = {};
@@ -156,7 +156,7 @@ export function compositeGlow(
 
 /** Run `body` on a saved/restore canvas context (resets transforms + style
  * state around it). Use for any draw whose state must not leak to the next
- * shape — in particular when it uses `translate`/`rotate`. */
+ * shape - in particular when it uses `translate`/`rotate`. */
 export function withSaved(
     ctx: CanvasRenderingContext2D,
     body: () => void,

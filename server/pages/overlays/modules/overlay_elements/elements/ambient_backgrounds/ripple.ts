@@ -1,5 +1,5 @@
 /*
- * `ripple` — sonar-like rings that expand from scattering origins and fade
+ * `ripple` - sonar-like rings that expand from scattering origins and fade
  * as they grow, like raindrops striking still water.
  * Original (invented for the ambient set).
  */

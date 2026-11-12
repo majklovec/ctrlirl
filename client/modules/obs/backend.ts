@@ -67,7 +67,7 @@ const slice = (): ObsSlice | undefined =>
     core.state.settings.modules?.[MODULE_ID] as ObsSlice | undefined;
 
 /**
- * Switcher defaults — the same values the card form carries, so the slice
+ * Switcher defaults - the same values the card form carries, so the slice
  * seeded on first run is complete and the engine can start before the form
  * has ever saved. The switcher rides on the OBS module (`switcherEnabled`
  * defaults to on).
@@ -87,7 +87,7 @@ const SWITCHER_DEFAULTS = {
 };
 
 // op5 events forwarded to the UI; the ones an operator dashboard reacts to.
-// OBS v5 output events carry no "Current" prefix — they are StreamStateChanged /
+// OBS v5 output events carry no "Current" prefix - they are StreamStateChanged /
 // RecordStateChanged (the names the dashboards already listen for), unlike the
 // scene/input events above. InputVolumeMeters feeds the card's VU meter,
 // InputMute keeps its mute button honest.
@@ -161,7 +161,7 @@ const record = (v: unknown): Record<string, unknown> | undefined =>
 const requestId = (v: unknown): string =>
     typeof v === "string" && v ? v : randomUUID();
 
-/** Normalize an `obs.requestBatch` body (op9) — validates every request's type. */
+/** Normalize an `obs.requestBatch` body (op9) - validates every request's type. */
 function parseBatch(p: Params): ObsRequestBatch {
     const requests = p.requests;
     if (!Array.isArray(requests) || !requests.length)
@@ -210,7 +210,7 @@ async function teardown(): Promise<void> {
 }
 
 // ============================================================================
-// Low-bitrate switcher — runs on this module's client. It polls the SRTLA
+// Low-bitrate switcher - runs on this module's client. It polls the SRTLA
 // source's vendor stats and drives scene changes through the same websocket.
 // Its settings live in this module's slice (settings.modules["obs"]).
 
@@ -259,7 +259,7 @@ function moduleSlice(): SwitcherConfig | null {
 /**
  * One SRT sample read from OBS (see srt_metrics.ts for the vendor protocol and
  * the recent-bitrate delta math). Returns null when the client is down or the
- * query fails — the engine then sees a metrics gap and stays put.
+ * query fails - the engine then sees a metrics gap and stays put.
  */
 async function collectSrtMetrics(): Promise<SwitcherMetrics | null> {
     if (!obsClient) return null;
@@ -485,10 +485,10 @@ function applyConfig(raw: Record<string, unknown>): SwitcherConfig {
 // ============================================================================
 // Scenes + audio sources → dashboard buttons.
 //
-// The trackers (./scenes, ./audio-sources — shared with the standalone
+// The trackers (./scenes, ./audio-sources - shared with the standalone
 // obs-client box) publish the scene list as `status.obs.scenes` and every
 // input with a mute state as `status.obs.audioSources`; the control server
-// feeds that status back into the `dashboardActions` factory below — one
+// feeds that status back into the `dashboardActions` factory below - one
 // switch button per scene and one mute toggle per source, tracking OBS itself.
 // ============================================================================
 
@@ -532,7 +532,7 @@ const BASE_ACTIONS: readonly DashboardAction[] = [
 
 /**
  * A source's toggle: a muted source offers unmute (🔊), an unmuted one mute
- * (🔇). The label is the raw source name — the Buttons widget's `t()` falls
+ * (🔇). The label is the raw source name - the Buttons widget's `t()` falls
  * back to the key, so it renders verbatim.
  */
 const muteAction = ({ name, muted }: AudioSource): DashboardAction => ({
@@ -559,8 +559,8 @@ const sceneAction = (name: string, live: boolean): DashboardAction => ({
 });
 
 // The factory runs on the control server (which never starts the device
-// module), so it reads the lists off the status — narrowed from the `Status`
-// index signature — not off the trackers.
+// module), so it reads the lists off the status - narrowed from the `Status`
+// index signature - not off the trackers.
 
 function readScenes(status: Status): string[] {
     const list = record(status.obs)?.scenes;

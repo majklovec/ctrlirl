@@ -20,12 +20,12 @@ Domain substance is mandatory: map main capabilities, their methods, and outputs
 
 Describe the sequence: input → checks → context gathering → model/workflow decision → action validation → tool → result observation → state recording → response. Allocate the environment's four functions to existing or proposed owners:
 
-| Function | What must be defined and verifiable |
-|---|---|
-| Translation | How intent, constraints, and sources become a task and actually loaded context; what happens if a condition conflicts or is lost |
-| Execution | Who converts the model's proposal into a typed call and enforces permissions, quotas, and isolation |
+| Function    | What must be defined and verifiable                                                                                                                |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Translation | How intent, constraints, and sources become a task and actually loaded context; what happens if a condition conflicts or is lost                   |
+| Execution   | Who converts the model's proposal into a typed call and enforces permissions, quotas, and isolation                                                |
 | Observation | How tool responses and external state become a verifiable result, event, and subsequent context; how error, success, and unknown are distinguished |
-| Correction | Who chooses continuation, bounded retry, stopping, recovery, or escalation; what evidence and authority are required |
+| Correction  | Who chooses continuation, bounded retry, stopping, recovery, or escalation; what evidence and authority are required                               |
 
 This is a responsibility map, not four new services. For each function, show input/output, owner, failure, and check; a small assistant needs only a compact populated path. Deterministic boundaries do not make the model's domain answer deterministic or correct.
 
@@ -35,14 +35,14 @@ For tasks with pauses and effects, describe states, permitted transitions, the t
 
 **A limits table is mandatory for loops or retries:**
 
-| Field | Record |
-|---|---|
-| Iterations and nesting | Whole-task and child-task limits; who enforces counting |
-| Time | Overall deadline, individual call timeout, human wait, cancellation |
-| Tokens and money | Task budget including reasoning, retries, and workers; user/tenant quotas where needed |
-| Tools | Frequency/count limits; repeated identical arguments and lack of progress |
-| Stop outcome | Partial result, explanation, human queue, or managed continuation |
-| Calibration | Value/range, status “proposed/measured/agreed,” scenarios used to select the threshold |
+| Field                  | Record                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| Iterations and nesting | Whole-task and child-task limits; who enforces counting                                |
+| Time                   | Overall deadline, individual call timeout, human wait, cancellation                    |
+| Tokens and money       | Task budget including reasoning, retries, and workers; user/tenant quotas where needed |
+| Tools                  | Frequency/count limits; repeated identical arguments and lack of progress              |
+| Stop outcome           | Partial result, explanation, human queue, or managed continuation                      |
+| Calibration            | Value/range, status “proposed/measured/agreed,” scenarios used to select the threshold |
 
 The runtime enforces limits. A prompt instruction may aid behavior but is not a limiting mechanism. Even a fixed workflow needs a timeout, bounded retries, and an error outcome; absence of an agent loop makes only the corresponding fields inapplicable.
 
@@ -58,12 +58,12 @@ For long-running tasks, pauses, and work across sessions, use [execution-continu
 
 ## 4. Context, knowledge, and memory
 
-- Source of each context portion, reader permissions, freshness, link/version, and behavior on conflict or absence.
-- Budgets: system instructions, history, tool definitions, results, retrieval, reserve for the response and required reasoning. Strategies for selection, moving large data out of context, compression, and on-demand loading; measurements on real formats and languages.
-- Compaction preserves goals, constraints, primary-source links, confirmations, and effect identifiers. Authorization and effect state remain in the runtime outside compressed text. Test continuation after compaction.
-- If RAG is needed: corpus preparation and updates, structure-aware chunking, search methods, reranking conditions, generation context, citations, empty results, and stale documents. Check ACLs before data reaches the model; indexes and caches account for deletion and revoked access.
-- If memory is needed: working, episodic, semantic, procedural—purpose, user/tenant scope, source, timestamp/lifetime, reads/writes, concurrency, correction/deletion, and fact verification. Do not require all four types.
-- Separate authoritative state, raw evidence, and derived summaries. Verify summaries against sources; an existing authored wiki does not automatically become “just a cache.” Mandatory recording of a financial/business effect is not deferred as optional background memory.
+-   Source of each context portion, reader permissions, freshness, link/version, and behavior on conflict or absence.
+-   Budgets: system instructions, history, tool definitions, results, retrieval, reserve for the response and required reasoning. Strategies for selection, moving large data out of context, compression, and on-demand loading; measurements on real formats and languages.
+-   Compaction preserves goals, constraints, primary-source links, confirmations, and effect identifiers. Authorization and effect state remain in the runtime outside compressed text. Test continuation after compaction.
+-   If RAG is needed: corpus preparation and updates, structure-aware chunking, search methods, reranking conditions, generation context, citations, empty results, and stale documents. Check ACLs before data reaches the model; indexes and caches account for deletion and revoked access.
+-   If memory is needed: working, episodic, semantic, procedural-purpose, user/tenant scope, source, timestamp/lifetime, reads/writes, concurrency, correction/deletion, and fact verification. Do not require all four types.
+-   Separate authoritative state, raw evidence, and derived summaries. Verify summaries against sources; an existing authored wiki does not automatically become “just a cache.” Mandatory recording of a financial/business effect is not deferred as optional background memory.
 
 If the agent changes memory or procedures, describe `observation → candidate → verified version → active procedure`: source, applicability, freshness, conflict resolution, change authority, validation, and rollback. Saved, indexed, available for selection, actually loaded, and behavior-verified are different states. Untrusted experience or one successful run does not automatically become a rule. Admission may be performed by a human or a previously agreed policy within its scope; universal manual approval of every memory is not required. Behavioral change criteria are in [evaluation-design.md](evaluation-design.md).
 
@@ -131,11 +131,11 @@ Key decisions: `D-ID | context | choice | alternatives | consequences | reconsid
 
 Check substantive readiness before completion:
 
-- Each main scenario has a capability, concrete method, required data, and output contract; selected skills are described substantively, not merely named.
-- Instruction/material structure explains what loads and why; platform contribution is separate from proposed additions.
-- One ordinary and one significant failure case are worked through with populated data through the user response; result evidence and required human judgment are visible.
-- Requirements are traceable, execution/failure paths agree, and critical boundaries/contracts, limits, and checks are defined.
-- A developer can implement the agreed behavior without new domain design. A component list, empty templates, or “the LLM analyzes” without a method leaves the result a sketch.
+-   Each main scenario has a capability, concrete method, required data, and output contract; selected skills are described substantively, not merely named.
+-   Instruction/material structure explains what loads and why; platform contribution is separate from proposed additions.
+-   One ordinary and one significant failure case are worked through with populated data through the user response; result evidence and required human judgment are visible.
+-   Requirements are traceable, execution/failure paths agree, and critical boundaries/contracts, limits, and checks are defined.
+-   A developer can implement the agreed behavior without new domain design. A component list, empty templates, or “the LLM analyzes” without a method leaves the result a sketch.
 
 Open numerical settings or experiments are acceptable when their impact and closure method are clear. An unknown core method, authority, or basic topology is a specific readiness gap; deliver the completed package with that limitation rather than automatically restarting a questionnaire. Separately state result depth (sketch / package with limitations / package for implementation), user agreement, and what was actually measured. Package completeness, its approval, and operational quality are distinct properties.
 

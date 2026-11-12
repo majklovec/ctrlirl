@@ -252,7 +252,7 @@
 
 /* The HTML editor: a transparent textarea over a highlighted <pre> with the
  * identical box metrics, so the coloured glyphs land exactly on the editable
- * (invisible) text — the same overlay the pipeline editor uses. */
+ * (invisible) text - the same overlay the pipeline editor uses. */
 .tpl-code-area {
     position: relative;
     font-family: var(--font-mono, ui-monospace, monospace);

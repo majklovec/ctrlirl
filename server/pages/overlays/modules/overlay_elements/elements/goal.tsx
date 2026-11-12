@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Goal widget — a progress bar towards a target (sub goal, viewers goal…).
+ * Goal widget - a progress bar towards a target (sub goal, viewers goal…).
  * `value` is a bindable scalar: bind it to a project variable and the bar
  * tracks the variable live in the overlay (the classic "goal bar" pattern).
  */
@@ -114,7 +114,12 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	return bindableForm({
 		element: e,
 		mutate,

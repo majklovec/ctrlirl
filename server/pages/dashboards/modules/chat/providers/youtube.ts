@@ -1,11 +1,11 @@
 /**
- * YouTube chat provider — polls the creator's live chat on a fixed ~1 s
+ * YouTube chat provider - polls the creator's live chat on a fixed ~1 s
  * cadence (youtube-chat-next `fetchLivePage` + a raw `get_live_chat` call via
  * `fetchChatWithActions`), ignoring YouTube's suggested `timeoutMs` throttle
  * so messages land within about a second. The raw call also returns the
  * `actions` so moderation deletes (`markChatItemAsDeletedAction`) can be turned
  * into "banned" flags, since anonymous viewers never get the banned-user event. The config value carries no `@`; the poll adds it back for the
- * handle. Offline streams make the first fetch reject — treated like a
+ * handle. Offline streams make the first fetch reject - treated like a
  * disconnect and retried with backoff. The live-page fetch is part of the
  * same failure budget as the polls: a single unparseable page (a consent
  * interstitial, a mid-stream 404) is retried with backoff instead of
@@ -90,10 +90,10 @@ function asChatMessage(
             if (typeof p.text === "string") return p.text;
             // Global preset emojis carry the Unicode glyph in `emojiText`
             // (e.g. "🫡"), which renders natively as-is. Channel-specific
-            // ("custom") emojis instead carry a picture in `url` — emit that
+            // ("custom") emojis instead carry a picture in `url` - emit that
             // URL so the feed renders the actual image (as an inline emote)
             // rather than the bare `:name:` shortcut word.
-            return p.isCustomEmoji && p.url ? p.url : (p.emojiText ?? "");
+            return p.isCustomEmoji && p.url ? p.url : p.emojiText ?? "";
         })
         .join("");
     const username = item.author?.name?.replace(/^@/, "") || undefined;
@@ -124,8 +124,8 @@ type ChatAction = Action & {
  * MessageRenderer`; a mod's ban (or a single-message removal) reaches them as
  * one `markChatItemAsDeletedAction` per affected message, which the library's
  * parser drops. Its HTTP client is not exported, so we issue the same
- * `get_live_chat` call ourselves — matching its headers, timeout, and rate-
- * limit handling — and return the actions so the deleted message ids can be
+ * `get_live_chat` call ourselves - matching its headers, timeout, and rate-
+ * limit handling - and return the actions so the deleted message ids can be
  * mapped back to history and marked banned.
  */
 async function fetchChatWithActions(
@@ -136,7 +136,7 @@ async function fetchChatWithActions(
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            // Browser-like identity, pinned locale, and EU consent opt-out —
+            // Browser-like identity, pinned locale, and EU consent opt-out -
             // mirrors the library's private client; without these YouTube
             // serves a different or consent-walled page.
             "User-Agent":
@@ -208,7 +208,7 @@ export class YoutubeChatProvider extends ChatProvider {
             let options: FetchOptions | null = null;
             let failures = 0;
             // The first fetched page is YouTube's buffered history (up to ~50
-            // messages, minutes old) — skip it so viewers only see fresh
+            // messages, minutes old) - skip it so viewers only see fresh
             // messages arriving live, then take its continuation token.
             let live = false;
 
@@ -219,7 +219,7 @@ export class YoutubeChatProvider extends ChatProvider {
              * single bad tick. */
             const fail = async (err: unknown): Promise<boolean> => {
                 if (this.stopped) return true;
-                // ScrapeError means the response shape no longer parses —
+                // ScrapeError means the response shape no longer parses -
                 // retrying won't help until a reconnect re-resolves it.
                 if (err instanceof ScrapeError) {
                     this.log(
@@ -263,7 +263,7 @@ export class YoutubeChatProvider extends ChatProvider {
                         await fetchChatWithActions(options);
                     failures = 0;
                     if (!continuation) {
-                        // Empty continuation — the stream ended.
+                        // Empty continuation - the stream ended.
                         this.#onEnd();
                         return;
                     }

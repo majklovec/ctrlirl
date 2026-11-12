@@ -1,8 +1,7 @@
-/* Control server device list — a Mithril view fed by the server's live device
+/* Control server device list - a Mithril view fed by the server's live device
  * list (devices.snapshot / devices.changed over the shared feed websocket). */
 
 import { Badge, Card, Page } from "@ui/components/";
-import { ServerNav } from "../../../shell/nav";
 import { RoleTag } from "@ui/components/role_tag";
 import { i18nReady, t } from "@ui/i18n";
 import {
@@ -13,6 +12,7 @@ import { mountPage, since } from "@ui/util";
 import m from "mithril";
 import type { DeviceSummary } from "../../../../shared/contracts/wire";
 import { serverLive } from "../../../shell/live";
+import { ServerNav } from "../../../shell/nav";
 
 const state = {
 	connected: false,
@@ -70,7 +70,7 @@ function row(
 					{d.hostname || d.id}
 				</a>
 			</td>
-			<td class="muted">{d.role ? <RoleTag role={d.role} /> : "—"}</td>
+			<td class="muted">{d.role ? <RoleTag role={d.role} /> : "-"}</td>
 			<td>
 				{d.online ? (
 					<Badge text={t("dev.badge.online")} kind="on" />
@@ -84,7 +84,7 @@ function row(
 					: t("mgmt.last_seen", { time: since(d.lastSeen) })}
 			</td>
 			{columns.map((column) => (
-				<td>{available.get(column.id)?.cell(d) ?? "—"}</td>
+				<td>{available.get(column.id)?.cell(d) ?? "-"}</td>
 			))}
 		</tr>
 	);

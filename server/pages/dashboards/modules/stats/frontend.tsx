@@ -104,21 +104,21 @@ function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
 								{t(`stats.${parsed.platform}`)}
 							</span>
 							<span class="stats-row-title" title={sample?.title ?? undefined}>
-								{sample?.title ?? "—"}
+								{sample?.title ?? "-"}
 							</span>
 							<span
 								class="stats-row-category"
 								title={sample?.category ?? undefined}
 							>
-								{sample?.category ?? "—"}
+								{sample?.category ?? "-"}
 							</span>
 							<span class="stats-row-duration">
 								{sample?.startTime
 									? durationMinutes(sample.startTime, now)
-									: "—"}
+									: "-"}
 							</span>
 							<span class="stats-row-value">
-								{viewers === null ? "—" : viewers.toLocaleString()}
+								{viewers === null ? "-" : viewers.toLocaleString()}
 							</span>
 						</div>
 					);
@@ -129,7 +129,7 @@ function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
 					<span class="stats-row-category" />
 					<span class="stats-row-duration" />
 					<span class="stats-row-value">
-						{currentTotal === null ? "—" : currentTotal.toLocaleString()}
+						{currentTotal === null ? "-" : currentTotal.toLocaleString()}
 					</span>
 				</div>
 			</div>

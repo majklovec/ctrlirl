@@ -1,8 +1,8 @@
 /** @jsx m */
 /*
- * Tasks widget — a "today's goals" checklist: label rows with a done
+ * Tasks widget - a "today's goals" checklist: label rows with a done
  * tick. Static in the overlay (the streamer updates it in the editor, or
- * binds nothing — it's a display-only element like a text block).
+ * binds nothing - it's a display-only element like a text block).
  */
 
 import { Icon } from "@ui/components/icons";
@@ -17,8 +17,8 @@ import { numProp, strProp } from "@ui/overlay/element";
 import { bindableForm } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import { ListField } from "../lib/list_field";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
+import { ListField } from "../lib/list_field";
 import { textRows } from "./schema_utils";
 
 /* ── tasks ────────────────────────────────────────────────────────────── */
@@ -53,16 +53,18 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 	const fontSize = numProp(p, "fontSize", 22);
 	const fontFamily = strProp(p, "fontFamily", "Inter, system-ui, sans-serif");
 	const rawEntries = Array.isArray(p.entries) ? p.entries : [];
-	const entries = rawEntries.map((item) => {
-		const rec =
-			typeof item === "object" && item !== null
-				? (item as Record<string, unknown>)
-				: {};
-		return {
-			label: typeof rec.label === "string" ? rec.label : "",
-			done: rec.done === true,
-		};
-	}).filter((e) => e.label);
+	const entries = rawEntries
+		.map((item) => {
+			const rec =
+				typeof item === "object" && item !== null
+					? (item as Record<string, unknown>)
+					: {};
+			return {
+				label: typeof rec.label === "string" ? rec.label : "",
+				done: rec.done === true,
+			};
+		})
+		.filter((e) => e.label);
 
 	const pad = Math.round(fontSize * 0.15);
 	return (
@@ -84,7 +86,11 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 		>
 			{title ? (
 				<div
-					style={{ fontSize: `${Math.round(fontSize * 0.85)}px`, fontWeight: "700", color: accent }}
+					style={{
+						fontSize: `${Math.round(fontSize * 0.85)}px`,
+						fontWeight: "700",
+						color: accent,
+					}}
 				>
 					{title}
 				</div>
@@ -116,7 +122,12 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 					>
 						{e.done ? "✓" : ""}
 					</span>
-					<span style={{ textDecoration: e.done ? "line-through" : "none", minWidth: 0 }}>
+					<span
+						style={{
+							textDecoration: e.done ? "line-through" : "none",
+							minWidth: 0,
+						}}
+					>
 						{e.label}
 					</span>
 				</div>
@@ -125,7 +136,12 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const p = e.props;
 	return bindableForm({
 		element: e,

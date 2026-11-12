@@ -1,5 +1,5 @@
 /**
- * Frontend module registry — the only module entry point the browser code (the device
+ * Frontend module registry - the only module entry point the browser code (the device
  * store, dashboards) imports for module cards and event handling.
  *
  * Modules are discovered through a build-time generated manifest
@@ -8,7 +8,7 @@
  * order, default-exporting the array. The browser bundle therefore never uses
  * Glob and every module is statically resolved.
  * Adding a module directory with a `frontend.tsx` default export registers it
- * here — no frontend-registry edits (regeneration happens automatically).
+ * here - no frontend-registry edits (regeneration happens automatically).
  *
  * Frontend-only file: the server never imports it (it mounts the device store
  * at module init). Kept in shared/ui so the module code stays out of the core import
@@ -16,15 +16,6 @@
  */
 import type m from "mithril";
 import MANIFEST from "../../generated/modules.frontend";
-import { registerLogWording } from "../log_messages";
-import type {
-    DeviceSummary,
-    Role,
-    ServerDashboardWidget,
-    Status,
-    WidgetConfigField,
-} from "../contracts/wire";
-import { type DeviceCard, setFrontendEventSink } from "./device/store";
 import type {
     ChannelWidgetModule,
     DashboardWidgetModule,
@@ -35,8 +26,20 @@ import type {
     FrontendRegistration,
     ModuleSetupStep,
 } from "../contracts/frontend_module";
+import type {
+    DeviceSummary,
+    Role,
+    ServerDashboardWidget,
+    Status,
+    WidgetConfigField,
+} from "../contracts/wire";
+import { registerLogWording } from "../log_messages";
+import { type DeviceCard, setFrontendEventSink } from "./device/store";
 
-export type { FrontendModule, WidgetContext } from "../contracts/frontend_module";
+export type {
+    FrontendModule,
+    WidgetContext,
+} from "../contracts/frontend_module";
 
 const isRegistration = (mod: unknown): mod is FrontendRegistration =>
     typeof mod === "object" &&
@@ -189,7 +192,7 @@ export function widgetModule(
 }
 
 /** Widget type → the module that composes it, declared by the module's
- * `widgetTypes`. The core routes a widget type through this table — it names no
+ * `widgetTypes`. The core routes a widget type through this table - it names no
  * module itself. */
 const WIDGET_TYPE_TO_MODULE = new Map<
     string,

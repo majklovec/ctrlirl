@@ -30,7 +30,7 @@
     "set.obs_password": "OBS password",
     "lowbs.title": "Low bitrate switcher",
     "lowbs.idle": "idle",
-    "lowbs.idle_hint": "No engine running yet. Set the OBS SRT source above, pick the scenes, and save — the switcher starts once its config is stored.",
+    "lowbs.idle_hint": "No engine running yet. Set the OBS SRT source above, pick the scenes, and save - the switcher starts once its config is stored.",
     "lowbs.state_normal": "normal",
     "lowbs.state_low": "low bitrate",
     "lowbs.state_offline": "offline",

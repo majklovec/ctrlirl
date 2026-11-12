@@ -1,5 +1,5 @@
 /*
- * Device settings — a Mithril view over the WebSocket API. Device-level
+ * Device settings - a Mithril view over the WebSocket API. Device-level
  * fields (hostname, role, color, remote connection) are saved here; each
  * module's own configuration card lives in `modules/<id>/settings.tsx` and
  * is auto-registered by the module framework from the generated manifest.
@@ -149,7 +149,7 @@ function settingsCard(): Vnode {
 			: t("set.token_ph_missing");
 	return (
 		// Keyed: the device card shares the page fragment with the (keyed)
-		// module cards — a mixed keyed/unkeyed fragment throws in Mithril 2.3.
+		// module cards - a mixed keyed/unkeyed fragment throws in Mithril 2.3.
 		<Card key="device">
 			<p class="muted">{t("set.description")}</p>
 			<Form onSubmit={save}>

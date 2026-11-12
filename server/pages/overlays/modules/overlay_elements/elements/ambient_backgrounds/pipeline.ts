@@ -1,5 +1,5 @@
 /*
- * `pipeline` — small glowing dots tracing circuit-like lanes through the
+ * `pipeline` - small glowing dots tracing circuit-like lanes through the
  * middle band of the box.
  * Port of `pipeline.js` from crnacura/AmbientCanvasBackgrounds (CC BY-SA).
  */
@@ -181,7 +181,7 @@ export class Pipeline extends AmbientVariant {
             if (turnChance) direction += TURN_AMOUNT * turnBias;
 
             // Wrap the dot to the opposite edge (the original recomputed the
-            // coordinates but never wrote them back — keeping its visible
+            // coordinates but never wrote them back - keeping its visible
             // behaviour, fixed to the wrap the bounds check intended).
             if (x > env.width) x = 0;
             if (x < 0) x = env.width;

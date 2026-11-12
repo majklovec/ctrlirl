@@ -1,6 +1,6 @@
 /*
  * What the encoder can run: the GStreamer pipeline files under PIPELINES_DIR
- * (including subdirectories — generic/, rk3588/, jetson/, custom/, ...; a
+ * (including subdirectories - generic/, rk3588/, jetson/, custom/, ...; a
  * pipeline's id is its path relative to that directory) and the ALSA capture
  * cards it can record from.
  *

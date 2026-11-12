@@ -7,7 +7,7 @@
     grid-template-rows: 1fr;
     gap: 12px;
     /* 192px = header + the icon toolbar strip + main paddings + version
-       footer — the single row stretches to fill it, so the canvas takes
+       footer - the single row stretches to fill it, so the canvas takes
        the maximum available height */
     height: calc(100vh - 192px);
     min-height: 480px;
@@ -131,7 +131,7 @@
     left: -6px;
     cursor: ew-resize;
 }
-/* line endpoint handles: A = top-left corner, B = bottom-right corner —
+/* line endpoint handles: A = top-left corner, B = bottom-right corner -
    the two ends of the line; drag moves just that endpoint */
 .ov-line-end {
     position: absolute;
@@ -183,7 +183,7 @@
 /* element content sizing: the runtime page gets these from overlay.css, which
 the editor page must NOT load (it carries document-level transparent/full-screen
 rules). Mirrored here, scoped, so the canvas preview matches the OBS runtime
-1:1 — without them images render at natural size and overflow their box. */
+1:1 - without them images render at natural size and overflow their box. */
 .ov-canvas-wrap .overlay-text {
     width: 100%;
     height: 100%;
@@ -611,7 +611,7 @@ identically here and on the runtime page */
     min-width: 0;
 }
 /* per-marker icon select, inline in a marker row (position input, select
-   and remove button share the row) — fixed, compact, glyph-centered */
+   and remove button share the row) - fixed, compact, glyph-centered */
 .ov-marker-icon {
     flex: 0 0 auto;
     width: 42px;
@@ -831,7 +831,7 @@ identically here and on the runtime page */
     background: color-mix(in srgb, var(--bad) 14%, transparent) !important;
 }
 
-/* variables modal: opened from the toolbar icon — wide enough for
+/* variables modal: opened from the toolbar icon - wide enough for
    name + type chip + value + usage + actions, height-capped and
    scrollable so big projects don't push it off-screen */
 .ov-vars-modal {
@@ -982,7 +982,7 @@ identically here and on the runtime page */
     border-radius: 6px;
     font-size: 12px;
 }
-/* in the runtime URL dialog the URL must be fully readable — let it wrap
+/* in the runtime URL dialog the URL must be fully readable - let it wrap
 instead of truncating */
 .modal .ov-runtime .ov-url {
     white-space: normal;
@@ -1047,7 +1047,7 @@ instead of truncating */
 }
 
 /* Second strip flush under the main header (the overlay editor's icon
-   toolbar): a flat, opaque bar with borderless, shadowless icon buttons —
+   toolbar): a flat, opaque bar with borderless, shadowless icon buttons -
    hover shows a subtle highlight, like a graphics editor's menu bar. */
 .page-subbar {
     display: flex;

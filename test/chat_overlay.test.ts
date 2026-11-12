@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { APP_VERSION } from "../generated/version";
-import { chatOverlayRoutes } from "../server/pages/overlays/modules/overlay_elements/overlay_server";
 import type { ChatSnapshot } from "../server/pages/dashboards/modules/chat/types";
+import { chatOverlayRoutes } from "../server/pages/overlays/modules/overlay_elements/overlay_server";
 
 const BunWebSocket = WebSocket as unknown as new (
     url: string,
@@ -148,7 +148,7 @@ describe("scene-token chat overlay (self-contained element)", () => {
             version: string;
         };
         expect(body.version).toBe(APP_VERSION);
-        // only the scene's two channels — `twitch:bob` (the other widget) is
+        // only the scene's two channels - `twitch:bob` (the other widget) is
         // excluded, and the token never leaves the server.
         expect(Object.keys(body.chat).sort()).toEqual([
             "twitch:alice",
@@ -195,14 +195,10 @@ describe("scene-token chat overlay (self-contained element)", () => {
                 "twitch:alice",
                 "youtube:creator",
             ]);
-            expect(fix.acquires).toEqual([
-                ["twitch:alice", "youtube:creator"],
-            ]);
+            expect(fix.acquires).toEqual([["twitch:alice", "youtube:creator"]]);
             socket.close();
             await waitFor(() => fix.releases.length === 1);
-            expect(fix.releases).toEqual([
-                ["twitch:alice", "youtube:creator"],
-            ]);
+            expect(fix.releases).toEqual([["twitch:alice", "youtube:creator"]]);
         } finally {
             socket.close();
             fix.app.stop();

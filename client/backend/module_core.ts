@@ -1,22 +1,18 @@
 /*
- * Core bag — the process services a backend module may use, handed over at
+ * Core bag - the process services a backend module may use, handed over at
  * discovery (`bind`) and again at `start` (`ctx.core`). It is the single
  * dependency edge from a module into the device core: a module never imports
  * client/backend files, it reads what it needs from the bag (and imports the
- * dependency-free helpers in shared/ directly — args, params, i18n, util).
+ * dependency-free helpers in shared/ directly - args, params, i18n, util).
  *
  * The bag is generic: nothing in it belongs to one module. Module-specific
  * services travel between modules through the capability bus.
  */
+
+import { hasCapability, requireCapability } from "../../shared/capabilities";
 import type { Role } from "../../shared/validate";
 import { cancelAutostart } from "./autostart";
-import { hasCapability, requireCapability } from "../../shared/capabilities";
-import {
-    argv,
-    DRY_RUN,
-    LOG_FILE,
-    ROLE,
-} from "./config";
+import { argv, DRY_RUN, LOG_FILE, ROLE } from "./config";
 import { logEvent } from "./eventlog";
 import { run } from "./exec";
 import { writeFileAtomic } from "./files";
@@ -53,7 +49,7 @@ export interface ModuleCore {
     run: typeof run;
     writeFileAtomic: typeof writeFileAtomic;
     Supervisor: typeof Supervisor;
-    /** Capability bus — module-to-module calls flow through it (names, not module ids). */
+    /** Capability bus - module-to-module calls flow through it (names, not module ids). */
     requireCapability: typeof requireCapability;
     hasCapability: typeof hasCapability;
     /** The control server's device registry; rejects when the link is down. */

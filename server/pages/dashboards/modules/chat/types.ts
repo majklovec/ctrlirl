@@ -1,5 +1,5 @@
 /**
- * chat widget — local wire/state types. The module is self-contained:
+ * chat widget - local wire/state types. The module is self-contained:
  * it declares the shapes it exchanges over the dashboard websocket and the
  * hub/manager contract it implements. The core reaches this module only
  * structurally (the registry validates the shape), so no type crosses a
@@ -37,7 +37,7 @@ export interface ChatLive {
     /** The message's classification; `banned` marks a message removed by the
      * platform's moderation (shown struck-through or hidden per widget config). */
     type?: string;
-    /** Message time (epoch ms) — where the platform provides it. */
+    /** Message time (epoch ms) - where the platform provides it. */
     ts?: number;
 }
 

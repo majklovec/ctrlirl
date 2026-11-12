@@ -1,7 +1,7 @@
 /*
  * OBS audio-source tracker: every input with a mute state, kept current from
  * obs-websocket events. Shared by the in-process obs module and the
- * standalone obs-client box — both publish `list()` as
+ * standalone obs-client box - both publish `list()` as
  * `status.obs.audioSources`, which the module's `dashboardActions` factory
  * turns into one mute toggle per source.
  */
@@ -21,7 +21,7 @@ type Data = Record<string, unknown>;
 export class AudioSourceTracker {
     /** name → muted; a source is only present once its mute state is known. */
     private readonly sources = new Map<string, boolean>();
-    /** Names already queried (in flight or failed — e.g. a video input with no
+    /** Names already queried (in flight or failed - e.g. a video input with no
      * audio): the high-rate VU-meter stream must not re-query them every tick. */
     private readonly queried = new Set<string>();
     /** Set on creation and on every drop: the next identify re-seeds the full
@@ -35,7 +35,7 @@ export class AudioSourceTracker {
         private readonly onChange: () => void,
     ) {
         client.on("InputVolumeMeters", (d) => this.onMeters(d));
-        // Replayed by the client after every (re)identify — the seed trigger
+        // Replayed by the client after every (re)identify - the seed trigger
         // that works without the VU-meter subscription.
         client.on("CurrentProgramSceneChanged", () => this.maybeSeed());
         client.on("InputMute", (d) => this.onMute(d));

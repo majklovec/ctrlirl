@@ -25,7 +25,7 @@ const STORAGE_DIR = argEnv("--storage", "STORAGE_DIR", "assets");
  * A fresh storage dir (a bind-mounted volume in Docker/Nomad) has no overlay
  * templates: seed it once from the templates shipped with the app
  * (assets/overlay_templates in the repo and the image). A directory the user
- * already owns — even an emptied one — is never re-seeded.
+ * already owns - even an emptied one - is never re-seeded.
  */
 function seedOverlayTemplates(destDir: string) {
     const seedDir = appPath("assets/overlay_templates");
@@ -52,5 +52,5 @@ console.log(`irlctrl control server on http://${HOST}:${port}/`);
 console.log(`Relays connect with: --remote ws://<this-host>:${port}/device`);
 if (NO_AUTH)
     console.warn(
-        "WARNING: --no-auth — anyone can register devices and control them.",
+        "WARNING: --no-auth - anyone can register devices and control them.",
     );

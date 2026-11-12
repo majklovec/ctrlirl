@@ -15,7 +15,7 @@ You are being asked to **rewrite the `udp_relay` library** in TypeScript/Bun. Re
 1. **Clone** `https://github.com/majklovec/irlctrl` locally.
 2. **Clone** `https://github.com/datagutt/moblink-rust` as read-only reference.
 3. **Read every file** in `shared/lib/udp_relay` and every consumer of it (search the repo for imports from `udp_relay`).
-4. **Reconcile this handoff against the actual source.** This document was written from an architectural analysis, not line-by-line source. If any claim here contradicts the source, **trust the source** and update your plan — then flag the discrepancy in your final report.
+4. **Reconcile this handoff against the actual source.** This document was written from an architectural analysis, not line-by-line source. If any claim here contradicts the source, **trust the source** and update your plan - then flag the discrepancy in your final report.
 5. Follow the **Implementation plan (§7)** in the given order. Do not batch changes; commit after each numbered step and run the acceptance tests (§11).
 
 If something in this handoff is ambiguous, make the **minimal, conservative** choice, document it in a `DECISIONS.md` file inside `shared/lib/udp_relay`, and continue.
@@ -63,13 +63,13 @@ Measured acceptance targets (see §11 for how to measure):
 
 ---
 
-## 4. Reference implementation — what to learn from `moblink-rust`
+## 4. Reference implementation - what to learn from `moblink-rust`
 
 Open and read these files in `datagutt/moblink-rust`:
 
--   `src/main.rs` — socket setup, bind address, socket lifecycle
--   `src/relay.rs` (or equivalent) — packet loop
--   `README.md` — deployment notes, iptables rules
+-   `src/main.rs` - socket setup, bind address, socket lifecycle
+-   `src/relay.rs` (or equivalent) - packet loop
+-   `README.md` - deployment notes, iptables rules
 
 Extract these patterns (do not copy code, only concepts):
 
@@ -77,7 +77,7 @@ Extract these patterns (do not copy code, only concepts):
 2. **Kernel routing is authoritative.** No `SO_BINDTODEVICE`, no raw socket, no `IP_HDRINCL`.
 3. **NAT is not the relay's job.** `iptables`/`nftables` rules installed by the deployment layer handle SNAT/DNAT.
 4. **Packet loop is allocation-free** on the fast path: a preallocated `BytesMut` scratch buffer, `recv_from` into it, `send_to` from it.
-5. **No `await` per packet** in Rust either — the socket is polled.
+5. **No `await` per packet** in Rust either - the socket is polled.
 
 Write a short `REFERENCE_NOTES.md` in the target library describing exactly which of these you adopted and where.
 
@@ -189,7 +189,7 @@ Provide `UdpRelayOptions.workers?: number` (default `1`). When `> 1`, spawn `wor
 
 Commit after each step. Run `bun test shared/lib/udp_relay` and the micro-benchmark (§11.2) after each step. **Revert any step that does not measurably improve or preserve both correctness and perf.**
 
-### Step 1 — Baseline
+### Step 1 - Baseline
 
 1. `git checkout -b refactor/udp-relay-single-socket`
 2. Build a micro-benchmark (`shared/lib/udp_relay/bench/bench.ts`) that:
@@ -199,7 +199,7 @@ Commit after each step. Run `bun test shared/lib/udp_relay` and the micro-benchm
     - Measures pps, CPU (`process.cpuUsage()`), and GC count (`perf_hooks`).
 3. Record baseline numbers in `bench/BASELINE.md`.
 
-### Step 2 — Remove the raw socket (the primary change)
+### Step 2 - Remove the raw socket (the primary change)
 
 Files to edit:
 
@@ -222,7 +222,7 @@ Files to edit:
 
 After this step, `bun test` should still pass after you adjust the tests that assumed the raw socket. **Update tests to test behavior, not implementation**: assert that (a) encoder→streamer packets arrive at the fake streamer, (b) streamer→encoder packets arrive framed correctly at the fake encoder.
 
-### Step 3 — Unified data handler
+### Step 3 - Unified data handler
 
 Replace the two read paths with one handler attached to the single socket:
 
@@ -240,27 +240,27 @@ Fast path: the `forwardToStreamer` method should consist of **one header parse a
 
 Encoder address discovery: the first datagram that arrives and successfully passes the frame-header parse is treated as the encoder. Store it. Log it once at info level. If no datagram arrives within 30 s of `start()`, log a warning (does not stop the relay).
 
-### Step 4 — Remove `Buffer.concat` and `Buffer.from` from hot path
+### Step 4 - Remove `Buffer.concat` and `Buffer.from` from hot path
 
 Introduce a per-instance (or per-worker) `PacketPipeline` (new file `pipeline.ts`) with:
 
 -   `rxBuf: Uint8Array` of 65536 (max UDP payload)
 -   `txBuf: Uint8Array` of 65536
 -   `txLen: number`
--   `writeFrameHeader(vifIp: number, payloadLen: number): void` — writes 6-byte frame header at `txBuf[0..5]`
--   `copyPayload(src: Uint8Array, srcOff: number, len: number): void` — `txBuf.set(src.subarray(srcOff, srcOff + len), 6)`
+-   `writeFrameHeader(vifIp: number, payloadLen: number): void` - writes 6-byte frame header at `txBuf[0..5]`
+-   `copyPayload(src: Uint8Array, srcOff: number, len: number): void` - `txBuf.set(src.subarray(srcOff, srcOff + len), 6)`
 
 Use `socket.send(txBuf.subarray(0, txLen), port, host)`. Bun ≥ 1.1 accepts `Uint8Array` directly.
 
 **Do not** call `Buffer.concat`, `Buffer.from`, `Buffer.alloc`, or `new Uint8Array` inside `forwardToStreamer` or `forwardToEncoder`.
 
-### Step 5 — Kill `async`/`await` on the hot path
+### Step 5 - Kill `async`/`await` on the hot path
 
 `onSocketData` must be **synchronous**. `forwardToStreamer` and `forwardToEncoder` must be **synchronous**. Only lifecycle methods (`start`, `stop`) and optional NAT verification may be async.
 
 If `socket.send()` returns a promise, do not await it. Attach an error handler at socket creation.
 
-### Step 6 — Fast-path the common case
+### Step 6 - Fast-path the common case
 
 In `forwardToStreamer`:
 
@@ -290,9 +290,9 @@ this.socket.send(
 this.stats.fastPath++;
 ```
 
-`encoderTrusted` is a per-encoder boolean that flips to `true` after the first N successful frame decodes (N=10). Once trusted, prefer the raw-forward branch. **Verify against real encoder behavior** — if the encoder always frames, delete the fast-path branch entirely.
+`encoderTrusted` is a per-encoder boolean that flips to `true` after the first N successful frame decodes (N=10). Once trusted, prefer the raw-forward branch. **Verify against real encoder behavior** - if the encoder always frames, delete the fast-path branch entirely.
 
-### Step 7 — Direct typed-array reads
+### Step 7 - Direct typed-array reads
 
 In `framing.ts` (and any header parser), replace:
 
@@ -304,7 +304,7 @@ buf.readUInt8(off)          →  buf[off]
 
 `DataView` → `Uint8Array` direct indexing. Add a header comment in `framing.ts` explaining why.
 
-### Step 8 — Zero-copy IP address handling
+### Step 8 - Zero-copy IP address handling
 
 Pre-parse at construction:
 
@@ -316,13 +316,13 @@ this.destPort = options.destinationPort;
 
 Do not do `parseIp()` per packet.
 
-### Step 9 — Optional: SO_REUSEPORT + workers
+### Step 9 - Optional: SO_REUSEPORT + workers
 
 Implement `workers > 1` by spawning child processes with `Bun.spawn`, passing config via env. Each child runs the same `UdpRelay` with `workers: 1` and `reusePort: true`. Parent forwards SIGTERM/SIGINT to children. Add a `ParentProxyStats` that aggregates counters via a periodic IPC message (once per second, not per packet).
 
 **Skip this step entirely if `bun test` and the bench show you're already under target CPU at 10k pps.** Do not add complexity without demonstrated benefit.
 
-### Step 10 — Metrics
+### Step 10 - Metrics
 
 `RelayStats`:
 
@@ -341,19 +341,19 @@ export interface RelayStats {
 
 -   All counters are plain `number`. Increment with `(x + 1) | 0` only if you're sure `x < 2^31`. Otherwise plain `x++` (V8/Bun handles these well).
 -   No `performance.now()` per packet.
--   `stats()` returns a snapshot object built on demand — one allocation per call, that's fine.
+-   `stats()` returns a snapshot object built on demand - one allocation per call, that's fine.
 
-### Step 11 — Documentation
+### Step 11 - Documentation
 
 Add to `shared/lib/udp_relay/`:
 
--   **`README.md`** — public API, deployment requirements (iptables/nftables), performance tuning notes, how to enable workers, how to verify with the bench.
--   **`NAT.md`** — the actual rules for iptables and nftables, with explanation.
--   **`REFERENCE_NOTES.md`** — which moblink-rust patterns you adopted and where.
--   **`DECISIONS.md`** — anything ambiguous you had to decide, with rationale.
--   **`bench/BASELINE.md`** — baseline vs final numbers from §11.2.
+-   **`README.md`** - public API, deployment requirements (iptables/nftables), performance tuning notes, how to enable workers, how to verify with the bench.
+-   **`NAT.md`** - the actual rules for iptables and nftables, with explanation.
+-   **`REFERENCE_NOTES.md`** - which moblink-rust patterns you adopted and where.
+-   **`DECISIONS.md`** - anything ambiguous you had to decide, with rationale.
+-   **`bench/BASELINE.md`** - baseline vs final numbers from §11.2.
 
-### Step 12 — Update every consumer
+### Step 12 - Update every consumer
 
 Search the repo:
 
@@ -375,11 +375,11 @@ Update every call site:
 | File                 | Action                                                                   |
 | -------------------- | ------------------------------------------------------------------------ |
 | `index.ts`           | Update exports: remove raw-socket helpers, export new types              |
-| `relay.ts`           | **Major rewrite** — single socket, unified handler, sync hot path        |
+| `relay.ts`           | **Major rewrite** - single socket, unified handler, sync hot path        |
 | `framing.ts`         | Replace `Buffer.readUInt*BE` with `Uint8Array` indexing; make pure       |
 | `net_linux.ts`       | **Delete**                                                               |
 | `nat.ts`             | Delete SNAT/DNAT helpers; keep/add `verifyNatRules`                      |
-| `pipeline.ts`        | **New** — pre-allocated rx/tx buffers, `writeFrameHeader`, `copyPayload` |
+| `pipeline.ts`        | **New** - pre-allocated rx/tx buffers, `writeFrameHeader`, `copyPayload` |
 | `types.ts`           | Remove raw-socket/NAT-address fields; add `workers`, `logger`            |
 | `udp_relay.test.ts`  | Rewrite to test behavior, not implementation                             |
 | `bench/bench.ts`     | **New**                                                                  |
@@ -399,7 +399,7 @@ Update every call site:
 -   Add a dependency on any NAT library.
 -   Perform per-packet `Buffer` allocation.
 -   `await` inside `onSocketData` or any sync forward method.
--   Require root privileges for the library to function (as a library; the deployment may still need root for iptables — that's the deployment's problem).
+-   Require root privileges for the library to function (as a library; the deployment may still need root for iptables - that's the deployment's problem).
 -   Change the wire format. Encoders must not need to update.
 -   Add a flow-tracking `Map` unless you demonstrate that the current flow set is nontrivial. The single-socket + kernel-NAT design usually removes the need entirely.
 
@@ -408,7 +408,7 @@ Update every call site:
 -   Prefer deleting code to adding code.
 -   Prefer typed arrays to `Buffer` helpers on hot paths.
 -   Add a comment on every micro-optimization explaining **why** (link to `bench/BASELINE.md` if you measured it).
--   Keep the public API as close to the current one as possible — only remove what's now dead.
+-   Keep the public API as close to the current one as possible - only remove what's now dead.
 
 ---
 
@@ -435,11 +435,11 @@ Run `bun test shared/lib/udp_relay`. Must pass:
 
 -   **Encoder → streamer:** framed packet from encoder arrives at fake streamer as expected payload.
 -   **Streamer → encoder:** datagram from fake streamer arrives at encoder, correctly framed.
--   **Unknown source:** datagram from a random port after encoder established is treated as a streamer reply (must not be silently dropped) — assert framing occurs.
+-   **Unknown source:** datagram from a random port after encoder established is treated as a streamer reply (must not be silently dropped) - assert framing occurs.
 -   **Malformed frame:** dropped, `framesDropped++`.
--   **`start()`/`stop()` idempotency** — no leaks, no double-close errors.
--   **`stats()`** — counters reflect reality after N packets.
--   **Encoders on two ports** — the second port's traffic does not corrupt the first's state. (Document whichever behavior you implement.)
+-   **`start()`/`stop()` idempotency** - no leaks, no double-close errors.
+-   **`stats()`** - counters reflect reality after N packets.
+-   **Encoders on two ports** - the second port's traffic does not corrupt the first's state. (Document whichever behavior you implement.)
 
 ### 11.2 Benchmark
 
@@ -485,7 +485,7 @@ Ensure `bun test` and `bun bench/bench.ts` run in CI. Store per-PR bench results
 | Netfilter rules absent in user's deployment                                  | High       | `verifyNatRules()` logs a warning on start; `README.md` and `NAT.md` lead with the rules                                                                     |
 | MTU issues on encapsulated path                                              | Medium     | Add `MTU.md` note: inner packet must be ≤ `interface MTU - 28`; document in README                                                                           |
 | `Bun.udpSocket` API differences across versions                              | Low        | Pin a `bun` version in `package.json` `engines`; test in CI with that version                                                                                |
-| Flow state was needed for reasons not obvious from code                      | Low        | If tests reveal you truly need per-encoder routing, reintroduce it as a minimal typed-array flow table (see §5 of the perf plan) — not a `Map<string>`       |
+| Flow state was needed for reasons not obvious from code                      | Low        | If tests reveal you truly need per-encoder routing, reintroduce it as a minimal typed-array flow table (see §5 of the perf plan) - not a `Map<string>`       |
 
 If any risk blocks a step, **stop and write a note in `DECISIONS.md`** rather than guessing.
 
@@ -496,7 +496,7 @@ If any risk blocks a step, **stop and write a note in `DECISIONS.md`** rather th
 If after Step 4 (`Buffer.concat` removal) the tests fail and you cannot fix them within one focused session:
 
 1. `git checkout main`
-2. Open a PR containing only Steps 1–2 (raw-socket removal + NAT documentation) — that alone is the primary win.
+2. Open a PR containing only Steps 1–2 (raw-socket removal + NAT documentation) - that alone is the primary win.
 3. File the perf work as a follow-up issue with `bench/BASELINE.md` attached.
 
 The refactor is **strictly additive in value**: removing the raw socket is a win regardless of whether the perf work lands.

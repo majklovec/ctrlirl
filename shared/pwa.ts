@@ -4,12 +4,12 @@
  * worker must answer at the origin root (`/sw.js`, scope `/`) to control the
  * whole UI, and the manifest names the icons by fixed path, so these are
  * explicit routes rather than part of the hashed `/assets/*` bundle (the
- * manifest itself is bundled with the pages — see `<link rel="manifest">` in
- * frontend/*.html — and served from `/assets/`).
+ * manifest itself is bundled with the pages - see `<link rel="manifest">` in
+ * frontend/*.html - and served from `/assets/`).
  *
  * The files are imported with Bun's `file` loader: unbundled this resolves to
  * their path under frontend/pwa/, in the compiled binary they are embedded and
- * resolve into Bun's virtual file system — either way `Bun.file()` serves them.
+ * resolve into Bun's virtual file system - either way `Bun.file()` serves them.
  */
 import { Elysia } from "elysia";
 import icon192 from "./assets/pwa/icons/icon-192.png" with { type: "file" };

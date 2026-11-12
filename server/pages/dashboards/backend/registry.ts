@@ -1,5 +1,12 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import type {
+    ServerDashboard,
+    ServerDashboardWidget,
+    Status,
+    WidgetConfigField,
+} from "../../../../shared/contracts/wire";
+import { configFieldName } from "../../../../shared/contracts/wire";
 import { checkColor } from "../../../../shared/params";
 import {
     deviceWidgetConfigFields,
@@ -11,13 +18,6 @@ import {
     WIDGET_SIZES,
     widgetConfigFields,
 } from "../../../../shared/registry";
-import type {
-    ServerDashboard,
-    ServerDashboardWidget,
-    Status,
-    WidgetConfigField,
-} from "../../../../shared/contracts/wire";
-import { configFieldName } from "../../../../shared/contracts/wire";
 import {
     dashboardsTopic,
     event,
@@ -160,7 +160,7 @@ export function createDashboards({
             if (independent) {
                 // Channel widgets are device-independent: they carry their own data
                 // source parameters, declared by the widget module (the dashboard
-                // API owns their hub). Values may be missing/empty — they can be
+                // API owns their hub). Values may be missing/empty - they can be
                 // set in the add form and edited later in the widget config editor.
                 return {
                     id,
@@ -220,7 +220,7 @@ export function createDashboards({
             // A widget may only bind to a device assigned to the dashboard's
             // project.
             // Exception on saves (strict=false): a widget bound to a device that no
-            // longer exists is kept — the widget simply renders "No device" and the
+            // longer exists is kept - the widget simply renders "No device" and the
             // user can remove it. Rejecting the whole save would brick any
             // dashboard that ever had a bound device pruned (even the save that
             // removes the widget itself would be rejected). The relaxation only
@@ -259,7 +259,7 @@ export function createDashboards({
             } catch {
                 // Corrupt row: keep the dashboard shell, drop its widgets
                 console.warn(
-                    `[dashboards] ${row.id}: dropping widgets — the stored JSON is unparsable`,
+                    `[dashboards] ${row.id}: dropping widgets - the stored JSON is unparsable`,
                 );
             }
             return {

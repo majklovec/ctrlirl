@@ -1,5 +1,5 @@
 /*
- * srtla module: srtla_send process management — start / stop / reload (SIGHUP
+ * srtla module: srtla_send process management - start / stop / reload (SIGHUP
  * or restart), the scheduler options applied over the control socket and the
  * per-link stats push. The leg itself is the shared `SrtlaSend` supervisor
  * (shared/srtla.ts, also used by the encoder).
@@ -68,7 +68,7 @@ const SRTLA_LISTEN_PORT = intArgEnv(
     1,
     65535,
 );
-/** Loopback SRT port between `srtla_rec` and `srtla_send` — never exposed. */
+/** Loopback SRT port between `srtla_rec` and `srtla_send` - never exposed. */
 const SRT_INTERNAL_PORT = intArgEnv(
     "--srt-internal-port",
     "SRT_INTERNAL_PORT",
@@ -185,7 +185,7 @@ async function reloadRelay(): Promise<void> {
 
 /**
  * Start the SRTLA→SRTLA bridge: `srtla_rec` on the SRTLA UDP port
- * (SRTLA_LISTEN_PORT env by default; `listenPort` overrides it — the encoder
+ * (SRTLA_LISTEN_PORT env by default; `listenPort` overrides it - the encoder
  * passes the port it sends to, which is this same port) + `srtla_send` on the
  * loopback SRT port.
  */
@@ -223,7 +223,7 @@ async function startRelay(
         const open = await waitForUdpPort(SRT_INTERNAL_PORT, 5_000);
         if (!open)
             console.warn(
-                `srtla_rec: loopback SRT port ${SRT_INTERNAL_PORT} did not open in 5s — starting anyway`,
+                `srtla_rec: loopback SRT port ${SRT_INTERNAL_PORT} did not open in 5s - starting anyway`,
             );
         return Bun.spawn([recBin, ...recArgs], {
             stdout: "inherit",
@@ -247,7 +247,7 @@ function onRecExit(code: number | null): void {
 }
 
 async function stopRelay(): Promise<void> {
-    if (!recSup && !sendLeg().running && !send) return; // never started in this process — nothing to stop
+    if (!recSup && !sendLeg().running && !send) return; // never started in this process - nothing to stop
     await recSup?.stop();
     await sendLeg().stop();
     core.notifyStateChange();
@@ -357,7 +357,7 @@ const registration: BackendModule<ModuleCore> = {
         emit = ctx.emit;
         // Reload srtla_send whenever the network module rewrites the uplinks file.
         uplinksUnsub = uplinks.onChanged(async () => {
-            console.log("Uplinks changed — reloading srtla_send");
+            console.log("Uplinks changed - reloading srtla_send");
             await reloadRelay();
         });
         await maybeStartRelay();

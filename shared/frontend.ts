@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { readdirSync, readFileSync, type Dirent } from "node:fs";
+import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { CLIENT_PAGES, SERVER_PAGES } from "./frontend_pages";
 import { appPath, MODULE_ROOTS, PAGE_DIRS, PAGES_ROOT } from "./paths";
@@ -43,7 +43,9 @@ export function vendorAssets(): VendorAsset[] {
         } catch {
             return;
         }
-        for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+        for (const entry of entries.sort((a, b) =>
+            a.name.localeCompare(b.name),
+        )) {
             const file = `${prefix}${entry.name}`;
             if (entry.isDirectory()) walk(join(dir, entry.name), `${file}/`);
             else
@@ -63,7 +65,7 @@ export function vendorAssets(): VendorAsset[] {
 /**
  * Every page to bundle: both sides' pages (shared/paths PAGE_DIRS) and the
  * module-owned pages (`<module>/pages/*.html`) of every module root. Names
- * must be unique across all of them — they are the keys of `htmlResponse`.
+ * must be unique across all of them - they are the keys of `htmlResponse`.
  */
 export function frontendPageEntries(): FrontendPageEntry[] {
     const entries: FrontendPageEntry[] = [
@@ -109,8 +111,7 @@ export function frontendPageEntries(): FrontendPageEntry[] {
     }
 
     // Page-slice pages: server/pages/<id>/pages/*.html.
-    for (const page of serverSlicePages())
-        entries.push(page);
+    for (const page of serverSlicePages()) entries.push(page);
 
     const names = new Set<string>();
     for (const entry of entries) {

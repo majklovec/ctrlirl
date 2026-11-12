@@ -1,4 +1,4 @@
-/* Low-bitrate-switcher form state for the OBS panel — pure helpers over the
+/* Low-bitrate-switcher form state for the OBS panel - pure helpers over the
  * persisted module slice: build the flat editable form from a status, coerce it
  * back to the persisted config shape, and render a switcher state badge.
  * Kept out of frontend.tsx so the panel factory stays focused on wiring. */
@@ -11,15 +11,18 @@ import type { ObsModuleView, ObsStatus, SwitcherStatus } from "./types";
 
 /**
  * A select's options over a live OBS name list (scenes, inputs): the names
- * themselves, plus an empty "—" entry for optional fields — no placeholder
+ * themselves, plus an empty "-" entry for optional fields - no placeholder
  * defaults.
  */
-export const nameOptions = (names: string[], optional = false): [string, string][] => {
+export const nameOptions = (
+	names: string[],
+	optional = false,
+): [string, string][] => {
 	const out: [string, string][] = names.map((name): [string, string] => [
 		name,
 		name,
 	]);
-	if (optional) out.push(["", "—"]);
+	if (optional) out.push(["", "-"]);
 	return out;
 };
 

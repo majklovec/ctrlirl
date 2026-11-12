@@ -7,8 +7,8 @@
  * auto-reconnect with backoff, `ObsDisconnected` synthetic event, state
  * replay on reconnect).
  *
- * This file is pure library code — no CLI, no device registration, no
- * module-level side effects — so it is safe to import from the relay's
+ * This file is pure library code - no CLI, no device registration, no
+ * module-level side effects - so it is safe to import from the relay's
  * obs module (which owns the low-bitrate switcher) and from the
  * standalone obs-client.ts proxy.
  *
@@ -126,7 +126,7 @@ const RECONNECT_MAX_MS = 15_000;
 // UnsupportedMessageEncoding, 4014 UnknownOpCode, 4015 InvalidMessage
 const OBS_CLOSE_HINTS: Record<number, string> = {
     4010: "not identified before close",
-    4011: "authentication failed — check --obs-password against the OBS server password",
+    4011: "authentication failed - check --obs-password against the OBS server password",
     4012: "unsupported rpcVersion",
     4013: "unsupported message encoding",
     4014: "unknown opcode",
@@ -159,7 +159,7 @@ export class ObsClient {
     private readonly listeners = new Map<string, Set<EventHandler>>();
 
     constructor(opts: ObsClientOptions) {
-        // Normalize log args so Error objects surface as plain messages —
+        // Normalize log args so Error objects surface as plain messages -
         // console.log prints them as stack traces with source frames.
         const userLog = opts.log ?? (() => {});
         this.opts = {
@@ -376,7 +376,7 @@ export class ObsClient {
 
                 const hint = OBS_CLOSE_HINTS[ev.code];
                 this.opts.log(
-                    `obs closed (code ${ev.code}${ev.reason ? `: ${ev.reason}` : ""}${hint ? ` — ${hint}` : ""})`,
+                    `obs closed (code ${ev.code}${ev.reason ? `: ${ev.reason}` : ""}${hint ? ` - ${hint}` : ""})`,
                 );
                 if (!wasIdentified)
                     this.opts.log("obs connection closed before identified");
@@ -539,7 +539,7 @@ export class ObsClient {
         for (const r of res.results) {
             if (!r.requestStatus.result) {
                 // 506 = UNSUPPORTED_REQUEST: OBS has no preview scene until
-                // Multi-View is enabled — an expected state, not a fault
+                // Multi-View is enabled - an expected state, not a fault
                 if (r.requestStatus.code !== 506)
                     this.opts.log(
                         `state replay: ${r.requestType} failed`,

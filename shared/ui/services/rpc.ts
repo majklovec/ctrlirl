@@ -47,7 +47,7 @@ export class RpcClient {
         return () => set.delete(handler);
     }
 
-    /** Subscribe to every broadcast event (name + payload) — lets the core
+    /** Subscribe to every broadcast event (name + payload) - lets the core
      * forward frames to modules by name without naming any module's frame itself. */
     onAny(handler: (event: string, data?: unknown) => void): () => void {
         this.anyHandlers.add(handler);

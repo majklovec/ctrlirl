@@ -9,7 +9,6 @@
 
 import { ApiError, apiJson, apiTry } from "@ui/api_client";
 import { Button, Field, Input, Page } from "@ui/components/";
-import { ServerNav } from "../../../shell/nav";
 import { t } from "@ui/i18n";
 import { widgetModule } from "@ui/module_registry";
 import { mountPage, setHeaderColor, uuid } from "@ui/util";
@@ -24,6 +23,7 @@ import {
 	visibleWidgetConfigFields,
 } from "../../../../shared/contracts/wire";
 import { DEFAULT_COLOR } from "../../../../shared/validate";
+import { ServerNav } from "../../../shell/nav";
 import { dashboardViewUrl } from "./dashboard_urls";
 import {
 	devices,
@@ -84,7 +84,7 @@ function firstFreePosition(
 const sortedDevices = () =>
 	[...(devices.list ?? [])].sort((a, b) => Number(b.online) - Number(a.online));
 
-/** The widget types offered, grouped per device — the group *is* the device —
+/** The widget types offered, grouped per device - the group *is* the device -
  * plus the independent kick types. */
 function typeGroups(): {
 	device: string;
@@ -107,7 +107,7 @@ function typeGroups(): {
 	];
 }
 
-/** The picked type's trimmed config parameters (`config` for the widget row) —
+/** The picked type's trimmed config parameters (`config` for the widget row) -
  * only types whose module declares fields get one. */
 function widgetConfigFor(
 	type: WidgetType,

@@ -5,29 +5,30 @@
  * IPv4 packets, framed (0x01 data frame tagged with the vif IP) and sent to the
  * relay, which forwards each packet transparently out a physical interface.
  * Replies arriving back from the relay are already full IPv4 packets
- * addressed to the vif IP, so they are written straight into the TUN — no
+ * addressed to the vif IP, so they are written straight into the TUN - no
  * per-address bookkeeping, no flow swap.
  *
  * The packet logic consumes a `TunDevice` (see `tun_linux.ts`), so the whole
- * module is unit-testable with `makeMockTunDevice()` — no root, no FFI.
+ * module is unit-testable with `makeMockTunDevice()` - no root, no FFI.
  */
 // @bun-only
+
+import { ipToU32 } from "./ip";
 import {
     DATA_HEADER_LEN,
     encodeKeepaliveFrame,
     sniffFrameKind,
     writeDataHeader,
 } from "./protocol";
-import { ipToU32 } from "./ip";
 import { newVifStats, noteError } from "./stats";
-import type { Endpoint, VifStats } from "./types";
 import {
+    configureTun,
     deleteTun,
+    IFACE_NAME_RE,
     makeMockTunDevice,
     openTun,
-    configureTun,
-    IFACE_NAME_RE,
 } from "./tun_linux";
+import type { Endpoint, VifStats } from "./types";
 
 export interface VirtualInterfaceOptions {
     /** TUN interface name, 1..15 chars. Must not exist already. */
@@ -86,12 +87,10 @@ const DEFAULT_KEEPALIVE_MS = 5000;
 export async function createVirtualInterface(
     opts: VirtualInterfaceOptions,
 ): Promise<VirtualInterface> {
-    // A mock device means "test mode" — allow the factory to run off-Linux.
+    // A mock device means "test mode" - allow the factory to run off-Linux.
     if (!opts.tunDevice && process.platform !== "linux")
         throw new Error(
-            `@irlctrl/udp-relay requires Linux (running on ${
-                process.platform
-            }) — pass a mock tunDevice for unit tests`,
+            `@irlctrl/udp-relay requires Linux (running on ${process.platform}) - pass a mock tunDevice for unit tests`,
         );
     if (!IFACE_NAME_RE.test(opts.name))
         throw new Error(
@@ -115,11 +114,9 @@ export async function createVirtualInterface(
     const mtu = opts.mtu ?? DEFAULT_MTU;
     if (!Number.isInteger(mtu) || mtu < 28 || mtu > 65535)
         throw new Error(`mtu ${mtu} out of [28,65535]`);
-    const keepaliveIntervalMs = opts.keepaliveIntervalMs ?? DEFAULT_KEEPALIVE_MS;
-    if (
-        !Number.isInteger(keepaliveIntervalMs) ||
-        keepaliveIntervalMs < 1
-    )
+    const keepaliveIntervalMs =
+        opts.keepaliveIntervalMs ?? DEFAULT_KEEPALIVE_MS;
+    if (!Number.isInteger(keepaliveIntervalMs) || keepaliveIntervalMs < 1)
         throw new Error(
             `keepaliveIntervalMs ${keepaliveIntervalMs} must be >= 1`,
         );
@@ -127,7 +124,7 @@ export async function createVirtualInterface(
 }
 
 class VifImpl implements VirtualInterface {
-    // NOTE: backing field is `_stats` — an own property named `stats` would
+    // NOTE: backing field is `_stats` - an own property named `stats` would
     // shadow the `stats()` method (same footgun relay.ts hit).
     private _stats: VifStats;
     private tun: import("./tun_linux").TunDevice | null = null;
@@ -140,7 +137,7 @@ class VifImpl implements VirtualInterface {
     /**
      * Reusable frame buffer for TUN→relay sends: the 8-byte header (vif IP is
      * fixed for the lifetime of the vif) is written once; each packet is
-     * copied in at DATA_HEADER_LEN and sent as a view — zero per-packet
+     * copied in at DATA_HEADER_LEN and sent as a view - zero per-packet
      * allocations.
      */
     private txFrame: Uint8Array;
@@ -152,7 +149,7 @@ class VifImpl implements VirtualInterface {
         private keepaliveIntervalMs: number,
     ) {
         this._stats = newVifStats();
-        // Max IPv4 datagram plus slack — a TUN reader never returns more.
+        // Max IPv4 datagram plus slack - a TUN reader never returns more.
         this.rxBuf = new Uint8Array(65_536);
         this.txFrame = new Uint8Array(DATA_HEADER_LEN + 65_535);
         writeDataHeader(this.txFrame, ipToU32(this.localIp));
@@ -193,7 +190,7 @@ class VifImpl implements VirtualInterface {
         const tun = this.tun;
 
         // 2. UDP socket to the relay. Bound to `bindAddress` (default our
-        //    localIp) on an ephemeral port — never 0.0.0.0: replies must come
+        //    localIp) on an ephemeral port - never 0.0.0.0: replies must come
         //    back on the TUN's own address, and binding 0.0.0.0 would let the
         //    kernel answer from a different interface.
         type DataFn = (
@@ -224,10 +221,12 @@ class VifImpl implements VirtualInterface {
                         `vif socket: ${err instanceof Error ? err.message : String(err)}`,
                     ),
             },
-        } as unknown as Parameters<typeof Bun.udpSocket>[0])) as unknown as BoundSocket;
+        } as unknown as Parameters<
+            typeof Bun.udpSocket
+        >[0])) as unknown as BoundSocket;
 
         // 3. Read loop (non-blocking: the TUN reader fires per packet,
-        // landing each datagram in this.rxBuf — no per-packet allocation).
+        // landing each datagram in this.rxBuf - no per-packet allocation).
         this._stats.startedAt = Date.now();
         this.running = true;
         this.opts.onStats?.(this.stats());
@@ -277,8 +276,7 @@ class VifImpl implements VirtualInterface {
             // best effort
         }
         // 2. Best-effort `ip link del` (no-op for the mock).
-        if (!this.opts.tunDevice && this.tun)
-            await deleteTun(this.tun.name);
+        if (!this.opts.tunDevice && this.tun) await deleteTun(this.tun.name);
         // 3. Close the UDP socket.
         try {
             this.socket?.close();
@@ -295,7 +293,10 @@ class VifImpl implements VirtualInterface {
         if (!this.socket) return;
         // Forward the whole IP packet. Anything that isn't a minimal IPv4
         // datagram is dropped and counted.
-        if (buf.length < 20 || buf.length > this.txFrame.length - DATA_HEADER_LEN) {
+        if (
+            buf.length < 20 ||
+            buf.length > this.txFrame.length - DATA_HEADER_LEN
+        ) {
             this._stats.txDropped++;
             return;
         }
@@ -334,7 +335,7 @@ class VifImpl implements VirtualInterface {
             return;
         }
         // The payload is already the complete IPv4 packet addressed to the vif
-        // IP — write it into the TUN in place (the TUN write is synchronous).
+        // IP - write it into the TUN in place (the TUN write is synchronous).
         try {
             this.tun.write(buf, DATA_HEADER_LEN, pktLen);
         } catch (e) {

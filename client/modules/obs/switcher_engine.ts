@@ -1,5 +1,5 @@
 /**
- * The low-bitrate switcher engine — the pure state machine of the
+ * The low-bitrate switcher engine - the pure state machine of the
  * obs module's switcher: decides NORMAL / LOW / OFFLINE from
  * metrics, accumulates retry counts, and drives scene switches. No device
  * wiring here
@@ -170,7 +170,7 @@ export class SwitcherEngine {
             // "ignore": keep evaluating, but scene switches are off the table below.
         } else if (this.config.onlySwitchWhenStreaming && !obs.streaming) {
             // No scene switching while the program is off, but the SRT *receive*
-            // keeps flowing (SRTLA is an in-bound source) — keep showing its
+            // keeps flowing (SRTLA is an in-bound source) - keep showing its
             // live bitrate / RTT so the card is useful before the stream starts.
             this.active = false;
             this.resetRetry();
@@ -254,7 +254,7 @@ export class SwitcherEngine {
 
     /**
      * Refresh just the SRT numbers for the card (monitor-only paths: autoSwitch
-     * off, or the program stream not started). A `null` sample is kept as-is —
+     * off, or the program stream not started). A `null` sample is kept as-is -
      * the last good numbers stay on the card until a fresh one arrives.
      */
     private async sampleSrtForDisplay(): Promise<void> {

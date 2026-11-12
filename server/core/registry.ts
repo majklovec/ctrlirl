@@ -1,12 +1,12 @@
 /*
- * Page registry — the only file that knows the physical `server/pages/`
+ * Page registry - the only file that knows the physical `server/pages/`
  * layout.
  *
  * Discovery has two modes, mirroring shared/registry.ts (the module
- * registry — this page system is parallel to it, never merged with it):
+ * registry - this page system is parallel to it, never merged with it):
  *
  *  - unbundled (`bun server/main.ts`, `bun test`): a runtime
- *    directory scan anchored on the repo layout — adding a page needs no
+ *    directory scan anchored on the repo layout - adding a page needs no
  *    edit here.
  *  - compiled binaries (`bun build --compile`): the build-time manifest
  *    generated/pages.server.ts (scripts/gen_pages.ts); a compiled
@@ -20,7 +20,7 @@
  * Pages may never import core/registry.ts (circular discovery): they
  * receive everything through `init(services)`.
  */
-import { readdirSync, type Dirent } from "node:fs";
+import { type Dirent, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { appPath, PAGES_ROOT } from "../../shared/paths";
@@ -43,7 +43,9 @@ export function createCapabilities(): CapabilityRegistry {
         has: (name) => map.has(name),
         require<T>(name): T {
             if (!map.has(name))
-                throw new Error(`missing capability ${name} — is the providing page in dependencies?`);
+                throw new Error(
+                    `missing capability ${name} - is the providing page in dependencies?`,
+                );
             return map.get(name) as T;
         },
     };
@@ -53,16 +55,21 @@ const isStringArray = (v: unknown): v is string[] =>
     Array.isArray(v) && v.every((x) => typeof x === "string");
 
 /** Validate a PageModule the way the module registry validates modules: strict, with the page id in every message. */
-export function assertPageModule(page: unknown, id: string): asserts page is PageModule {
+export function assertPageModule(
+    page: unknown,
+    id: string,
+): asserts page is PageModule {
     const m = page as Partial<PageModule> | null;
     const fail = (what: string): never => {
         throw new Error(`page ${id}: ${what}`);
     };
     if (!m || typeof m !== "object") fail("missing PageModule default export");
     if (m.id !== id) fail(`id "${m.id ?? ""}" must match the directory name`);
-    if (!m.menu || typeof m.menu !== "object") fail("missing menu contribution");
+    if (!m.menu || typeof m.menu !== "object")
+        fail("missing menu contribution");
     const menu = m.menu as Partial<MenuContribution>;
-    if (menu.id !== id) fail(`menu.id "${menu.id ?? ""}" must match the directory name`);
+    if (menu.id !== id)
+        fail(`menu.id "${menu.id ?? ""}" must match the directory name`);
     if (typeof menu.labelKey !== "string" || menu.labelKey === "")
         fail("menu.labelKey must be a non-empty i18n key");
     if (typeof menu.path !== "string" || !menu.path.startsWith("/"))
@@ -71,7 +78,8 @@ export function assertPageModule(page: unknown, id: string): asserts page is Pag
         fail("menu.order must be a finite number");
     if (m.dependencies !== undefined && !isStringArray(m.dependencies))
         fail("dependencies must be a string array of page ids");
-    if (!m.backend || typeof m.backend !== "object") fail("missing backend half");
+    if (!m.backend || typeof m.backend !== "object")
+        fail("missing backend half");
     if (!(m.backend.routes instanceof Elysia))
         fail("backend.routes must be an Elysia plugin");
     if (m.backend.init !== undefined && typeof m.backend.init !== "function")
@@ -134,9 +142,9 @@ async function scanPages(): Promise<PageModule[]> {
     const found: PageModule[] = [];
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
         if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-        const mod = (await import(
-            join(root, entry.name, "index.ts")
-        )) as { default?: unknown };
+        const mod = (await import(join(root, entry.name, "index.ts"))) as {
+            default?: unknown;
+        };
         assertPageModule(mod.default, entry.name);
         found.push(mod.default);
     }
@@ -165,8 +173,7 @@ export async function discoverPages(
 }
 
 export function getPages(): PageModule[] {
-    if (!ready)
-        throw new Error("discoverPages must be called before getPages");
+    if (!ready) throw new Error("discoverPages must be called before getPages");
     return pages;
 }
 

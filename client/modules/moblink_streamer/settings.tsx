@@ -143,7 +143,7 @@ const def: ModuleDef = {
 							prop="announceToken"
 							name="announceToken"
 							type="text"
-							placeholder="—"
+							placeholder="-"
 						/>
 					}
 				/>

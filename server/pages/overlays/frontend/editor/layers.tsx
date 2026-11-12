@@ -2,7 +2,6 @@ import { Button } from "@ui/components/";
 import { Icon, type IconName } from "@ui/components/icons";
 import { t } from "@ui/i18n";
 import { bindField, lbl } from "@ui/overlay/fields";
-import { elementDef } from "../registry";
 import m from "mithril";
 import {
 	OVERLAY_FILTERS,
@@ -22,6 +21,7 @@ import {
 	toggleElementRow,
 	variableUrl,
 } from "../overlay_store";
+import { elementDef } from "../registry";
 
 /**
  * Row-header controls for one element: the visibility and lock toggles
@@ -287,7 +287,7 @@ export function elementProps(e: OverlayElement): m.Vnode {
 	const setT = (fn: (t: Transform) => void) =>
 		mutateElementOf(e.id, (el) => fn(el.transform));
 	// The type-specific fields are published by the element's own `editForm`
-	// (OverlayElementDef) — the core renders only the common fields above and
+	// (OverlayElementDef) - the core renders only the common fields above and
 	// delegates everything else to the registry.
 	const def = elementDef(e.type);
 

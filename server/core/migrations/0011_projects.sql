@@ -4,7 +4,7 @@
 -- `owner` row in `project_members` (kept for cheap "who owns this"
 -- queries and cascade safety). Deliberately distinct from the OBS
 -- `overlay_projects` table and from the registration `invitations`
--- table — new invites live in `project_invites`.
+-- table - new invites live in `project_invites`.
 CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

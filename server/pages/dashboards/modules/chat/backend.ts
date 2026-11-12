@@ -1,5 +1,5 @@
 /*
- * chat backend — the server-side chat hub, one instance for every `chat`
+ * chat backend - the server-side chat hub, one instance for every `chat`
  * widget. Each widget config lists a channel per platform (`youtube`,
  * `twitch`, `tiktok`, `kick`); every filled channel becomes a spec
  * `<platform>:<channel>` the hub keeps attached through a platform provider
@@ -28,6 +28,7 @@ import { TiktokChatProvider } from "./providers/tiktok";
 import { TwitchChatProvider } from "./providers/twitch";
 import { YoutubeChatProvider } from "./providers/youtube";
 import type { ChannelSpecs, ChatSnapshot, PublishFn } from "./types";
+
 export type { ChatSnapshot } from "./types";
 
 /** Split a spec into its platform and channel halves (null on a bad spec). */
@@ -67,7 +68,7 @@ function providerFor(spec: string, publish: PublishFn): ChatProvider | null {
  * State manager for chat channels across all platforms. A provider stays
  * attached while it is needed by either source: the dashboard widgets'
  * `sync(specs)` (the `#synced` set) or a refcounted `acquire(specs)` (the
- * `#refs` map — the standalone overlay chat elements start it for as long as a
+ * `#refs` map - the standalone overlay chat elements start it for as long as a
  * viewer is connected). `reconcile()` starts what is needed and stops the rest.
  */
 export class ChatChannelManager {
@@ -117,7 +118,9 @@ export class ChatChannelManager {
 
     sync(specs: ChannelSpecs): void {
         this.#synced = new Set(
-            [...specs].filter((spec): spec is string => spec !== null && spec !== ""),
+            [...specs].filter(
+                (spec): spec is string => spec !== null && spec !== "",
+            ),
         );
         this.#reconcile();
     }

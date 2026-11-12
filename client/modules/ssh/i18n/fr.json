@@ -8,8 +8,8 @@
     "mlog.done.ssh_password_reset": "Mot de passe SSH de {{user}} réinitialisé",
     "mlog.done.ssh_password_set": "Mot de passe SSH de {{user}} défini",
     "set.ssh_desc": "Gérez le serveur SSH de cet appareil : démarrage et arrêt, compte de connexion, définition ou réinitialisation du mot de passe.",
-    "set.ssh_reset_done": "Mot de passe réinitialisé — le nouveau mot de passe de {{user}} figure ci-dessous.",
-    "set.ssh_saved": "Mot de passe de {{user}} enregistré — il sera appliqué au compte au démarrage de SSH.",
-    "set.ssh_stop_hint": "Le mot de passe ne peut être modifié que quand SSH est arrêté — il s'applique au compte au démarrage de SSH. Arrêtez d'abord SSH.",
-    "ssh.reset_blocked": "Le mot de passe ne peut être généré que quand SSH est arrêté — arrêtez d'abord SSH."
+    "set.ssh_reset_done": "Mot de passe réinitialisé - le nouveau mot de passe de {{user}} figure ci-dessous.",
+    "set.ssh_saved": "Mot de passe de {{user}} enregistré - il sera appliqué au compte au démarrage de SSH.",
+    "set.ssh_stop_hint": "Le mot de passe ne peut être modifié que quand SSH est arrêté - il s'applique au compte au démarrage de SSH. Arrêtez d'abord SSH.",
+    "ssh.reset_blocked": "Le mot de passe ne peut être généré que quand SSH est arrêté - arrêtez d'abord SSH."
 }

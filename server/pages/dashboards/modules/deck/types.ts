@@ -1,5 +1,5 @@
 /*
- * Deck widget — a virtual StreamDeck on the dashboard. One widget drives
+ * Deck widget - a virtual StreamDeck on the dashboard. One widget drives
  * any number of devices: every button names its device and one of that
  * device's module actions. The layout is stored under the `deck` config
  * field as JSON (the dashboard API keeps widget configs as string records);
@@ -15,7 +15,7 @@ export type { DashboardActionEntry };
 export interface ButtonConfig {
     /** The device the action fires on. */
     deviceId: string;
-    /** `<module>.<action>` — `DashboardActionEntry.key`. */
+    /** `<module>.<action>` - `DashboardActionEntry.key`. */
     actionId: string;
     labelOverride?: string;
     iconOverride?: string;
@@ -168,9 +168,7 @@ export function parseButtons(raw: string | undefined): ButtonConfig[] {
         }
         if (item.paramsOverride !== undefined) {
             if (!isRecord(item.paramsOverride))
-                throw new Error(
-                    `deck[${i}]: paramsOverride must be an object`,
-                );
+                throw new Error(`deck[${i}]: paramsOverride must be an object`);
             if (Object.keys(item.paramsOverride).length > 0)
                 out.paramsOverride = item.paramsOverride;
         }

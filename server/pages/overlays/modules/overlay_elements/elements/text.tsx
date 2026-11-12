@@ -1,15 +1,15 @@
 /** @jsx m */
 
 import { Icon } from "@ui/components/icons";
+import { t } from "@ui/i18n";
 import type {
 	ElementContext,
 	ElementProps,
 	OverlayElement,
 	OverlayElementDef,
 } from "@ui/overlay/element";
-import { t } from "@ui/i18n";
 import { numProp, strProp } from "@ui/overlay/element";
-import { bindField, bindableForm } from "@ui/overlay/fields";
+import { bindableForm, bindField } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
@@ -58,7 +58,7 @@ function textProps(p: Record<string, unknown>): TextRenderProps {
 }
 
 function draw(element: OverlayElement, ctx: ElementContext): Vnode {
-	// `element` is already resolved by the renderer — props carry binding values.
+	// `element` is already resolved by the renderer - props carry binding values.
 	const props = textProps(element.props);
 	return m(
 		".overlay-text",
@@ -81,11 +81,16 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const p = e.props;
 	const sp = { mutate, variables, variableUrl };
 	// The text content widget is `inlineEdit`, not a field, so the form only
-	// exposes the typographic properties — never a text slot here.
+	// exposes the typographic properties - never a text slot here.
 	return bindableForm({
 		element: e,
 		mutate,
@@ -116,7 +121,7 @@ function editForm({ element: e, mutate, variables, variableUrl }: ElementProps):
 			],
 			// `fontWeight` is a number-typed prop edited through a `select`
 			// (the raw control writes `Number(...)`, and `draw` reads it via
-			// `numProp`, which needs a number) — so it stays a raw `bindField`
+			// `numProp`, which needs a number) - so it stays a raw `bindField`
 			// row; the descriptor `select` would write a string and silently
 			// fall back to the default weight.
 			<div class="ov-grid2">
@@ -149,8 +154,7 @@ function editForm({ element: e, mutate, variables, variableUrl }: ElementProps):
 						value={String(p.textAlign ?? "left")}
 						onchange={(ev: Event) =>
 							mutate((el) => {
-								el.props.textAlign = (ev.target as HTMLSelectElement)
-									.value;
+								el.props.textAlign = (ev.target as HTMLSelectElement).value;
 							})
 						}
 					>

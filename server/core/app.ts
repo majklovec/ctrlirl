@@ -4,7 +4,7 @@
  * (devices, dashboards, overlays, assets) lives in its own page slice;
  * cross-page needs (the module control routes, the overlays' asset-library
  * files, the live feed) are reached through the capability registry, so the
- * core never names a page's store — only the stable capability ids.
+ * core never names a page's store - only the stable capability ids.
  *
  * Composition order (main.ts): createServices → createApp. createApp builds
  * the Elysia root, discovers + mounts the pages, mounts the core routes,
@@ -102,7 +102,11 @@ export async function createControlServer(options: ControlServerOptions) {
         .use(pwaRoutes())
         .use(accountRoutes(auth, frontend))
         .use(liveFeedRoutes(services))
-        .use(await staticRoutes(join(services.config.storageDir, "overlay_templates")))
+        .use(
+            await staticRoutes(
+                join(services.config.storageDir, "overlay_templates"),
+            ),
+        )
         .use(
             new Elysia({ name: "control-not-found" }).all(
                 "*",
@@ -116,7 +120,7 @@ export async function createControlServer(options: ControlServerOptions) {
     });
 
     /*
-     * The server is live now — start the pages' background work (the
+     * The server is live now - start the pages' background work (the
      * devices page runs its maintenance sweep).
      */
     for (const page of getPages()) await page.backend.start?.(services);

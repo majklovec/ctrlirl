@@ -47,16 +47,14 @@ function isConnected(pc: RTCPeerConnection): boolean {
 /** True only on a hard failure (not the transient `disconnected`). Same
  * `connectionState`-absent fallback as `isConnected`. */
 function isFailed(pc: RTCPeerConnection): boolean {
-	return (
-		pc.connectionState === "failed" || pc.iceConnectionState === "failed"
-	);
+	return pc.connectionState === "failed" || pc.iceConnectionState === "failed";
 }
 
 /**
  * The ICE servers this peer uses. Defaults to STUN only; the server publishes
  * the stream's servers (STUN + the minted TURN, if configured) on every
  * `room-state` snapshot, and this is replaced with them so both ends negotiate
- * with identical servers — essential for a phone behind a restrictive NAT.
+ * with identical servers - essential for a phone behind a restrictive NAT.
  */
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
 	{ urls: "stun:stun.l.google.com:19302" },
@@ -189,7 +187,7 @@ function sendOffer(): Promise<void> {
 /**
  * Enumerate the available cameras and expose a button for each. Chrome (and
  * Brave) only populate `deviceId`/`label` *after* camera permission is granted,
- * so we capture a throwaway stream first — to satisfy the permission prompt —
+ * so we capture a throwaway stream first - to satisfy the permission prompt -
  * then release it and re-enumerate. Firefox and Safari list cameras with their
  * labels without this priming, so it is a harmless no-op there.
  */
@@ -204,7 +202,7 @@ async function enumerateCameras(): Promise<void> {
 				kind: "camera" as const,
 				deviceId: d.deviceId,
 				// On desktop the labels read like "Face ID Camera" (Safari) or
-				// "webcam"; on phones they're often empty — fall back to "N".
+				// "webcam"; on phones they're often empty - fall back to "N".
 				label: d.label || `Camera ${i + 1}`,
 			}));
 
@@ -330,7 +328,7 @@ function preparePeer(): RTCPeerConnection | null {
 /**
  * Build the peer (if needed) and send a fresh offer, at most once. With
  * `force` (a NEW primary receiver took the live-media slot) the existing peer
- * — bound to the receiver that was demoted to a shadow — is closed first so the
+ * - bound to the receiver that was demoted to a shadow - is closed first so the
  * fresh offer negotiates clean ICE with the new receiver.
  */
 function offerFresh(force = false): void {
@@ -346,8 +344,8 @@ function offerFresh(force = false): void {
 /**
  * Open (or reopen) the signaling socket and wire its handlers. The media
  * stream is kept for the whole session; only the socket and the peer
- * connection are (re)created here, so a receiver that drops — e.g. its overlay
- * tab reloads — can be re-offered to without re-asking for the camera/screen.
+ * connection are (re)created here, so a receiver that drops - e.g. its overlay
+ * tab reloads - can be re-offered to without re-asking for the camera/screen.
  */
 function connect(): void {
 	const ws = new WebSocket(
@@ -399,7 +397,7 @@ function connect(): void {
 					const token = st.primary ?? 0;
 					if (state.primary !== null && state.primary !== token) {
 						// A DIFFERENT receiver became the primary (a priority
-						// one — the OBS page — took the slot, or the primary
+						// one - the OBS page - took the slot, or the primary
 						// left and another promoted). Re-offer to the new
 						// primary; the old peer (bound to the now-shadow
 						// receiver) is dropped.
@@ -422,7 +420,7 @@ function connect(): void {
 				if (state.pc && msg.sdp) {
 					await state.pc.setRemoteDescription(msg.sdp);
 					// Flush candidates that arrived while we were waiting for the
-					// answer — adding them earlier (no remote description) would
+					// answer - adding them earlier (no remote description) would
 					// have thrown and dropped them.
 					const pending = state.pendingCandidates;
 					state.pendingCandidates = [];
@@ -444,7 +442,7 @@ function connect(): void {
 							/* ignore */
 						}
 					} else {
-						// Remote description not set yet — buffer until the
+						// Remote description not set yet - buffer until the
 						// answer arrives.
 						state.pendingCandidates.push(msg.candidate);
 					}
@@ -466,7 +464,7 @@ function connect(): void {
 				// A SECOND sender opened the same link and took the slot. Tear
 				// down everything and tell the user. Crucially, flag
 				// `state.hijacked` so the socket-close that follows does NOT
-				// auto-reconnect — reconnecting would re-trigger the hijack and
+				// auto-reconnect - reconnecting would re-trigger the hijack and
 				// ping-pong with the (legitimate) new sender.
 				if (state.ws !== ws) break;
 				state.hijacked = true;
@@ -485,7 +483,7 @@ function connect(): void {
 	// A dropped signaling link (network blip, server restart) keeps the media
 	// running and re-opens the socket so it re-joins the room and picks up a
 	// (re)loaded receiver. Skipped after a hijack (we were displaced, not a
-	// transient drop — reconnecting would just re-trigger the hijack).
+	// transient drop - reconnecting would just re-trigger the hijack).
 	ws.onclose = () => {
 		if (state.ws !== ws || state.hijacked) return; // taken over / hijacked
 		state.ws = null;
@@ -516,7 +514,7 @@ function syncPreview(preview: HTMLVideoElement): void {
 	if (stream) void preview.play().catch(() => {});
 }
 
-/** Inline source glyphs (the page is standalone — no shared icon import).
+/** Inline source glyphs (the page is standalone - no shared icon import).
  * 24×24 outline shapes stroked with the button's text colour (see styles.css). */
 const CAMERA_ICON = (
 	<svg class="src-icon" viewBox="0 0 24 24" aria-hidden="true">

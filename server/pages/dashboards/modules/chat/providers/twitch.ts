@@ -1,5 +1,5 @@
 /**
- * Twitch chat provider — one IRC-over-websocket connection per channel on
+ * Twitch chat provider - one IRC-over-websocket connection per channel on
  * Twitch's public relay (`wss://irc-ws.chat.twitch.tv`, anonymous
  * `justinfan` nick, no auth). CAP REQ for IRCv3 tags (color, display-name,
  * message id, badges); every PRIVMSG becomes a `twitch.chat` push;
@@ -64,7 +64,7 @@ export class TwitchChatProvider extends ChatProvider {
                 this.#ws?.send("PONG :tmi.twitch.tv");
                 continue;
             }
-            // A mod banned a user — their history lines become banned.
+            // A mod banned a user - their history lines become banned.
             if (line.includes("CLEARCHIT")) {
                 this.#onClearChat(line);
                 continue;
@@ -77,7 +77,7 @@ export class TwitchChatProvider extends ChatProvider {
     }
 
     /**
-     * `:tmi.twitch.tv CLEARCHIT #channel :<target>` — a user was banned (their
+     * `:tmi.twitch.tv CLEARCHIT #channel :<target>` - a user was banned (their
      * messages cleared) or, with no matching user, a channel-wide clear. The
      * trailing `:target` is only a real display name when it matches a user in
      * our history, so `banUser` is a safe discriminator: a clear's free-text

@@ -1,10 +1,10 @@
 /**
- * Capability bus — the seam between modules for runtime services.
+ * Capability bus - the seam between modules for runtime services.
  *
  * A module exposes services under capability names in its registration's
  * `services.capabilities` record (see modules/README.md); the device lifecycle
  * wires those records into this bus at load, and other modules reach them
- * through `core.requireCapability("<name>")` — never by module id. The shapes
+ * through `core.requireCapability("<name>")` - never by module id. The shapes
  * behind a name are agreed between the providing and consuming modules; the
  * core stores and forwards them without knowing them.
  */

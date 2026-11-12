@@ -9,7 +9,7 @@ export interface SshModuleConfig {
     /** SSH login account (defaults to the box's admin user, "root"). */
     user?: string;
     /**
-     * The staged password (secret — the status view reports it as
+     * The staged password (secret - the status view reports it as
      * `{configured}`). It reaches the account via chpasswd when sshd starts.
      */
     password?: string;
@@ -27,7 +27,7 @@ export interface SshHostStatus {
     password: string | null;
     /** A password has been generated for the account. */
     passwordConfigured: boolean;
-    /** A staged password is waiting to be applied — it lands on SSH start. */
+    /** A staged password is waiting to be applied - it lands on SSH start. */
     pendingPassword: boolean;
 }
 
@@ -37,7 +37,7 @@ export interface SshPasswordReset {
     password: string;
 }
 
-/** The module's slice of the modules view — safeModules() masks the password as `{configured}`. */
+/** The module's slice of the modules view - safeModules() masks the password as `{configured}`. */
 export interface SshSliceView extends ModuleSliceView {
     user?: string;
     password?: { configured: boolean };

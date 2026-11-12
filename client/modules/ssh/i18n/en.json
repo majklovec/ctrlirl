@@ -7,9 +7,9 @@
     "dev.ssh_stop_confirm": "Stop the SSH server? Active SSH connections will be closed.",
     "mlog.done.ssh_password_reset": "SSH password for {{user}} reset",
     "mlog.done.ssh_password_set": "SSH password for {{user}} set",
-    "set.ssh_desc": "Manage this box's SSH server — start and stop it, choose the login account, and set or reset its password.",
-    "set.ssh_reset_done": "Password reset — the new password for {{user}} is shown below.",
-    "set.ssh_saved": "Password for {{user}} saved — it is applied to the account when SSH starts.",
-    "set.ssh_stop_hint": "The password can only be changed while SSH is stopped — it is applied to the account when SSH starts. Stop SSH first.",
-    "ssh.reset_blocked": "The password can only be generated while SSH is stopped — stop SSH first."
+    "set.ssh_desc": "Manage this box's SSH server - start and stop it, choose the login account, and set or reset its password.",
+    "set.ssh_reset_done": "Password reset - the new password for {{user}} is shown below.",
+    "set.ssh_saved": "Password for {{user}} saved - it is applied to the account when SSH starts.",
+    "set.ssh_stop_hint": "The password can only be changed while SSH is stopped - it is applied to the account when SSH starts. Stop SSH first.",
+    "ssh.reset_blocked": "The password can only be generated while SSH is stopped - stop SSH first."
 }

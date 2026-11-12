@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Alert element — a trigger-driven overlay (TODO.md "Alert element").
+ * Alert element - a trigger-driven overlay (TODO.md "Alert element").
  * It fires for a named event: `GET /overlay/<overlay id>/event/<name>` shows this alert
  * while `<name>` equals `props.event`, rendering a media + template-text
  * composition with intro/outro animations, an optional audio sting and TTS,
@@ -286,7 +286,7 @@ function mediaNode(
 }
 
 function draw(element: OverlayElement, ctx: ElementContext): Vnode {
-	// `element` is already resolved by the renderer — props carry binding values.
+	// `element` is already resolved by the renderer - props carry binding values.
 	const p = alertProps(element.props);
 	const active = ctx.activeTriggers?.get(element.id);
 	const phase = triggerPhase(active, Date.now());
@@ -396,7 +396,7 @@ function onTrigger(
 					.getVoices()
 					.find((v) => v.name === p.ttsVoice || v.voiceURI === p.ttsVoice);
 				if (voice) utterance.voice = voice;
-				// fast triggers: replace, don't queue — but a cancel() right
+				// fast triggers: replace, don't queue - but a cancel() right
 				// after unlock would kill the silent unlock utterance
 				if (!justUnlocked) window.speechSynthesis.cancel();
 				window.speechSynthesis.speak(utterance);
@@ -638,7 +638,7 @@ function editForm({
 						},
 					],
 					// the voice list builds from the async `speechSynthesis.getVoices()`
-					// (loaded by the oncreate hook above), so it stays a raw widget —
+					// (loaded by the oncreate hook above), so it stays a raw widget -
 					// it can't be expressed as a static descriptor `options`
 					<div class="ov-field">
 						<span class="ov-lbl">{t("overlay.alert_tts_voice")}</span>

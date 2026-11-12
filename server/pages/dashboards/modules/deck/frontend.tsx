@@ -1,4 +1,4 @@
-/* Buttons widget — a virtual StreamDeck on the dashboard. One widget, offered
+/* Buttons widget - a virtual StreamDeck on the dashboard. One widget, offered
  * once per dashboard, drives any of the user's devices: every button names a
  * device and one of its module actions (`status.actions`, the catalogue the
  * control server merges from the modules enabled there) and fires it over
@@ -149,7 +149,7 @@ function laidOutButtons(
 	return configuredButtons(config);
 }
 
-/** The inner content of one key (icon, label, device) — shared by the live
+/** The inner content of one key (icon, label, device) - shared by the live
  * body and the editor canvas. Carries the press-state classes. */
 function keyContent(
 	ctx: FleetDashboardContext,
@@ -242,7 +242,7 @@ function body(ctx: FleetDashboardContext): m.Children {
 	);
 }
 
-/** Devices online / referenced — the shell shows it next to the title. */
+/** Devices online / referenced - the shell shows it next to the title. */
 function badge(ctx: FleetDashboardContext): m.Children {
 	const ids = buttonDevices(configuredButtons(ctx.widget.config));
 	if (ids.length === 0) return null;
@@ -284,7 +284,7 @@ function editorFor(values: Record<string, string>): EditorState {
 		try {
 			deck = parseButtons(values[DECK_FIELD]);
 		} catch {
-			// unparsable stored layout — start over
+			// unparsable stored layout - start over
 		}
 		state = {
 			deck: deck.map((b) => ({

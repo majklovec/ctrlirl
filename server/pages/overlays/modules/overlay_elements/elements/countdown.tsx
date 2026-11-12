@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Countdown widget — counts down a fixed duration, or to a daily clock time.
+ * Countdown widget - counts down a fixed duration, or to a daily clock time.
  * `clock` mode: pure function of the wall clock (today's `HH:MM`, rolling to
  * the next day when it has passed). `duration` mode: sits idle at the full
  * duration and only counts down once its trigger fires (a loop re-anchors at
@@ -9,7 +9,7 @@
  *
  * Like the `spin_wheel` it is trigger-driven and `persistent`: the element
  * stays on screen at runtime and (re)starts its duration countdown when its
- * trigger event fires — `GET /overlay/<overlay id>/event/<event>` writes a
+ * trigger event fires - `GET /overlay/<overlay id>/event/<event>` writes a
  * fresh start time that the box picks up on its next draw.
  */
 
@@ -22,11 +22,11 @@ import type {
 	OverlayElementDef,
 } from "@ui/overlay/element";
 import { numProp, strProp } from "@ui/overlay/element";
-import { bindField, bindableForm } from "@ui/overlay/fields";
+import { bindableForm, bindField } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import { formatDuration } from "../lib/ticker";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
+import { formatDuration } from "../lib/ticker";
 
 /* ── countdown ────────────────────────────────────────────────────────── */
 export interface CountdownProps {
@@ -77,13 +77,13 @@ function targetTime(clockTarget: string, now: number): number {
 
 interface CdB {
 	props: Record<string, unknown>;
-	/** Element id — keys the imperative start time written by `onTrigger`. */
+	/** Element id - keys the imperative start time written by `onTrigger`. */
 	id: string;
 }
 
 interface CdBState {
 	/** duration-mode anchor: the wall time the current cycle started at.
-	 * `undefined` = not started yet — duration mode sits idle at the full
+	 * `undefined` = not started yet - duration mode sits idle at the full
 	 * duration until its trigger event fires. */
 	anchor: number | undefined;
 	now: number;
@@ -209,7 +209,7 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode<any, any> {
 
 /** Trigger handler (same universal event channel as `spin_wheel`): when the
  * event name matches `props.event`, record a fresh start time (duration
- * mode) — the box re-anchors to it on its next draw, (re)starting the
+ * mode) - the box re-anchors to it on its next draw, (re)starting the
  * countdown. Persistent, so it returns `undefined` (no display duration). */
 function onTrigger(
 	element: OverlayElement,
@@ -247,20 +247,18 @@ function editForm({
 					value: eventName,
 				},
 			],
-			// copy-link for the trigger event — a custom widget, so a raw Vnode
+			// copy-link for the trigger event - a custom widget, so a raw Vnode
 			// row (rendered verbatim, never gets a binding toggle)
 			...(eventUrl
 				? [
 						<button
-							class={
-								eventLinkCopied ? "ov-var-copy ov-copied" : "ov-var-copy"
-							}
+							class={eventLinkCopied ? "ov-var-copy ov-copied" : "ov-var-copy"}
 							type="button"
 							style={{ marginTop: "2px" }}
 							title={
 								eventLinkCopied
 									? t("overlay.copied")
-									: eventUrl(eventName) + " — " + t("overlay.event_link")
+									: eventUrl(eventName) + " - " + t("overlay.event_link")
 							}
 							aria-label={t("overlay.event_link")}
 							onclick={() => {
@@ -292,7 +290,7 @@ function editForm({
 					],
 				},
 			],
-			// mode-dependent field (duration vs. time picker) — a raw Vnode row,
+			// mode-dependent field (duration vs. time picker) - a raw Vnode row,
 			// kept verbatim (the time input is not a `bindableForm` control type,
 			// and both variants keep their binding toggle via `bindField`)
 			strProp(p, "mode", "duration") === "duration"
@@ -324,9 +322,7 @@ function editForm({
 							value={strProp(p, "clockTarget", "20:00")}
 							oninput={(ev: Event) =>
 								mutate((el) => {
-									el.props.clockTarget = (
-										ev.target as HTMLInputElement
-									).value;
+									el.props.clockTarget = (ev.target as HTMLInputElement).value;
 								})
 							}
 						/>,

@@ -30,7 +30,7 @@
     "set.obs_password": "Hasło OBS",
     "lowbs.title": "Przełącznik niskiej przepływności",
     "lowbs.idle": "bezczynny",
-    "lowbs.idle_hint": "Silnik jeszcze nie działa. Ustaw powyżej źródło SRT w OBS, wybierz sceny i zapisz — przełącznik uruchomi się po zapisaniu konfiguracji.",
+    "lowbs.idle_hint": "Silnik jeszcze nie działa. Ustaw powyżej źródło SRT w OBS, wybierz sceny i zapisz - przełącznik uruchomi się po zapisaniu konfiguracji.",
     "lowbs.state_normal": "normalny",
     "lowbs.state_low": "niska przepływność",
     "lowbs.state_offline": "offline",

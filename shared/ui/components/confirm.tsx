@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Confirmation dialog — the app's replacement for `window.confirm`: a modal
+ * Confirmation dialog - the app's replacement for `window.confirm`: a modal
  * with the message and two buttons, resolved as a promise. Mounted on its
  * own root so it can be awaited from any handler; Escape / the backdrop
  * cancel, Enter confirms.
@@ -67,7 +67,7 @@ const Dialog: m.Component = {
 };
 
 /** Ask the user to confirm; resolves `true` on confirm. One dialog at a
- * time — a second call while one is open cancels the first. */
+ * time - a second call while one is open cancels the first. */
 export function confirmDialog(
 	message: string,
 	options: ConfirmOptions = {},

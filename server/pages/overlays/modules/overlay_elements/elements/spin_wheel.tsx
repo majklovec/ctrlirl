@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Spin-wheel widget — a prize wheel that spins when its trigger event fires
+ * Spin-wheel widget - a prize wheel that spins when its trigger event fires
  * (the same universal event channel as the `alert` element:
  * `GET /overlay/<overlay id>/event/<event>` hits `onTrigger`, which picks a prize and
  * returns the spin duration in ms).
@@ -88,7 +88,7 @@ function currentAngle(disc: HTMLElement | null): number {
  * API. WAAPI runs independently of Mithril's render/batching and CSS
  * transitions, so every trigger produces a full-duration spin. The previous
  * animation is cancelled first so an in-flight spin is interrupted cleanly. */
-/** Stop the "win" highlight and its pulse (used when a new spin starts — the
+/** Stop the "win" highlight and its pulse (used when a new spin starts - the
  * previous winner is no longer valid). */
 function clearHighlight(s: SpinState): void {
 	s.pulse?.cancel();
@@ -109,7 +109,7 @@ function showHighlight(s: SpinState): void {
 			{ duration: 1400, iterations: Infinity, easing: "ease-in-out" },
 		);
 	} else {
-		// no WAAPI (very old engine) — a static, clearly visible wedge
+		// no WAAPI (very old engine) - a static, clearly visible wedge
 		s.highlight.style.opacity = "0.4";
 	}
 }
@@ -128,7 +128,7 @@ function startSpin(
 ): void {
 	const disc = s.disc;
 	if (!disc || typeof disc.animate !== "function") return;
-	// A new spin invalidates the previous winner — hide it and mark spinning.
+	// A new spin invalidates the previous winner - hide it and mark spinning.
 	clearHighlight(s);
 	s.spinning = true;
 	s.anim?.cancel();
@@ -185,7 +185,7 @@ interface SpinState {
 
 interface SpinAttrs {
 	props: Record<string, unknown>;
-	/** Element id — keys the imperative spin state written by `onTrigger`. */
+	/** Element id - keys the imperative spin state written by `onTrigger`. */
 	id: string;
 }
 
@@ -257,7 +257,7 @@ const SpinWheelBox: m.Component<SpinAttrs, SpinState> = {
 		const seg = 360 / n;
 
 		// The conic-gradient: one bright palette colour per prize segment
-		// (starts at 12 o'clock, clockwise — the same geometry the labels
+		// (starts at 12 o'clock, clockwise - the same geometry the labels
 		// and spokes use).
 		const stops: string[] = [];
 		for (let i = 0; i < n; i++) {
@@ -281,7 +281,7 @@ const SpinWheelBox: m.Component<SpinAttrs, SpinState> = {
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "center",
-					/* no background — the wheel sits directly on the stream */
+					/* no background - the wheel sits directly on the stream */
 					background: "transparent",
 					borderRadius: `${radius}px`,
 					overflow: "hidden",
@@ -309,13 +309,13 @@ const SpinWheelBox: m.Component<SpinAttrs, SpinState> = {
 						}}
 					/>
 					{/* rotating disc: palette segments, thin black ring,
-					 * spokes + rim studs on the boundaries and the labels —
+					 * spokes + rim studs on the boundaries and the labels -
 					 * all of it rotates together. The resting transform is the
 					 * base; an in-flight spin is a WAAPI animation on this node
-					 * (bound via `ref`), so `transition` stays none — WAAPI
+					 * (bound via `ref`), so `transition` stays none - WAAPI
 					 * owns the motion. */}
 					<div
-						// `data-disc` marks the node `resolveDisc` targets —
+						// `data-disc` marks the node `resolveDisc` targets -
 						// Mithril has no `ref`, so the spin animates the node
 						// looked up in `oncreate`/`onupdate`.
 						data-disc="1"
@@ -441,7 +441,7 @@ const SpinWheelBox: m.Component<SpinAttrs, SpinState> = {
 							}}
 						/>
 					</div>
-					{/* top pointer: dark red, always over the wheel (top: 0 —
+					{/* top pointer: dark red, always over the wheel (top: 0 -
 					 * it must not overflow the element box, which clips) */}
 					<div
 						style={{
@@ -470,7 +470,7 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode<any, any> {
 
 /** Trigger handler: the runtime calls this for every alert event. When the
  * event matches `props.event`, pick a prize and return the spin duration
- * (ms) — the wheel component animates to the winner.
+ * (ms) - the wheel component animates to the winner.
  *
  * `onTrigger` only records the RESTING rotation (the 0–360 offset that puts
  * the winner's center under the top pointer) into `spinTargets`; the box
@@ -502,7 +502,8 @@ function onTrigger(
 	// stud and the wheel looks organic (not always dead-centre): a random point
 	// in the middle band of the segment (15%..85% of the way across it).
 	const margin = seg * 0.15;
-	const pointInSegment = winner * seg + margin + Math.random() * (seg - 2 * margin);
+	const pointInSegment =
+		winner * seg + margin + Math.random() * (seg - 2 * margin);
 	// Resting rotation that puts that point under the TOP pointer
 	// (12 o'clock = 0deg in the clockwise-from-top geometry, same as the
 	// conic-gradient / spokes / labels): the disc's point at
@@ -533,7 +534,7 @@ function editForm({
 }: ElementProps): Vnode {
 	const p = e.props;
 	const eventName = strProp(p, "event", "spin");
-	// copy-link for the trigger event — a custom widget, so a raw Vnode row
+	// copy-link for the trigger event - a custom widget, so a raw Vnode row
 	// (rendered verbatim, never gets a binding toggle)
 	const copyRow = eventUrl ? (
 		<button
@@ -543,7 +544,7 @@ function editForm({
 			title={
 				eventLinkCopied
 					? t("overlay.copied")
-					: eventUrl(eventName) + " — " + t("overlay.event_link")
+					: eventUrl(eventName) + " - " + t("overlay.event_link")
 			}
 			aria-label={t("overlay.event_link")}
 			onclick={() => {
@@ -588,7 +589,7 @@ function editForm({
 					value: numProp(p, "duration", 4000),
 				},
 			],
-			// the prize list editor (string-array prop) — one composite
+			// the prize list editor (string-array prop) - one composite
 			// control, so a raw Vnode row (never gets a binding toggle)
 			<PrizesField element={e} mutate={mutate} />,
 			[

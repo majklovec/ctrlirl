@@ -9,11 +9,15 @@ import {
     parseUdpPacket,
     udpChecksum,
 } from "../src/ip";
-import { encodeDataFrame, encodeKeepaliveFrame, decodeFrame } from "../src/protocol";
+import {
+    decodeFrame,
+    encodeDataFrame,
+    encodeKeepaliveFrame,
+} from "../src/protocol";
 
 const enc = new TextEncoder();
 
-describe("ip.ts — IP/UDP address helpers", () => {
+describe("ip.ts - IP/UDP address helpers", () => {
     test("ipToBytes round-trips a literal", () => {
         expect(ipToBytes("10.3.3.1")).toEqual([10, 3, 3, 1]);
         expect(bytesToIp([10, 3, 3, 1])).toBe("10.3.3.1");
@@ -26,7 +30,7 @@ describe("ip.ts — IP/UDP address helpers", () => {
     });
 });
 
-describe("ip.ts — internet checksum", () => {
+describe("ip.ts - internet checksum", () => {
     test("one's-complement sum against an independently computed value", () => {
         const buf = new Uint8Array([
             0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45,
@@ -42,7 +46,7 @@ describe("ip.ts — internet checksum", () => {
     });
 });
 
-describe("ip.ts — buildUdpIpPacket (byte-exact)", () => {
+describe("ip.ts - buildUdpIpPacket (byte-exact)", () => {
     // Reference packet produced independently (RFC 1071 / RFC 768 checksums):
     //   src 10.3.3.1:50001 -> dst 203.0.113.10:5000, payload "MOBLINK-TEST-PAYLOAD"
     const REF_HEX =
@@ -57,7 +61,9 @@ describe("ip.ts — buildUdpIpPacket (byte-exact)", () => {
             dstPort: 5000,
             payload: enc.encode("MOBLINK-TEST-PAYLOAD"),
         });
-        const hex = [...pkt].map((b) => b.toString(16).padStart(2, "0")).join("");
+        const hex = [...pkt]
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
         expect(hex).toBe(REF_HEX);
     });
 
@@ -105,7 +111,7 @@ function udpConcat(a: Uint8Array, b: Uint8Array): Uint8Array {
     return out;
 }
 
-describe("ip.ts — parseUdpPacket", () => {
+describe("ip.ts - parseUdpPacket", () => {
     test("parse the reference packet and rebuild it identically", () => {
         const bytes = hexToBytes(
             "4500003000000000401131af0a030301cb00710ac3511388001c17e04d4f424c" +
@@ -164,7 +170,7 @@ function equals(a: Uint8Array, b: Uint8Array): boolean {
     return true;
 }
 
-describe("protocol.ts — data frame round-trip", () => {
+describe("protocol.ts - data frame round-trip", () => {
     test("encode/decode round-trips a payload + vifIp", () => {
         const payload = enc.encode("hello relay");
         const frame = encodeDataFrame(payload, "10.0.0.2");
@@ -202,7 +208,7 @@ describe("protocol.ts — data frame round-trip", () => {
     });
 });
 
-describe("protocol.ts — keepalive frame round-trip", () => {
+describe("protocol.ts - keepalive frame round-trip", () => {
     test("encodes a big-endian 8-byte timestamp and decodes it back", () => {
         const ts = 1_731_234_567_890;
         const frame = encodeKeepaliveFrame(ts);
@@ -220,7 +226,7 @@ describe("protocol.ts — keepalive frame round-trip", () => {
     });
 });
 
-describe("ip.ts — natPacketSource (SNAT)", () => {
+describe("ip.ts - natPacketSource (SNAT)", () => {
     const VIF = "10.0.0.2";
     const RELAY = "203.0.113.7";
     const DST = "8.8.8.8";
@@ -272,11 +278,13 @@ describe("ip.ts — natPacketSource (SNAT)", () => {
 
     test("returns null for a non-IPv4 / truncated buffer", () => {
         expect(natPacketSource(new Uint8Array([0]), RELAY)).toBeNull();
-        expect(natPacketSource(new Uint8Array([0x60, 0, 0, 0]), RELAY)).toBeNull();
+        expect(
+            natPacketSource(new Uint8Array([0x60, 0, 0, 0]), RELAY),
+        ).toBeNull();
     });
 });
 
-describe("ip.ts — natPacketDestination (de-SNAT)", () => {
+describe("ip.ts - natPacketDestination (de-SNAT)", () => {
     const VIF = "10.0.0.2";
     const RELAY = "203.0.113.7";
     const SRC = "8.8.8.8";
@@ -302,7 +310,9 @@ describe("ip.ts — natPacketDestination (de-SNAT)", () => {
     });
 
     test("returns null for a non-IPv4 buffer", () => {
-        expect(natPacketDestination(new Uint8Array([0x60, 0, 0, 0]), VIF)).toBeNull();
+        expect(
+            natPacketDestination(new Uint8Array([0x60, 0, 0, 0]), VIF),
+        ).toBeNull();
     });
 });
 

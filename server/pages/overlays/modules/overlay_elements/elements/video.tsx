@@ -2,6 +2,7 @@
 
 import { Icon } from "@ui/components/icons";
 import { t } from "@ui/i18n";
+import { libraryAssetField } from "@ui/overlay/asset_picker";
 import type {
 	ElementContext,
 	ElementProps,
@@ -12,7 +13,6 @@ import { numProp, strProp } from "@ui/overlay/element";
 import { bindableForm } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import { libraryAssetField } from "@ui/overlay/asset_picker";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
 
 export interface VideoProps {
@@ -21,7 +21,7 @@ export interface VideoProps {
 	libraryAssetId: string;
 	/** 0–1, the video's audio track (no effect while muted) */
 	volume: number;
-	/** muted videos are the only ones browsers allow to autoplay — the safe default */
+	/** muted videos are the only ones browsers allow to autoplay - the safe default */
 	muted: boolean;
 	/** restart from the beginning when the video ends */
 	loop: boolean;
@@ -170,13 +170,10 @@ export const videoElement: OverlayElementDef & OverlayElementSchema = {
 			// `read.bool` can't express a default of `true` (a missing key
 			// reads as `false`), so these flags keep their default unless the
 			// stored value is a real boolean.
-			muted:
-				typeof props.muted === "boolean" ? props.muted : d.muted,
+			muted: typeof props.muted === "boolean" ? props.muted : d.muted,
 			loop: typeof props.loop === "boolean" ? props.loop : d.loop,
 			autoplay:
-				typeof props.autoplay === "boolean"
-					? props.autoplay
-					: d.autoplay,
+				typeof props.autoplay === "boolean" ? props.autoplay : d.autoplay,
 		};
 	},
 };

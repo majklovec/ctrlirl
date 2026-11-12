@@ -30,7 +30,7 @@
     "set.obs_password": "OBS heslo",
     "lowbs.title": "Prepínač nízkeho dátového toku",
     "lowbs.idle": "nečinný",
-    "lowbs.idle_hint": "Žiadny modul ešte nebeží. Vyberte vyššie zdroj OBS SRT, zvoľte scény a uložte nastavenia — prepínač sa spustí po uložení konfigurácie.",
+    "lowbs.idle_hint": "Žiadny modul ešte nebeží. Vyberte vyššie zdroj OBS SRT, zvoľte scény a uložte nastavenia - prepínač sa spustí po uložení konfigurácie.",
     "lowbs.state_normal": "normálny",
     "lowbs.state_low": "nízky dátový tok",
     "lowbs.state_offline": "offline",

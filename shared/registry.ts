@@ -1,11 +1,11 @@
 /**
- * Backend module registry — discovery only, no device-process dependencies.
+ * Backend module registry - discovery only, no device-process dependencies.
  *
  * Every modules/<id>/backend.ts default-exports a BackendModule registration
  * (shared/contracts/backend_module.ts). Discovery has two modes:
  *
  *  - unbundled (bun server/main.ts, bun test): a runtime directory
- *    scan anchored on import.meta.url — adding a module needs no edit here.
+ *    scan anchored on import.meta.url - adding a module needs no edit here.
  *  - compiled binaries (bun build --compile): the build-time manifest
  *    generated/modules.backend.ts (scripts/gen_modules.ts); a compiled process
  *    cannot readdir (import.meta.url lives in Bun's virtual /$bunfs mount).
@@ -220,7 +220,7 @@ async function discover(): Promise<Map<string, BackendModule>> {
             ).default;
         } catch (err) {
             throw new Error(
-                `compiled binary is missing the backend module manifest (generated/modules.backend.ts) — run \`bun run gen:modules\` before building: ${
+                `compiled binary is missing the backend module manifest (generated/modules.backend.ts) - run \`bun run gen:modules\` before building: ${
                     err instanceof Error ? err.message : String(err)
                 }`,
             );
@@ -351,7 +351,7 @@ export function validateDeviceWidgetConfig(
 // Dashboard actions (the Buttons widget's catalogue)
 // ---------------------------------------------------------------------------
 
-/** `<module>.<action>` — the key a Buttons widget config stores per button. */
+/** `<module>.<action>` - the key a Buttons widget config stores per button. */
 export const dashboardActionKey = (moduleId: string, actionId: string) =>
     `${moduleId}.${actionId}`;
 
@@ -406,7 +406,7 @@ export function dashboardActionsFor(status: Status): DashboardActionEntry[] {
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard widget hub (channel widgets — device-independent).
+// Dashboard widget hub (channel widgets - device-independent).
 //
 // One hub instance per widget type serves every widget of that type; wired
 // generically from each widget module's `hub` field.
@@ -483,18 +483,12 @@ export function widgetHubSnapshot(): Record<string, unknown> {
 }
 
 /** A viewer started needing a channel-widget type's channels (refcounted). */
-export function acquireWidgetChannels(
-    type: string,
-    specs: string[],
-): void {
+export function acquireWidgetChannels(type: string, specs: string[]): void {
     WIDGETS.find((w) => w.type === type)?.hub?.acquire?.(specs);
 }
 
 /** A viewer stopped needing a channel-widget type's channels. */
-export function releaseWidgetChannels(
-    type: string,
-    specs: string[],
-): void {
+export function releaseWidgetChannels(type: string, specs: string[]): void {
     WIDGETS.find((w) => w.type === type)?.hub?.release?.(specs);
 }
 

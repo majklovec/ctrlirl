@@ -39,7 +39,7 @@ function clampedValue(p: Record<string, unknown>): number {
 }
 
 function draw(element: OverlayElement, ctx: ElementContext): Vnode {
-	// `element` is already resolved by the renderer — props carry binding values.
+	// `element` is already resolved by the renderer - props carry binding values.
 	const p = element.props;
 	const value = clampedValue(p);
 	const fill = strProp(p, "fill", DEFAULT_PROGRESS_PROPS.fill);

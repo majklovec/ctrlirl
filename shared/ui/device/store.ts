@@ -2,9 +2,9 @@
  * the device page runs the global `card` below, while dashboards create a host
  * for each viewer websocket. Module-owned form state stays in each module. */
 import m from "mithril";
+import type { DeviceInfo, ModulesView, Status } from "../../contracts/wire";
 import { type LogEvent, label, methodLog } from "../../log_messages";
 import { errorMessage } from "../../util";
-import type { DeviceInfo, ModulesView, Status } from "../../contracts/wire";
 import type { Level } from "../components/icons";
 import { t } from "../i18n";
 import { type Params, RpcClient, RpcError, socketUrl } from "../services/rpc";
@@ -24,7 +24,7 @@ export interface CardState {
 /** Generic RPC and live-event host shared by device module cards. */
 export interface DeviceCard {
     st: CardState;
-    /** Keys of requests in flight (buttons, toggles) — their controls are disabled meanwhile. */
+    /** Keys of requests in flight (buttons, toggles) - their controls are disabled meanwhile. */
     busy: Set<string>;
     pending: (id: string) => boolean;
     act: <T = unknown>(

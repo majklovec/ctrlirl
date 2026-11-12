@@ -9,12 +9,12 @@
 export const PROJECT_ID_RE = /^[\w.-]{1,64}$/;
 
 /**
- * Read the `?project=<id>` parameter. `null` when absent or malformed — the
+ * Read the `?project=<id>` parameter. `null` when absent or malformed - the
  * caller decides whether a missing project is a 400 (entity APIs require it)
  * or an acceptable default.
  */
 export function projectParam(url: URL): string | null {
-	const raw = url.searchParams.get("project");
-	if (!raw) return null;
-	return PROJECT_ID_RE.test(raw) ? raw : null;
+    const raw = url.searchParams.get("project");
+    if (!raw) return null;
+    return PROJECT_ID_RE.test(raw) ? raw : null;
 }

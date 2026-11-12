@@ -1,4 +1,4 @@
-/* First-run setup wizard — shared language, identity and control steps plus
+/* First-run setup wizard - shared language, identity and control steps plus
  * setup contributions registered by the device modules. */
 
 import {

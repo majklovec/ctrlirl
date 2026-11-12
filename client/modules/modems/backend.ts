@@ -1,16 +1,17 @@
 /*
- * Modems module: ModemManager integration — enumerate the modems, their
+ * Modems module: ModemManager integration - enumerate the modems, their
  * signal / operator / registration details, and the control actions
  * (enable / disable / connect / disconnect / reset). Serves the roles that
  * manage their uplinks through modems (relay, encoder); the network module
  * enriches its interface list with `modems.source`.
  */
-import type { ModuleCore } from "../../backend/module_core";
+
 import type {
     BackendModule,
     Params,
 } from "../../../shared/contracts/backend_module";
 import { ApiError, requireIndex } from "../../../shared/params";
+import type { ModuleCore } from "../../backend/module_core";
 import log from "./log";
 import {
     bindModemManager,

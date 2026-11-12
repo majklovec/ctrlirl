@@ -1,4 +1,4 @@
-/* Shared building blocks for Mithril JSX views — one file per concern under
+/* Shared building blocks for Mithril JSX views - one file per concern under
  * components/, re-exported here so pages and modules import from one place.
  * See shared/ui/README.md for the catalogue. */
 export type { Child } from "../util";

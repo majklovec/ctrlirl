@@ -4,12 +4,12 @@
  * Visible for the encoder role, and for the custom role when the
  * server reports the encoder module as enabled. Default-exports its
  * ModuleDef; the settings framework registers it from the generated
- * manifest (generated/modules.settings.ts) — no per-module imports.
+ * manifest (generated/modules.settings.ts) - no per-module imports.
  *
  * One card, two sections:
- *  1. Pipeline repositories — add / update / remove GitHub mirrors, with a
+ *  1. Pipeline repositories - add / update / remove GitHub mirrors, with a
  *     per-repository pipeline count.
- *  2. Pipeline files — list and delete the GStreamer launch strings under
+ *  2. Pipeline files - list and delete the GStreamer launch strings under
  *     the pipelines directory; creating and editing open the dedicated
  *     pipeline editor page (/pipelines/…).
  */

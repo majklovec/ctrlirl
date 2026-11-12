@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 // The element module imports the browser i18n module, which touches
-// document/window at import time — stub minimal globals before the dynamic
+// document/window at import time - stub minimal globals before the dynamic
 // import so it loads headlessly (same convention as overlay_elements.test.ts).
 (globalThis as Record<string, unknown>).document = { documentElement: {} };
 (globalThis as Record<string, unknown>).window = {

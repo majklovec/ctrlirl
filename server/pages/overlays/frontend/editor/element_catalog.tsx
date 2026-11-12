@@ -8,7 +8,7 @@ import type {
 import { addElement, closeToolMenus } from "../overlay_store";
 import { addableElements } from "../registry";
 
-/** Catalog sections, in display order. Membership is NOT listed here — each
+/** Catalog sections, in display order. Membership is NOT listed here - each
  * element declares its own `category` on its `OverlayElementDef`; a section
  * is just the display slot (id + label) those declarations point at (defs
  * order within a section by `order`). */

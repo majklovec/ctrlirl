@@ -16,7 +16,7 @@
     "dev.net_last_seen": "Ostatnio usłyszano",
     "dev.net_self_announce": "Własne ogłoszenie",
     "dev.net_ws_connected": "Connected over WebSocket",
-    "dev.net_ws_offline": "No live WebSocket — heard by announce only",
+    "dev.net_ws_offline": "No live WebSocket - heard by announce only",
     "dev.no_interfaces": "Nie wykryto interfejsów",
     "dev.own_interfaces": "Own interfaces",
     "dev.stale": "nieaktualne, {{time}}",

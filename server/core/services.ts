@@ -7,11 +7,11 @@
  *
  * `publish` is a stable handle delegating to the Elysia app created by
  * core/app.ts (the app is built after the services, the page routes are
- * mounted after both) — so a page always publishes onto the live server.
+ * mounted after both) - so a page always publishes onto the live server.
  */
 import type { Database } from "bun:sqlite";
-import { createAuth } from "./auth/auth";
 import { createFrontend } from "../../shared/frontend";
+import { createAuth } from "./auth/auth";
 import type {
     Auth,
     CapabilityRegistry,
@@ -29,12 +29,12 @@ export interface Services {
     frontend: Frontend;
     capabilities: CapabilityRegistry;
     /** Bind the publish handle to a live Elysia app (core/app.ts does this). */
-    bindPublish(target: { publish(topic: string, message: string): void }): void;
+    bindPublish(target: {
+        publish(topic: string, message: string): void;
+    }): void;
 }
 
-export async function createServices(
-    config: ServerConfig,
-): Promise<Services> {
+export async function createServices(config: ServerConfig): Promise<Services> {
     const auth = await createAuth({
         noAuth: config.noAuth,
         databaseFile: config.databaseFile,

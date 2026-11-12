@@ -1,6 +1,6 @@
 /* The main-menu project selector: a compact dropdown pinned to the header's
  * right, just left of the profile trigger (which floats at `right: 1.25rem`,
- * 2.5rem wide — so `right: 4.25rem` leaves a gap and clears it). */
+ * 2.5rem wide - so `right: 4.25rem` leaves a gap and clears it). */
 
 .project-select {
     position: absolute;

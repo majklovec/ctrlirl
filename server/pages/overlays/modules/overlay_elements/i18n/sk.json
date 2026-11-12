@@ -263,8 +263,8 @@
     "overlay.ambient_shift": "Posun",
     "overlay.ambient_swirl": "Vír",
     "overlay.ambient_speed": "Rýchlosť (×)",
-    "overlay.ambient_trail": "Stopa (×) — vyššia = pomalšie rozmazávanie",
-    "overlay.ambient_trail_faster": "Trail fade speed (×) — higher fades faster",
-    "overlay.ambient_head_brightness": "Head brightness (×) — brightens the moving dot",
+    "overlay.ambient_trail": "Stopa (×) - vyššia = pomalšie rozmazávanie",
+    "overlay.ambient_trail_faster": "Trail fade speed (×) - higher fades faster",
+    "overlay.ambient_head_brightness": "Head brightness (×) - brightens the moving dot",
     "overlay.ambient_background": "Farva podkladu"
 }

@@ -16,7 +16,7 @@ import {
 import { elementCatalog } from "./element_catalog";
 
 /** Toolbar below the main nav: history, the "add element" + utility
- * buttons, then — right-aligned — zoom. */
+ * buttons, then - right-aligned - zoom. */
 export function editorToolbar(): m.Vnode {
 	const setCatalogOpen = (): void => {
 		state.catalogOpen = !state.catalogOpen;

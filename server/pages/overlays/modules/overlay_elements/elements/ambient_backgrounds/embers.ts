@@ -1,5 +1,5 @@
 /*
- * `embers` — warm flickering sparks rising through a turbulent flow field,
+ * `embers` - warm flickering sparks rising through a turbulent flow field,
  * drawn as short streaks the way a fire carries them up.
  * Original (invented for the ambient set).
  */

@@ -1,5 +1,5 @@
 /** @jsx m */
-// Chat frontend — dashboard widget for the chat channel module.
+// Chat frontend - dashboard widget for the chat channel module.
 // Self-contained: owns its per-channel live map, fed by dashboard websocket
 // frames it cares about; the core only forwards frames through onFrame().
 
@@ -53,7 +53,7 @@ const DISTANCE_THRESHOLD = 50;
 
 // ── Czech TTS: widget config cache and status (module-scoped) ─────────────
 // `onFrame` carries no widget, so the latest config is cached from `body()`
-// (once per render). TTS state itself is global in `tts.ts` — one queue and
+// (once per render). TTS state itself is global in `tts.ts` - one queue and
 // one voice shared across every chat widget on the dashboard.
 let cachedConfig: Record<string, string> | undefined;
 let ttsEnabled = false;
@@ -65,7 +65,7 @@ function ttsSync(w: ServerDashboardWidget): void {
 	cachedConfig = w.config;
 	if (cfg.enabled !== ttsEnabled) {
 		ttsEnabled = cfg.enabled;
-		// TTS was switched off — silence the queue and the in-flight speech.
+		// TTS was switched off - silence the queue and the in-flight speech.
 		if (!ttsEnabled) stopSpeech();
 	} else if (ttsEnabled) {
 		setRate(cfg.rate);
@@ -78,7 +78,7 @@ function ttsSync(w: ServerDashboardWidget): void {
 	}
 }
 
-/** The browser's full voice list for the `ttsVoice` select — voices of the
+/** The browser's full voice list for the `ttsVoice` select - voices of the
  * current UI language first, then the rest (browser order preserved inside
  * each group). Empty while the list is still loading. */
 function ttsVoiceOptions(): string[] {
@@ -332,7 +332,7 @@ function upgradeEmoteUrl(raw: string): string {
 	}
 
 	// Google image CDNs (yt3.ggpht.com, lh3.ggpht.com,
-	// lh3.googleusercontent.com — the ggpht hosts carry YouTube channel
+	// lh3.googleusercontent.com - the ggpht hosts carry YouTube channel
 	// emojis) use =s{size} suffixes; =s0 is max.
 	if (/\/\/[a-z0-9.-]+\.(?:ggpht\.com|googleusercontent\.com)\//.test(url)) {
 		return url.replace(/=s\d+(?=-|$)/, "=s0");
@@ -624,7 +624,7 @@ const ChatFeed: m.Component<ChatFeedAttrs> = {
 
 		if (!vnode.attrs.bottom) {
 			// Top order: new lines enter at the top of the feed. Pin the feed
-			// there — without this, a feed that was following its bottom in
+			// there - without this, a feed that was following its bottom in
 			// bottom order stays scrolled to the (stable) tail and the new
 			// top lines stay off-clip in a non-scrollable (overflow:hidden)
 			// element.
@@ -660,7 +660,7 @@ const ChatFeed: m.Component<ChatFeedAttrs> = {
 				class={bottom ? "chat-feed chat-feed-bottom" : "chat-feed"}
 				key={feedKey}
 				onscroll={(event: Event) => {
-					// The top-order pin (onupdate) scrolls the feed too — don't
+					// The top-order pin (onupdate) scrolls the feed too - don't
 					// let that reset the auto-follow state, which only bottom
 					// order uses.
 					if (!bottom) return;
@@ -757,14 +757,13 @@ export function chatFeed(w: FeedWidget, showEmpty = true): m.Children {
 	});
 }
 
-
 const chatModule: ChannelWidgetModule<ServerDashboardWidget> = {
 	id: "chat",
 	kind: "widget",
 	widgetTypes: ["chat"],
 	defaultSize: { w: 3, h: 8 },
 	configFields: CHAT_CONFIG_FIELDS,
-	/** `ttsVoice` is a dynamic select — the browser's voices, UI language first. */
+	/** `ttsVoice` is a dynamic select - the browser's voices, UI language first. */
 	configSelectOptions(name: string): string[] | undefined {
 		if (name !== "ttsVoice") return undefined;
 		// The list loads async; refresh the open config form once it arrives.

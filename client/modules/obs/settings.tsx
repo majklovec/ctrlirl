@@ -8,7 +8,7 @@ import type { ObsModuleView } from "./types";
 
 /**
  * Editable copy of the module's OBS connection; the password is write-only
- * — the device only ever reports it as {configured}.
+ * - the device only ever reports it as {configured}.
  */
 const draft = {
 	obsUrl: "",
@@ -37,7 +37,7 @@ export const def: ModuleDef = {
 	visible: (ctx) => ctx.role === "obs",
 	refresh: (ctx) => {
 		// A status push while a save is in flight must not clobber the user's
-		// edits — the in-flight save already carries them.
+		// edits - the in-flight save already carries them.
 		if (ctx.busy) return;
 		draft.obsUrl = (ctx.modules["obs"] as ObsModuleView).obsUrl;
 		draft.obsPassword = "";

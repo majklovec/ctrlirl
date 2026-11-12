@@ -1,7 +1,7 @@
 /** @jsx m */
 /* The control server's main menu + profile menu.
  * The entity entries are rendered from the generated page manifest
- * (server/core/generated/pages.ts) — adding a page slice adds its menu
+ * (server/core/generated/pages.ts) - adding a page slice adds its menu
  * entry with no edit to this file. The profile menu (account, sign out)
  * is shell-owned and stays hardcoded here. */
 
@@ -12,7 +12,7 @@ import m from "mithril";
 import { MENUS } from "../../generated/pages";
 import { ProjectSelect } from "./project_select";
 
-/** Menu items in display order — the generated manifest is only sorted by
+/** Menu items in display order - the generated manifest is only sorted by
  * page id, mirroring the server registry's menu.order ordering (default 100). */
 const MENU_ITEMS = [...MENUS].sort(
 	(a, b) => (a.order ?? 100) - (b.order ?? 100),

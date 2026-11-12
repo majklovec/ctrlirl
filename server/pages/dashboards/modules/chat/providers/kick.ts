@@ -1,5 +1,5 @@
 /**
- * Kick chat provider — Kick does not expose a direct chat websocket; chat
+ * Kick chat provider - Kick does not expose a direct chat websocket; chat
  * rides Pusher. Each channel is resolved to its chatroom id through
  * kick.com's public REST API, joined on Pusher's public app, and the
  * unauthenticated `chatrooms.<id>.v2` channel is subscribed; each
@@ -10,8 +10,8 @@
  * `disconnected` and re-polls until the stream goes live.
  */
 import type { ChatBadge, ChatLive, PublishFn } from "../types";
-import { kickRoleBadgeUrl } from "./kick_badges";
 import { ChatProvider } from "./base";
+import { kickRoleBadgeUrl } from "./kick_badges";
 
 /** Channel slug -> chatroom id lookup. */
 const KICK_CHANNEL_API = "https://kick.com/api/v2/channels";
@@ -23,7 +23,7 @@ const SUBSCRIBE_TIMEOUT_MS = 10_000;
  * subscription would otherwise freeze forever (the feed shows the last
  * messages and a "connected" state, updating only on a manual reconnect).
  * Bounding the no-message window turns that into an automatic, transparent
- * rejoin — the same reset that switching channels performs by hand. The timer
+ * rejoin - the same reset that switching channels performs by hand. The timer
  * is re-armed on every chat message, so it only fires after a full window of
  * silence. Overridable (e.g. for tests) via the environment. */
 const KICK_CHAT_STALE_MS =
@@ -45,7 +45,7 @@ const pusherUrl = (k: { key: string; cluster: string }): string =>
 
 /** Optional key resolver: `GET <url>[?stale=<oldKey>]` -> `{key, cluster}`,
  * both validated. Returns null when unconfigured, on error/timeout, or when
- * the payload is invalid — the caller then keeps its current key. */
+ * the payload is invalid - the caller then keeps its current key. */
 async function resolvePusherKey(
     stale = "",
 ): Promise<{ key: string; cluster: string } | null> {
@@ -165,7 +165,7 @@ export class KickChatProvider extends ChatProvider {
                 const data = msg.data as
                     | { code?: number; message?: string }
                     | undefined;
-                // 4001: the app key is not on this cluster — it has rotated.
+                // 4001: the app key is not on this cluster - it has rotated.
                 // Mark it stale so the resolver is asked for a fresh key on
                 // the next connect, then drop the connection.
                 if (data?.code === 4001) {
@@ -225,7 +225,7 @@ export class KickChatProvider extends ChatProvider {
     }
 
     /**
-     * `App\Events\UserBannedEvent` — a user was banned in this chat (removed
+     * `App\Events\UserBannedEvent` - a user was banned in this chat (removed
      * by a mod or the broadcaster), so every message of theirs becomes banned.
      * The payload's top-level `username` is who was banned (Kick shares one
      * canonical username between chat senders and ban events).
@@ -264,7 +264,7 @@ export class KickChatProvider extends ChatProvider {
     /** Arm the staleness watchdog: if no chat message arrives within
      * `KICK_CHAT_STALE_MS`, drop the socket so it reconnects (rejoin). The
      * close handler then marks the channel disconnected and schedules the
-     * retry — the self-healing path a silent subscription death would not
+     * retry - the self-healing path a silent subscription death would not
      * take on its own. */
     #armStaleTimer(): void {
         this.#disarmStaleTimer();
@@ -272,7 +272,7 @@ export class KickChatProvider extends ChatProvider {
             this.#staleTimer = null;
             this.log(
                 "stale",
-                `no chat for ${KICK_CHAT_STALE_MS / 1000}s — rejoining`,
+                `no chat for ${KICK_CHAT_STALE_MS / 1000}s - rejoining`,
             );
             this.#ws?.close();
         }, KICK_CHAT_STALE_MS);
@@ -289,8 +289,8 @@ export class KickChatProvider extends ChatProvider {
 /** Resolve a channel slug to the chatroom id hosting its chat, plus
  * whether the channel is currently live (`livestream.is_live` in the same
  * response) and the channel's subscriber badge artwork (per-month image urls).
- * Subscriber art lives only here — the chat wire carries just the month count
- * — so it is resolved once per connect from this same endpoint. */
+ * Subscriber art lives only here - the chat wire carries just the month count
+ * - so it is resolved once per connect from this same endpoint. */
 async function resolveChatroom(slug: string): Promise<{
     id: number;
     isLive: boolean;
@@ -323,10 +323,7 @@ async function resolveChatroom(slug: string): Promise<{
  * -> image-url table, ascending. Entries without a usable image or a sane
  * month count are dropped. */
 function parseSubscriberTiers(
-    raw:
-        |
-            { months?: number; badge_image?: { src?: string } }[]
-        | undefined,
+    raw: { months?: number; badge_image?: { src?: string } }[] | undefined,
 ): { months: number; url: string }[] {
     if (!Array.isArray(raw)) return [];
     const tiers = new Map<number, string>();
@@ -408,7 +405,7 @@ const V2_BADGE_IMAGE_RE =
 /** Map a Kick `sender.identity` object to the wire `ChatBadge` shape. Kick
  * sends two arrays per sender:
  *   - `badges_v2`: the current system, where every badge carries its own
- *     `image_url` (global/channel/user custom badges, the user's level) —
+ *     `image_url` (global/channel/user custom badges, the user's level) -
  *     rendered directly as an image. A v2 entry that names a role badge
  *     (moderator, vip, verified, …) but ships no image falls back to that
  *     role's inline-SVG data-URI.
@@ -436,7 +433,7 @@ function parseIdentityBadges(
         out.push(badge);
     };
 
-    // 1) `badges_v2` — each entry supplies its artwork via `image_url`.
+    // 1) `badges_v2` - each entry supplies its artwork via `image_url`.
     const v2 = Array.isArray(identity.badges_v2) ? identity.badges_v2 : [];
     const v2Badges = v2
         .map((item) => {
@@ -478,14 +475,13 @@ function parseIdentityBadges(
         .filter((b): b is ChatBadge => b !== null);
     for (const badge of v2Badges) push(badge);
 
-    // 2) legacy `badges` — resolve the subscriber artwork from the channel.
+    // 2) legacy `badges` - resolve the subscriber artwork from the channel.
     const legacy = Array.isArray(identity.badges) ? identity.badges : [];
     for (const item of legacy) {
         if (!item || typeof item !== "object") continue;
         const b = item as Record<string, unknown>;
         const type = typeof b.type === "string" ? b.type : undefined;
-        const text =
-            typeof b.text === "string" && b.text ? b.text : undefined;
+        const text = typeof b.text === "string" && b.text ? b.text : undefined;
         const count =
             typeof b.count === "number" && Number.isFinite(b.count)
                 ? b.count

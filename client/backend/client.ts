@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /*
- * client.ts — the device process.
+ * client.ts - the device process.
  *
  * The core brings up the generic services (persistent state, event log, the
  * local web UI / WebSocket API, the outbound control-server link, autostart)
@@ -17,7 +17,7 @@
  * Core client files (client/backend/):
  *   main.ts         the process: services, modules, signal handling
  *   config.ts       core CLI arguments and derived settings
- *   state.ts        persistent state (config file) — core settings + module sections
+ *   state.ts        persistent state (config file) - core settings + module sections
  *   modules.ts      module lifecycle: slices, start/stop, RPC ownership, status, setup
  *   module_core.ts  the process-services bag handed to modules
  *   capabilities.ts module-to-module capability bus
@@ -38,9 +38,9 @@ import { ensureGeneratedManifests } from "../../shared/generated_manifests";
 
 // generated/ first: the application graph statically imports the manifests.
 await ensureGeneratedManifests();
-// Persistent-device safety net: a stray uncaught error — most often a native
+// Persistent-device safety net: a stray uncaught error - most often a native
 // network error surfaced without a JS stack (e.g. a UDP errqueue
-// ECONNREFUSED) — logs with full context and lets the process continue
+// ECONNREFUSED) - logs with full context and lets the process continue
 // instead of dying. This is a last-resort backstop; the real fix is the
 // per-socket `error` handler in udp_relay (relay.ts / virtual_interface.ts),
 // which consumes network errors at the source.

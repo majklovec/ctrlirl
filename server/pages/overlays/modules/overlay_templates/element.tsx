@@ -1,11 +1,11 @@
 /** @jsx m */
 /*
  * The `html_template` overlay element: renders a first-party HTML/CSS
- * template in-page via m.trust() — no iframe.
+ * template in-page via m.trust() - no iframe.
  *
  * The in-page markup is a string assembled from first-party parts only:
  * the template's self-contained index.html (its <section> body; its
- * <style> scoped into a one-per-template <style> in document.head — the
+ * <style> scoped into a one-per-template <style> in document.head - the
  * selector prefixing is the isolation boundary the iframe used to
  * provide), and the resolved
  * element config, which is entity-escaped before it is baked into the
@@ -27,7 +27,7 @@
  * element's context, via the shared templateText (the alert element's
  * tokenizer); the runtime page writes trigger payload values into the
  * project variables before drawing, so a plain variable lookup covers
- * both. doc.ts never sees tokens — it stays environment-free.
+ * both. doc.ts never sees tokens - it stays environment-free.
  */
 
 import { Icon } from "@ui/components/icons";
@@ -65,7 +65,7 @@ import { isTextSlot, type TemplateMeta } from "./templates/template_meta";
 // ── in-page style injection ──────────────────────────────────────────────
 // One <style> per template id, scoped to that template's wrapper class. It
 // is refcounted over the live hosts that use the template: created when the
-// first such host paints, removed when the last one goes — so switching a
+// first such host paints, removed when the last one goes - so switching a
 // template AWAY strips its <style> instead of piling stale rules into
 // <head>. document is never touched at module scope (head exists only in
 // the browser), so every call lives inside a draw lifecycle.
@@ -118,7 +118,7 @@ function loadCatalog(): void {
 // edit form renders one field per entry and writes the overrides into
 // `props.vars`. The bytes ride the same `loadFiles` memo as the render, so
 // a template's css is fetched once per page; the RESOLVED list is kept in
-// a second cache because the form is a synchronous render — the field
+// a second cache because the form is a synchronous render - the field
 // component's `oncreate` kicks the fetch and the resolution's `m.redraw()`
 // is what paints the fields (first paint is empty by design).
 
@@ -176,7 +176,7 @@ function releaseStyle(templateId: string): void {
 // ── countdown (replaces the in-frame bootstrap timer) ────────────────────
 // One module-scope 1s interval for every live countdown element; the
 // registry maps each wrapper element to its target epoch ms. The tick only
-// writes textContent into the wrapper's [data-countdown] node — a DOM
+// writes textContent into the wrapper's [data-countdown] node - a DOM
 // change mithril never diffs, so repaints survive innerHTML rewrites.
 
 const countdowns = new Map<HTMLElement, number>();
@@ -226,13 +226,13 @@ const docCache = new Map<string, string>();
 /** Everything the in-page doc depends on, in one stable-ordered object. */
 interface DocInput {
 	meta: TemplateMeta;
-	/** The template body (the parsed `<section>` — no doc wrapper). */
+	/** The template body (the parsed `<section>` - no doc wrapper). */
 	body: string;
 	config: ReturnType<typeof buildTemplateConfig>;
 }
 
 function cachedDoc(input: DocInput): string {
-	// The key omits `body` (large, and stable per template id within a page —
+	// The key omits `body` (large, and stable per template id within a page -
 	// the bytes are fetched once and memoized), so a config change is what
 	// busts the doc cache.
 	const key = JSON.stringify({
@@ -304,7 +304,7 @@ async function paintHost(
 	try {
 		const files = await loadFiles(p.templateId);
 		// The metadata (uses) is part of the fetched document, so the
-		// config is built HERE, after the fetch — uses-gating needs the
+		// config is built HERE, after the fetch - uses-gating needs the
 		// parsed meta. Text slots (the template's data-bind names) are
 		// resolved from the element's props + {token} tokens, so the config
 		// carries exactly the slots THIS template binds (title/subtitle plus
@@ -321,7 +321,7 @@ async function paintHost(
 		// Identity of everything the in-page doc depends on (the fetched
 		// bytes are stable per template id within a page). A redraw with an
 		// unchanged key is a no-op. The template fills the element's box,
-		// so the box size itself is not part of the key — resizing never
+		// so the box size itself is not part of the key - resizing never
 		// repaints.
 		const paintKey = JSON.stringify({
 			templateId: p.templateId,
@@ -346,7 +346,7 @@ async function paintHost(
 			if (countdowns.size > 0) startCountdowns();
 		}
 	} catch (err) {
-		// A missing/broken template leaves the host empty — draw already
+		// A missing/broken template leaves the host empty - draw already
 		// painted the unstyled shell, and the edit form's validator flags
 		// the unknown id.
 		console.warn(`html_template: failed to load template ${p.templateId}`, err);
@@ -354,7 +354,7 @@ async function paintHost(
 }
 
 function draw(element: OverlayElement, ctx: ElementContext): Vnode {
-	// `element` is already resolved by the renderer — props carry binding
+	// `element` is already resolved by the renderer - props carry binding
 	// values. The template's metadata (uses) rides the fetched document, so
 	// the config is built in `paintHost` (post-fetch); draw just hands the
 	// props + context over and the text slots get resolved there.
@@ -525,7 +525,7 @@ function varField(
 }
 
 /** The template's `:root` variables as inspector fields (one per declared
- * custom property). Empty until the css bytes arrive — `oncreate` kicks the
+ * custom property). Empty until the css bytes arrive - `oncreate` kicks the
  * memoized fetch and the resolution's `m.redraw()` paints the fields. */
 function varsFields(
 	templateId: string,
@@ -565,7 +565,7 @@ function editForm({
 	// The async templateId `<select>` stays a raw-Vnode row: it kicks the
 	// memoized catalog fetch on `oncreate` (a lifecycle `bindableForm`'s
 	// data fields don't carry) and keeps its binding affordance via
-	// `bindField` (a select is not chain-bindable, so no toggle — same as
+	// `bindField` (a select is not chain-bindable, so no toggle - same as
 	// before).
 	const templateRow = bindField(
 		e,
@@ -590,7 +590,7 @@ function editForm({
 	);
 
 	// One row per `uses` entry, in the template's declared order. The style
-	// knobs (`vars` — async `:root` fields) and the logo (`logoAssetId` —
+	// knobs (`vars` - async `:root` fields) and the logo (`logoAssetId` -
 	// the asset library picker) are raw-Vnode widgets; `mode`, `targetIso`
 	// and the text slots are data-driven fields (title/subtitle keep their
 	// i18n label keys, any other data-bind slot is labelled from its name).
@@ -645,7 +645,7 @@ function editForm({
 						{t("overlay.html_template.unknown_template")}
 					</span>,
 				]
-			: // catalog not loaded yet — the fields appear on the m.redraw
+			: // catalog not loaded yet - the fields appear on the m.redraw
 				[];
 
 	return bindableForm({
@@ -662,7 +662,7 @@ function editForm({
 function validate(element: OverlayElement): string[] {
 	const problems: string[] = [];
 	const p = element.props as unknown as HtmlTemplateProps;
-	// Synchronous validator — only check against the catalog once it has
+	// Synchronous validator - only check against the catalog once it has
 	// loaded (an id outside it is a breach the runtime can never render).
 	if (
 		catalogMetas !== undefined &&

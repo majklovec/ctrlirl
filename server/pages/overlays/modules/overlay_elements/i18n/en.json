@@ -263,8 +263,8 @@
     "overlay.ambient_shift": "Shift",
     "overlay.ambient_swirl": "Swirl",
     "overlay.ambient_speed": "Speed (×)",
-    "overlay.ambient_trail": "Trail (×) — higher fades slower",
-    "overlay.ambient_trail_faster": "Trail fade speed (×) — higher fades faster",
-    "overlay.ambient_head_brightness": "Head brightness (×) — brightens the moving dot",
+    "overlay.ambient_trail": "Trail (×) - higher fades slower",
+    "overlay.ambient_trail_faster": "Trail fade speed (×) - higher fades faster",
+    "overlay.ambient_head_brightness": "Head brightness (×) - brightens the moving dot",
     "overlay.ambient_background": "Background color"
 }

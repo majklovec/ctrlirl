@@ -5,7 +5,7 @@
 import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
-/** "owner/repo" — what `pipelines.repositories.*` accept. */
+/** "owner/repo" - what `pipelines.repositories.*` accept. */
 const REPO_RE = /^[\w.-]+\/[\w.-]+$/;
 const GITHUB_API = "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";

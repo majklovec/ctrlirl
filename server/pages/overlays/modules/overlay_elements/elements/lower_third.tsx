@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Lower-third widget — a name + topic bar. With `rotate` on it cycles through
+ * Lower-third widget - a name + topic bar. With `rotate` on it cycles through
  * its entries every `interval` ms (inner component owns the interval); with it
  * off it shows the first entry. Classic streamer intro bar.
  */
@@ -17,8 +17,8 @@ import { numProp, strProp } from "@ui/overlay/element";
 import { bindableForm, type FormRow } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import { ListField } from "../lib/list_field";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
+import { ListField } from "../lib/list_field";
 import { cleanStr } from "./schema_utils";
 
 /* ── lower third ──────────────────────────────────────────────────────── */
@@ -172,10 +172,15 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode<any, any> {
 	return m(LowerThirdBox, { props: element.props });
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const p = e.props;
 	// `interval` is only meaningful while rotating, so it is a conditional
-	// row — present in `rows` only when `rotate` is on (mirrors the original
+	// row - present in `rows` only when `rotate` is on (mirrors the original
 	// `p.rotate === true ? <input> : null`).
 	const intervalRow: FormRow = [
 		{

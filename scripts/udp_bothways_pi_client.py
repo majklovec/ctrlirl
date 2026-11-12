@@ -3,7 +3,7 @@
 
 Builds a MobLink relay *data frame* containing a full IPv4/UDP packet and sends
 it to the relay's vif ingress (192.168.10.1:4150). Then listens (bound to
-0.0.0.0) for the *returned* frame — the server's echo — which comes back via the
+0.0.0.0) for the *returned* frame - the server's echo - which comes back via the
 relay de-SNATed to the vif IP. Verifies the payload round-tripped.
 
 Proves the relay carries traffic from the RPi4 to the remote destination and the
@@ -11,6 +11,7 @@ reply returns, i.e. communication works both ways.
 
   python3 udp_bothways_pi_client.py [relay_ip] [relay_port] [server_ip] [server_port]
 """
+
 import socket
 import struct
 import sys
@@ -92,7 +93,10 @@ def main() -> int:
     sock.settimeout(15)
 
     frame = build_frame(build_inner(MARKER))
-    print(f"[pi] local={my_port} sending {len(frame)}B frame to {RELAY_IP}:{RELAY_PORT}", flush=True)
+    print(
+        f"[pi] local={my_port} sending {len(frame)}B frame to {RELAY_IP}:{RELAY_PORT}",
+        flush=True,
+    )
     sock.sendto(frame, (RELAY_IP, RELAY_PORT))
 
     got = False
@@ -110,7 +114,10 @@ def main() -> int:
             print(f"[pi] reply payload = {payload[:64]!r}", flush=True)
             expected = b"ECHO:" + MARKER[::-1]
             if expected in payload:
-                print(f"[pi] ✓ BOTH WAYS CONFIRMED: marker round-tripped via relay", flush=True)
+                print(
+                    f"[pi] ✓ BOTH WAYS CONFIRMED: marker round-tripped via relay",
+                    flush=True,
+                )
                 got = True
                 break
     except socket.timeout:

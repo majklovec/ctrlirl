@@ -1,5 +1,5 @@
 /*
- * ssh module: sshd process management — start / stop and password reset for
+ * ssh module: sshd process management - start / stop and password reset for
  * the box's SSH account.
  *
  * Self-contained: the only core edge is the `core` bag handed in at start.
@@ -58,7 +58,7 @@ async function isActive(): Promise<boolean> {
 }
 
 /**
- * Wait until the daemon state reaches `want` — `sshd` forks and the pid file
+ * Wait until the daemon state reaches `want` - `sshd` forks and the pid file
  * appears a few ms after the command returns, and a stopped daemon takes a
  * moment to die. Resolves false on timeout (the status simply reports the
  * old state).
@@ -80,7 +80,7 @@ async function sshStatus(): Promise<SshHostStatus> {
         active: await isActive(),
         password: password || null,
         passwordConfigured: Boolean(password),
-        // A staged password that has not reached the account yet — it is
+        // A staged password that has not reached the account yet - it is
         // applied when sshd starts.
         pendingPassword: Boolean(password && password !== s?.appliedPassword),
     };
@@ -95,7 +95,7 @@ async function applyStagedPassword(user: string): Promise<void> {
     const password = s?.password;
     if (!s || !password) return;
     if (s.appliedPassword === password) return;
-    // Ensure the account exists (idempotent) — chpasswd needs it.
+    // Ensure the account exists (idempotent) - chpasswd needs it.
     const uid = await core.run("id", ["-u", user], true);
     if (!uid.trim()) {
         await core.run("useradd", ["-m", "-s", "/bin/bash", user]);
@@ -127,7 +127,7 @@ async function startSsh(
         if (typeof params.user === "string" && params.user.trim())
             s.user = params.user.trim();
         user = s.user || user;
-        // A password staged while sshd was stopped reaches the account now —
+        // A password staged while sshd was stopped reaches the account now -
         // the change is made on start, never while the daemon is down.
         await applyStagedPassword(user);
         await core.saveState();
@@ -164,7 +164,7 @@ async function stopSsh(): Promise<SshHostStatus> {
     return sshStatus();
 }
 
-/** 20 alphanumerics (base64 minus +/=) — safe for all clients and URLs. */
+/** 20 alphanumerics (base64 minus +/=) - safe for all clients and URLs. */
 function generatePassword(): string {
     return randomBytes(24)
         .toString("base64")
@@ -201,7 +201,7 @@ async function resetPassword(
     const user =
         (typeof params.user === "string" && params.user.trim()) || sshUser();
     if (!user) throw new Error("user is required");
-    // Staging is only meaningful with sshd down — while it runs, the account
+    // Staging is only meaningful with sshd down - while it runs, the account
     // password may not change.
     if (await isActive()) throw new Error(t("ssh.reset_blocked"));
 
@@ -236,7 +236,7 @@ const registration: BackendModule<ModuleCore> = {
     title: "SSH",
     // Every box but an obs-only one has an sshd to manage.
     roles: ["relay", "encoder"],
-    // No secret fields — the generated password is intentionally visible in
+    // No secret fields - the generated password is intentionally visible in
     // the status so the operator can always read it from the UI.
     methods: [
         "ssh.status",

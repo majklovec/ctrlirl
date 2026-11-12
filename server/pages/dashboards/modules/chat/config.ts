@@ -1,5 +1,5 @@
 /*
- * chat widget — config parameters and feed options, shared by the backend
+ * chat widget - config parameters and feed options, shared by the backend
  * hub (spec computation, validation) and the frontend (editor form, merged
  * feed). Pure: this file must stay free of any package import (the frontend
  * bundle imports it; the providers in `providers/` carry the npm deps and
@@ -35,7 +35,7 @@ export const CHAT_CONFIG_FIELDS = [
     "ignoredUsernames",
 ] as const;
 export const CHAT_PLATFORMS = ["youtube", "twitch", "tiktok", "kick"] as const;
-/** Default visible history size — matches the backend rolling-history cap. */
+/** Default visible history size - matches the backend rolling-history cap. */
 export const DEFAULT_HISTORY_LINES = 500;
 /** Where new messages enter the feed: "top" (the default, newest first) or
  * "bottom" (oldest first, new lines arrive at the bottom). */
@@ -115,7 +115,7 @@ export function chatPlatformIconsFromConfig(
 }
 
 /** Normalize one platform channel value (lowercased, trimmed; "" when empty
- * or not a string — the channel list is parsed from stored JSON, so guard
+ * or not a string - the channel list is parsed from stored JSON, so guard
  * against non-string values). */
 const channelPart = (value: string | undefined): string =>
     (typeof value === "string" ? value : "").trim().toLowerCase();
@@ -153,9 +153,9 @@ export interface ChatTtsConfig {
     voice: string;
     /** Speech rate (0.5–1.5); `1` when the config value is unusable. */
     rate: number;
-    /** Lowercased comma-separated words — a message containing one is muted. */
+    /** Lowercased comma-separated words - a message containing one is muted. */
     words: string[];
-    /** Lowercased comma-separated usernames — their messages are muted. */
+    /** Lowercased comma-separated usernames - their messages are muted. */
     usernames: string[];
 }
 
@@ -177,7 +177,10 @@ export function chatTtsConfig(
     return {
         enabled: (config?.ttsEnabled ?? "off").trim() === "on",
         voice: (config?.ttsVoice ?? "").trim(),
-        rate: Number.isFinite(rawRate) && rawRate >= 0.5 && rawRate <= 1.5 ? rawRate : 1,
+        rate:
+            Number.isFinite(rawRate) && rawRate >= 0.5 && rawRate <= 1.5
+                ? rawRate
+                : 1,
         words: csv(config?.ignoredWords),
         usernames: csv(config?.ignoredUsernames),
     };
@@ -194,7 +197,7 @@ const messageText = (message: { text?: string }): string =>
  *   1. empty text
  *   2. a command (starts with `!`)
  *   3. a bare URL
- *   4. too long (> 200 chars — keeps a queue from stalling)
+ *   4. too long (> 200 chars - keeps a queue from stalling)
  *   5. the sender is in `usernames` (exact, case-insensitive)
  *   6. the text contains a `words` entry (substring, case-insensitive)
  */

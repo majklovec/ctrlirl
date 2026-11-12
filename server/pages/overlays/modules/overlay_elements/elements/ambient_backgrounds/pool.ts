@@ -1,5 +1,5 @@
 /*
- * `ParticlePool` — the particle storage shared by the ambient backgrounds.
+ * `ParticlePool` - the particle storage shared by the ambient backgrounds.
  *
  * A background is a fixed number of particles, each described by a fixed
  * number of numeric fields (x, y, vx, life, hue, …). The pool keeps them in
@@ -9,7 +9,7 @@
  * offset, the `*_PROP_COUNT`/`*_PROPS_LENGTH` pair and the
  * `for (i = 0; i < LEN; i += COUNT)` loops by hand.
  *
- * Accessors are bounds- and type-unchecked on purpose — this is a hot path.
+ * Accessors are bounds- and type-unchecked on purpose - this is a hot path.
  */
 export class ParticlePool {
     /** Number of particles (slots). */
@@ -37,7 +37,7 @@ export class ParticlePool {
     }
 
     /** Write whole particle `i` from `values` (written in field order 0..n).
-     * Mirrors `Float32Array.set(values, i * stride)` — use it in an `init`
+     * Mirrors `Float32Array.set(values, i * stride)` - use it in an `init`
      * to seed a particle from a positional list. */
     store(i: number, values: readonly number[]): void {
         const base = i * this.stride;

@@ -4,7 +4,7 @@
  * OBS runtime page so positions are pixel-identical: one function, one style
  * model (absolute overlay coordinates, CSS px at 1:1 when unscaled).
  *
- * This file is intentionally thin — it knows HOW to wrap and position an
+ * This file is intentionally thin - it knows HOW to wrap and position an
  * element, not WHAT one is. Every concrete element implements
  * `OverlayElementDef` contributed by a module and is looked up via the
  * registry; no element-specific code lives here.
@@ -17,10 +17,7 @@ import {
 } from "@ui/overlay/element";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import {
-	cssFilterString,
-	type OverlayElement,
-} from "../overlay";
+import { cssFilterString, type OverlayElement } from "../overlay";
 import { overlayElementSchema } from "../overlay_elements";
 
 export type {
@@ -37,7 +34,7 @@ import { elementDef } from "./registry";
  * positioning style and the element's `draw` receive the resolved element so
  * bound props/transform/visible render identically in the editor and OBS.
  * Unknown element types resolve to no definition and render as an empty
- * (invisible) placeholder — core code never branches on element type. */
+ * (invisible) placeholder - core code never branches on element type. */
 export function overlayElementView(
 	element: OverlayElement,
 	ctx: ElementContext,
@@ -48,7 +45,7 @@ export function overlayElementView(
 		...resolveElement(element, ctx.variables),
 	};
 	// Trigger-driven elements (def.onTrigger) exist in the DOM only while a
-	// trigger is active — except `persistent` ones, which stay on screen at
+	// trigger is active - except `persistent` ones, which stay on screen at
 	// runtime and merely react to triggers. The editor has no live trigger
 	// state and always renders their design state.
 	const shown =
@@ -57,7 +54,7 @@ export function overlayElementView(
 		ctx.activeTriggers.has(element.id);
 	const content = shown && def ? def.draw(resolved, ctx) : null;
 	// Filter is applied here (not in elementStyle) so the editor's selection
-	// box and inline-edit wrapper — which reuse elementStyle — are untouched.
+	// box and inline-edit wrapper - which reuse elementStyle - are untouched.
 	const filter = cssFilterString(resolved.props.filters);
 	return m(
 		".overlay-element",
@@ -73,7 +70,7 @@ export function overlayElementView(
 }
 
 /** All elements of an overlay, back to front. Groups render after (above)
- * their children so the children — drawn in absolute canvas space — stay
+ * their children so the children - drawn in absolute canvas space - stay
  * selectable. */
 export function sceneElementsView(
 	elements: OverlayElement[],

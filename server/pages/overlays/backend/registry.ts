@@ -1,7 +1,7 @@
 /*
  * OBS overlay editor backend: one row per overlay in the `overlays` table,
  * persisted as a JSON blob (the `dashboards.widgets` precedent). An overlay is
- * self-contained — its own canvas, variables and elements. Media lives in the
+ * self-contained - its own canvas, variables and elements. Media lives in the
  * server-side asset library (disk), which elements reference by file id.
  * Mutations go over REST (`/api/overlays…`, handled by `Overlays.api`) and fan
  * out to:
@@ -10,12 +10,19 @@
  *     consumed by the OBS runtime pages (their WS is wired in overlay_routes.ts).
  *
  * Runtime pages are owner-authenticated with the overlay OWNER's user token
- * (`?token=…`, resolved to a login and checked against the overlay's owner) —
+ * (`?token=…`, resolved to a login and checked against the overlay's owner) -
  * no cookie, because a Browser Source has no session.
  */
 
 import type { Database } from "bun:sqlite";
 import { createHash, randomUUID } from "node:crypto";
+import { parsePosition } from "../../../../shared/ui/overlay/geo";
+import {
+    event,
+    LOCAL_PROJECT_ID,
+    overlayRuntimeTopic,
+    type Publish,
+} from "../../../core/runtime";
 import {
     defaultOverlay,
     migrateOverlayBlob,
@@ -31,18 +38,11 @@ import {
     type Variable,
 } from "../overlay";
 import { overlayElementSchema } from "../overlay_elements";
-import { parsePosition } from "../../../../shared/ui/overlay/geo";
-import {
-    event,
-    LOCAL_PROJECT_ID,
-    overlayRuntimeTopic,
-    type Publish,
-} from "../../../core/runtime";
-export { overlayRuntimeTopic };
 
 // single ApiError class shared with shared/overlay.ts so `instanceof`
 // classification (400 vs 500) works across the module boundary
 export { ApiError } from "../../../../shared/params";
+export { overlayRuntimeTopic };
 
 import { ApiError } from "../../../../shared/params";
 
@@ -114,7 +114,7 @@ export interface Overlays {
      * body, `token` the owner's user token). `values` maps variable name → raw
      * value; `null`/`""` empties the variable to its type's neutral value. The
      * whole batch lands in one commit and one `overlays.overlay` frame. `null`
-     * when the user does not own an overlay with `overlayId` (the route 404s —
+     * when the user does not own an overlay with `overlayId` (the route 404s -
      * probes must not leak overlay existence); an empty batch, an unknown name,
      * or a bad value throws ApiError(404/400).
      */
@@ -130,7 +130,7 @@ export interface Overlays {
      * (`{name, payload}`) on the overlay's runtime topic; the runtime page
      * routes it to every trigger-driven element (alerts, spin wheel, …) whose
      * `event` prop equals `name`. Any query values are validated and
-     * type-coerced and ride along in `payload` — the runtime page writes them
+     * type-coerced and ride along in `payload` - the runtime page writes them
      * into the overlay variables (the `overlays.applyEvent` WS uplink →
      * `applyEventValues`) only when an element goes on air for it. `null` when
      * the user does not own an overlay with `overlayId`; `name` is not
@@ -167,7 +167,10 @@ export interface Overlays {
      * `overlays.overlay` frame). Only reachable from a runtime WS whose open
      * already passed the token+overlay check. `false` on unknown overlay.
      */
-    applyEventValues(overlayId: string, values: Record<string, unknown>): boolean;
+    applyEventValues(
+        overlayId: string,
+        values: Record<string, unknown>,
+    ): boolean;
 }
 
 export function createOverlays({
@@ -235,7 +238,7 @@ export function createOverlays({
             db.prepare("SELECT count(*) c FROM overlays").get() as { c: number }
         ).c;
         if (overlayCount > 0) {
-            // already migrated (e.g. a restart) — just retire the legacy table
+            // already migrated (e.g. a restart) - just retire the legacy table
             db.exec("DROP TABLE overlay_projects");
             return;
         }
@@ -360,7 +363,7 @@ export function createOverlays({
             try {
                 Object.assign(overlay, JSON.parse(snapshot));
             } catch {
-                // best effort only — the throw below is what matters
+                // best effort only - the throw below is what matters
             }
             throw new ApiError(
                 e instanceof Error ? e.message : "overlay is invalid",
@@ -465,13 +468,14 @@ export function createOverlays({
                     { status: 404 },
                 );
             const id = m[2] as string | undefined;
-            const sub = (m[3] as
-                | "variables"
-                | "canvas"
-                | "elements"
-                | "duplicate"
-                | "export"
-                | undefined) ?? null;
+            const sub =
+                (m[3] as
+                    | "variables"
+                    | "canvas"
+                    | "elements"
+                    | "duplicate"
+                    | "export"
+                    | undefined) ?? null;
             const subId = m[4] as string | undefined;
 
             // ── import: /api/overlays/import ─────────────────────────────
@@ -521,7 +525,10 @@ export function createOverlays({
             // ── collection: /api/overlays ────────────────────────────────
             if (!id) {
                 if (req.method === "GET")
-                    return Response.json({ ok: true, overlays: overlaysFor(project) });
+                    return Response.json({
+                        ok: true,
+                        overlays: overlaysFor(project),
+                    });
                 if (req.method === "POST") {
                     const body = (await req.json().catch(() => ({}))) as {
                         name?: unknown;
@@ -610,10 +617,13 @@ export function createOverlays({
                 // runtime page receives), sans the server-managed `rev`
                 // counter; `filename` from the overlay name makes the
                 // download recognizable.
-                const filename =
-                    `${store.overlay.name.replace(/[^\w.-]+/g, "-").slice(0, 80) || "overlay"}.json`;
+                const filename = `${store.overlay.name.replace(/[^\w.-]+/g, "-").slice(0, 80) || "overlay"}.json`;
                 return new Response(
-                    JSON.stringify({ ...store.overlay, rev: undefined }, null, 2),
+                    JSON.stringify(
+                        { ...store.overlay, rev: undefined },
+                        null,
+                        2,
+                    ),
                     {
                         status: 200,
                         headers: {
@@ -878,7 +888,10 @@ export function createOverlays({
                 const s = raw.trim().toLowerCase();
                 if (s === "true" || s === "1") value = true;
                 else if (s === "false" || s === "0") value = false;
-                else throw new ApiError(`${variable.name} must be true or false`);
+                else
+                    throw new ApiError(
+                        `${variable.name} must be true or false`,
+                    );
             }
             resolved[name] = parseVariableValueInput(value, variable);
         }
@@ -888,24 +901,24 @@ export function createOverlays({
     /** Apply a token-endpoint value batch to the overlay variables in place
      * (validate+coerce via `resolveTokenValues` first, so a bad value throws
      * before any value is applied). */
-    function applyTokenValues(store: Store, values: Record<string, unknown>): void {
+    function applyTokenValues(
+        store: Store,
+        values: Record<string, unknown>,
+    ): void {
         const resolved = resolveTokenValues(store, values);
         for (const [name, value] of Object.entries(resolved)) {
             const variable = store.overlay.variables.find(
                 (v) => v.name === name,
             );
             // resolveTokenValues just validated every name and coerced each
-            // value to the variable's type — the find can't fail
+            // value to the variable's type - the find can't fail
             if (variable) variable.value = value as Variable["value"];
         }
     }
 
     // ── live-map route history (TODO/09-map.md `keep_history`) ──
     /** A variable id → the variable (bindings reference variables by id). */
-    function variableById(
-        overlay: Overlay,
-        id: unknown,
-    ): Variable | undefined {
+    function variableById(overlay: Overlay, id: unknown): Variable | undefined {
         if (typeof id !== "string" || !id) return undefined;
         return overlay.variables.find((v) => v.id === id);
     }
@@ -942,16 +955,17 @@ export function createOverlays({
     }
 
     /** Every keep_history live map whose bound centre variable this batch
-     * updated records one point into the live `default` route — opened on the
-     * first fix if none is open — so a live trace is ALWAYS visible while
+     * updated records one point into the live `default` route - opened on the
+     * first fix if none is open - so a live trace is ALWAYS visible while
      * keep_history is on. Called from `setVariables` after the values are
      * applied, so the read value is the one the map will render. */
     function recordMapFix(store: Store, values: Record<string, unknown>): void {
         if (!db) return;
         const posName = gpsVariableName(store.overlay);
         if (!posName || !(posName in values)) return;
-        const pos = store.overlay.variables.find((v) => v.name === posName)
-            ?.value;
+        const pos = store.overlay.variables.find(
+            (v) => v.name === posName,
+        )?.value;
         const point = parsePosition(pos);
         if (!point) return;
         let open = db
@@ -988,7 +1002,7 @@ export function createOverlays({
             revalidate(store.overlay);
         } catch {
             // a revalidation failure here means internal cross-references are
-            // off in a way the caller can't have caused — keep the endpoint's
+            // off in a way the caller can't have caused - keep the endpoint's
             // no-leak contract (bare 404, like an unknown variable)
             throw new ApiError("Not found", 404);
         }
@@ -1003,7 +1017,7 @@ export function createOverlays({
     /** Trigger a universal event through its name (the `<name>` in
      * `GET /overlay/:id/event/<name>`): the event is pushed to the overlay's
      * runtime topic as an `overlays.event` frame. Any query values are
-     * validated + type-coerced and shipped in the frame's `payload` — the
+     * validated + type-coerced and shipped in the frame's `payload` - the
      * runtime page applies them to same-named overlay variables (via the
      * `overlays.applyEvent` WS uplink → `applyEventValues`) only when an
      * element goes on air for it, so a queued element's values never clobber
@@ -1051,7 +1065,10 @@ export function createOverlays({
                 started_at: number;
                 ended_at: number | null;
             }[]
-        ).map((p) => ({ ...p, points: [] as { lat: number; lon: number; at: number }[] }));
+        ).map((p) => ({
+            ...p,
+            points: [] as { lat: number; lon: number; at: number }[],
+        }));
         const points = db
             .prepare(
                 "SELECT path_id, lat, lon, recorded_at FROM map_points WHERE overlay_id = ? ORDER BY recorded_at DESC LIMIT 20000",
@@ -1100,7 +1117,7 @@ export function createOverlays({
         try {
             revalidate(store.overlay);
         } catch {
-            // overlay binding lost against the variable set — surface it (the
+            // overlay binding lost against the variable set - surface it (the
             // runtime WS is an authenticated internal client)
             throw new ApiError(
                 "overlay validation failed after applying event values",

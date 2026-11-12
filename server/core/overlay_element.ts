@@ -33,7 +33,7 @@ export interface OverlayElementSchema {
     /**
      * Props holding the id of a file in the user's ASSET LIBRARY (the
      * server-side asset manager, stored on disk). Not validated at scene
-     * level — the bytes resolve at render time (the runtime page through
+     * level - the bytes resolve at render time (the runtime page through
      * its token-scoped file endpoint, the editor through the session one).
      */
     readonly serverAssetProps?: readonly string[];

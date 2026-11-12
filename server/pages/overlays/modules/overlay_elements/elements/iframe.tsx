@@ -21,11 +21,16 @@ export interface IframeProps {
 export const DEFAULT_IFRAME_PROPS: Required<IframeProps> = { url: "" };
 
 function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
-	// `element` is already resolved by the renderer — drawIframe reads props.url.
+	// `element` is already resolved by the renderer - drawIframe reads props.url.
 	return drawIframe(element) as Vnode;
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	return bindableForm({
 		element: e,
 		mutate,

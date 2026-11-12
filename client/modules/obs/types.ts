@@ -4,7 +4,11 @@
  * settings slice and its view of the status envelope.
  */
 import type { Emit } from "../../../shared/contracts/backend_module";
-import type { ModuleSliceView, ModulesView, Status } from "../../../shared/contracts/wire";
+import type {
+    ModuleSliceView,
+    ModulesView,
+    Status,
+} from "../../../shared/contracts/wire";
 
 export type { Emit };
 
@@ -12,7 +16,7 @@ export type { Emit };
 // Low-bitrate switcher wire types (sub-component of the obs module)
 // ----------------------------------------------------------------------
 
-/** The switcher's state machine states — each maps to a scene. */
+/** The switcher's state machine states - each maps to a scene. */
 export type SwitcherState = "NORMAL" | "LOW" | "OFFLINE";
 
 /**
@@ -60,7 +64,7 @@ export interface SwitcherOptionalScenes {
  * `settings.modules["obs"]` slice, which the switcher now rides
  * on; the slice's `switcherEnabled` flag decides whether it runs). Flat on
  * purpose: the module applies it field by field and the frontend form
- * carries the defaults — there is no core-side factory or normalizer.
+ * carries the defaults - there is no core-side factory or normalizer.
  */
 export interface SwitcherConfig {
     /** The OBS source name whose SRTLA source exposes the SRT stats. */
@@ -145,7 +149,7 @@ export interface ObsModuleView extends ModuleSliceView {
 export type ObsStatus = Status & {
     /** Live state of the low-bitrate switcher (null when the module is stopped). */
     lowBitrateSwitcher?: SwitcherStatus | null;
-    modules: ModulesView & { "obs"?: ObsModuleView };
+    modules: ModulesView & { obs?: ObsModuleView };
 };
 
 /** The module's persisted settings slice (`settings.modules["obs"]`). */

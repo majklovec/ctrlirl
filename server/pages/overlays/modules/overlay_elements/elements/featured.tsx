@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Featured widget — "featured" the latest chat message (or the latest sender)
+ * Featured widget - "featured" the latest chat message (or the latest sender)
  * in a big card: the streamer's reaction board, the giveaway picker display,
  * the "question of the moment". `kind` picks message vs user. Fed by the
  * shared `LiveChatFeed` connector.
@@ -157,7 +157,7 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode<any, any> {
 								fontSize: `${Math.round(fontSize * 0.55)}px`,
 							}}
 						>
-							— {latest.msg.username}
+							- {latest.msg.username}
 						</div>
 					) : null}
 				</div>
@@ -166,7 +166,12 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode<any, any> {
 	});
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const p = e.props;
 	return bindableForm({
 		element: e,

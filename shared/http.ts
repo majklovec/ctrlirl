@@ -34,7 +34,7 @@ export function originAllowed(
 const I18N_PATH_RE = /^\/i18n\/([a-z]{2})\.json$/;
 
 /**
- * `/i18n/<lang>.json` — the on-demand i18next bundle the browser fetches when
+ * `/i18n/<lang>.json` - the on-demand i18next bundle the browser fetches when
  * a language is selected. The path is not content-hashed, so it is served
  * `no-cache` (tiny file, revalidated on every fetch). `catalog` maps a valid
  * language code to its records (loaded on demand and cached), or null for

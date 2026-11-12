@@ -4,7 +4,7 @@
  * `srtla_send` is the SRT→SRTLA bridge: it listens for a plain SRT stream on a
  * `sendPort` and re-emits it as an SRTLA stream to `remoteHost:remotePort`
  * across a bond of uplink interfaces. It takes plain `ip port` pairs plus an
- * uplinks file — not an `srt://` URL — and only a handful of optional flags,
+ * uplinks file - not an `srt://` URL - and only a handful of optional flags,
  * which differ by build (the BELABOX C binary understands none of them).
  *
  * `srtla_rec` is the SRTLA→SRT receiver: it listens for SRTLA on a UDP port and
@@ -253,7 +253,7 @@ export function defaultSourceIp(): string | null {
 }
 
 /**
- * Write a single-line uplinks file for a `srtla_send` leg (`sourceIp` — the
+ * Write a single-line uplinks file for a `srtla_send` leg (`sourceIp` - the
  * host's outbound IP; empty when unknown). Creates parent directories.
  */
 export async function writeUplinksFile(
@@ -635,7 +635,7 @@ export class SrtlaSend {
 
     /**
      * Spawn (or track, in dry run) the srtla_send for `launch`. The starter
-     * re-runs on every supervisor restart, so the launch — flags inclusive —
+     * re-runs on every supervisor restart, so the launch - flags inclusive -
      * is the single source of truth for respawns.
      */
     async start(
@@ -692,7 +692,7 @@ export class SrtlaSend {
     }
 
     async stop(): Promise<void> {
-        if (!this.sup && !this.dryRunActive) return; // never started — nothing to stop
+        if (!this.sup && !this.dryRunActive) return; // never started - nothing to stop
         await this.sup?.stop();
         this.control.stop();
         this.dryRunActive = false;
@@ -732,17 +732,17 @@ export class SrtlaSend {
                 this.services.notifyStateChange();
                 return;
             }
-            console.warn("SIGHUP failed — falling back to restart");
+            console.warn("SIGHUP failed - falling back to restart");
         }
 
         const { sendPort, remoteHost, remotePort } = this.live;
         if (!sendPort || !remoteHost || !remotePort) {
-            console.warn("No srtla_send args cached — cannot restart");
+            console.warn("No srtla_send args cached - cannot restart");
             return;
         }
         const launch = this.lastLaunch;
         if (!launch) {
-            console.warn("No srtla_send launch cached — cannot restart");
+            console.warn("No srtla_send launch cached - cannot restart");
             return;
         }
         console.log("Restarting srtla_send to pick up new uplinks file...");

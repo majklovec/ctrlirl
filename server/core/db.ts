@@ -11,7 +11,7 @@ import { isCompiledBinary } from "../../shared/util";
  * `schema_migrations` table, which makes `ALTER TABLE`-style changes safe
  * without per-column checks at the call site.
  *
- * To change the schema, add a new `NNNN_<name>.sql` file to `migrations/` —
+ * To change the schema, add a new `NNNN_<name>.sql` file to `migrations/` -
  * never edit an applied migration (its name is what the tracker compares
  * against).
  */
@@ -23,25 +23,21 @@ const MIGRATIONS_DIR = appPath("server/core/migrations");
  * Unbundled runs (`bun server/main.ts`, `bun test`) read the files from disk;
  * compiled binaries (`bun build --compile`) read the build-time manifest
  * generated/migrations.ts (scripts/gen_modules.ts), which inlines every
- * `.sql` file — a compiled process cannot readdir (import.meta.url lives in
+ * `.sql` file - a compiled process cannot readdir (import.meta.url lives in
  * Bun's virtual /$bunfs mount).
  */
 async function pendingMigrations(
     applied: Set<string>,
 ): Promise<[string, string][]> {
     const all: [string, string][] = isCompiledBinary()
-        ? Object.entries(
-              (await import("../../generated/migrations")).default,
-          )
+        ? Object.entries((await import("../../generated/migrations")).default)
         : readdirSync(MIGRATIONS_DIR)
               .filter((f) => f.endsWith(".sql"))
               .sort()
-              .map(
-                  (file): [string, string] => [
-                      file,
-                      readFileSync(join(MIGRATIONS_DIR, file), "utf8"),
-                  ],
-              );
+              .map((file): [string, string] => [
+                  file,
+                  readFileSync(join(MIGRATIONS_DIR, file), "utf8"),
+              ]);
     return all.filter(([file]) => !applied.has(file));
 }
 

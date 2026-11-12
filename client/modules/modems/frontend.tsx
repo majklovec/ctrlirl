@@ -1,5 +1,5 @@
-/* Modems card: the ModemManager modem panels — signal, operator, registration,
- * power — with the enable / disable / connect / disconnect / reset actions.
+/* Modems card: the ModemManager modem panels - signal, operator, registration,
+ * power - with the enable / disable / connect / disconnect / reset actions.
  */
 import "./styles.css";
 import {
@@ -7,19 +7,19 @@ import {
 	Badge,
 	Button,
 	Card,
-	DefinitionList,
 	type Child,
+	DefinitionList,
 } from "@ui/components/";
 import { confirmDialog } from "@ui/components/confirm";
 import { card, type DeviceCard } from "@ui/device/store";
 import { t } from "@ui/i18n";
 import m from "mithril";
 import type {
-	FrontendModule,
 	DeviceDashboardWidget,
+	FrontendModule,
 } from "../../../shared/contracts/frontend_module";
-import type { ModemInfo, ModemsStatus } from "./types";
 import log from "./log";
+import type { ModemInfo, ModemsStatus } from "./types";
 
 async function modemAction(
 	host: DeviceCard,
@@ -42,7 +42,7 @@ const stateKind = (state: string) =>
 			: "warn";
 
 function signal(quality?: number): Child {
-	if (quality === undefined) return "—";
+	if (quality === undefined) return "-";
 	return (
 		<span>
 			<meter
@@ -137,8 +137,7 @@ const modemsModule: FrontendModule = {
 	title: "Modems",
 	order: 25,
 	log,
-	available: (status) =>
-		status.role === "relay" || status.role === "encoder",
+	available: (status) => status.role === "relay" || status.role === "encoder",
 	dashboardWidgets: modemsDashboardWidgets,
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },

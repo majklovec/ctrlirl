@@ -16,7 +16,7 @@ describe("overlay runtime auto-reload (headless DOM)", () => {
     let reloadCalls = 0;
     let swUpdates = 0;
     // bun test shares globalThis across test files, so the DOM globals set
-    // up below must be restored afterwards — a leaked fake `WebSocket`
+    // up below must be restored afterwards - a leaked fake `WebSocket`
     // breaks the real-socket tests in other files.
     const savedGlobals: [string, unknown][] = [];
     let globalsSaved = false;
@@ -87,9 +87,22 @@ describe("overlay runtime auto-reload (headless DOM)", () => {
         // Minimal stand-ins for shared UI components, in case the runtime
         // bundle references them. None are rendered in these tests.
         const compStub = [
-            "Actions", "Badge", "Break", "Button", "Card", "Checkbox",
-            "CheckField", "DefinitionList", "Field", "FieldGroup", "Form",
-            "IconButton", "Input", "Modal", "NumberField", "Options",
+            "Actions",
+            "Badge",
+            "Break",
+            "Button",
+            "Card",
+            "Checkbox",
+            "CheckField",
+            "DefinitionList",
+            "Field",
+            "FieldGroup",
+            "Form",
+            "IconButton",
+            "Input",
+            "Modal",
+            "NumberField",
+            "Options",
             "Select",
         ]
             .map((n) => `export const ${n} = {};`)
@@ -115,10 +128,10 @@ describe("overlay runtime auto-reload (headless DOM)", () => {
                             cb: () => { contents: string; loader: string },
                         ): void;
                     }) {
-                        b.onLoad(
-                            { filter: /shared\/ui\/i18n\.tsx$/ },
-                            () => ({ contents: i18nStub, loader: "js" }),
-                        );
+                        b.onLoad({ filter: /shared\/ui\/i18n\.tsx$/ }, () => ({
+                            contents: i18nStub,
+                            loader: "js",
+                        }));
                         b.onLoad(
                             { filter: /shared\/ui\/components\/index\.tsx$/ },
                             () => ({ contents: compStub, loader: "js" }),
@@ -137,7 +150,9 @@ describe("overlay runtime auto-reload (headless DOM)", () => {
 
     afterAll(async () => {
         for (const file of pageBundleFiles)
-            await Bun.file(file).delete().catch(() => {});
+            await Bun.file(file)
+                .delete()
+                .catch(() => {});
         if (globalsSaved)
             for (const [key, value] of savedGlobals) {
                 const g = globalThis as Record<string, unknown>;
@@ -147,7 +162,7 @@ describe("overlay runtime auto-reload (headless DOM)", () => {
     });
 
     /** Import the bundled page script; it mounts the canvas and opens its
-     * (fake) websocket at the top level — a fresh file per load so Bun's
+     * (fake) websocket at the top level - a fresh file per load so Bun's
      * module cache reruns the script from scratch, as a fresh page would. */
     async function loadPage(): Promise<void> {
         reloadCalls = 0;
@@ -235,7 +250,10 @@ describe("overlay runtime auto-reload (headless DOM)", () => {
 
     test("stays put when no element embeds a module page", async () => {
         await loadPage();
-        snapshot(["https://example.com/embed", "https://127.0.0.1:1/othersite"]);
+        snapshot([
+            "https://example.com/embed",
+            "https://127.0.0.1:1/othersite",
+        ]);
         frame("overlays.channelsChanged", {
             dashboardId: "dash1",
             widgetId: "chat1",

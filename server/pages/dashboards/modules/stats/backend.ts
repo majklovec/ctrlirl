@@ -1,5 +1,5 @@
 /*
- * stats backend — one server-side hub for all configured YouTube, Twitch,
+ * stats backend - one server-side hub for all configured YouTube, Twitch,
  * and Kick channel references. Each source is polled independently and
  * published as a platform-tagged `stats.update` event.
  */

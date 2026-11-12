@@ -35,84 +35,84 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { requireCapability } from "../../../shared/capabilities";
 import type {
-	BackendModule,
-	Params,
+    BackendModule,
+    Params,
 } from "../../../shared/contracts/backend_module";
 import type {
-	NetworkInterfaces,
-	Uplinks,
+    NetworkInterfaces,
+    Uplinks,
 } from "../../../shared/contracts/module_capabilities";
 import {
-	applyLegPlan,
-	createUdpRelay,
-	relayTunName,
-	removeLegPlan,
-	sweepStaleLegTuns,
-	type UdpRelay,
-	type UdpRelayOptions,
+    applyLegPlan,
+    createUdpRelay,
+    relayTunName,
+    removeLegPlan,
+    sweepStaleLegTuns,
+    type UdpRelay,
+    type UdpRelayOptions,
 } from "../../../shared/lib/udp_relay";
 import {
-	MOBLINK_ANNOUNCE_INTERVAL_MS,
-	MOBLINK_DISCOVERY_PORT,
-	MOBLINK_RELAY_WS_PROTOCOL,
-	type MoblinkAnnounce,
-	type MoblinkDiscoveredEncoder,
-	type MoblinkRelayIface,
-	type MoblinkRelayIfaceEventType,
-	type MoblinkRelayWsMessage,
+    MOBLINK_ANNOUNCE_INTERVAL_MS,
+    MOBLINK_DISCOVERY_PORT,
+    MOBLINK_RELAY_WS_PROTOCOL,
+    type MoblinkAnnounce,
+    type MoblinkDiscoveredEncoder,
+    type MoblinkRelayIface,
+    type MoblinkRelayIfaceEventType,
+    type MoblinkRelayWsMessage,
 } from "../../../shared/moblink_discovery";
 import {
-	MDNS_ENCODER_SERVICE,
-	MDNS_RELAY_SERVICE,
-	type MdnsFound,
-	startMdnsAdvertiser,
-	startMdnsBrowser,
+    MDNS_ENCODER_SERVICE,
+    MDNS_RELAY_SERVICE,
+    type MdnsFound,
+    startMdnsAdvertiser,
+    startMdnsBrowser,
 } from "../../../shared/moblink_mdns";
 import {
-	ApiError,
-	optionalStringList,
-	requireBoolean,
-	requireHost,
+    ApiError,
+    optionalStringList,
+    requireBoolean,
+    requireHost,
 } from "../../../shared/params";
 import { errorMessage } from "../../../shared/util";
 import type { ModuleCore } from "../../backend/module_core";
 import {
-	knownEncoders,
-	lastUdpAnnounceAt,
-	noteEncoder,
-	startAnnouncing,
-	startListeningForEncoders,
-	stopAnnouncing,
-	stopListeningForEncoders,
-	sweepEncoders,
+    knownEncoders,
+    lastUdpAnnounceAt,
+    noteEncoder,
+    startAnnouncing,
+    startListeningForEncoders,
+    stopAnnouncing,
+    stopListeningForEncoders,
+    sweepEncoders,
 } from "./discovery";
 import log from "./log";
 import type {
-	MoblinkRelayConfig,
-	MoblinkRelayFailure,
-	MoblinkRelayState,
-	MoblinkRuntimeStatus,
+    MoblinkRelayConfig,
+    MoblinkRelayFailure,
+    MoblinkRelayState,
+    MoblinkRuntimeStatus,
 } from "./types";
 
 // ----------------------------------------------------------------------
 // Config (the `ctx.state.moblink` slice)
 // ----------------------------------------------------------------------
 const DEFAULTS: Required<
-	Omit<MoblinkRelayConfig, "interfaceNameOverrides" | "portMap">
+    Omit<MoblinkRelayConfig, "interfaceNameOverrides" | "portMap">
 > & {
-	interfaceNameOverrides: Record<string, string>;
-	portMap: Record<string, number>;
+    interfaceNameOverrides: Record<string, string>;
+    portMap: Record<string, number>;
 } = {
-	enabled: false,
-	nat: true,
-	announceHost: "",
-	listenPortBase: 4000,
-	interfaceAllow: [],
-	interfaceIgnore: ["docker.*", "veth.*"],
-	interfaceNameOverrides: {},
-	runtimeStatusFile: join(tmpdir(), "moblink-status.json"),
-	logLevel: "info",
-	portMap: {},
+    enabled: false,
+    nat: true,
+    announceHost: "",
+    listenPortBase: 4000,
+    interfaceAllow: [],
+    interfaceIgnore: ["docker.*", "veth.*"],
+    interfaceNameOverrides: {},
+    runtimeStatusFile: join(tmpdir(), "moblink-status.json"),
+    logLevel: "info",
+    portMap: {},
 };
 
 let core: ModuleCore;
@@ -144,56 +144,56 @@ const relays = new Map<string, UdpRelay>();
 const RATE_SAMPLE_MS = 1_000;
 const lastSample = new Map<string, { rx: number; tx: number; at: number }>();
 const liveRates = new Map<
-	string,
-	{ rxBytesPerSec: number; txBytesPerSec: number }
+    string,
+    { rxBytesPerSec: number; txBytesPerSec: number }
 >();
 let rateTimer: ReturnType<typeof setInterval> | undefined;
 
 /** One throughput sample: rate vs the previous reading, per live relay. */
 function sampleRates(): void {
-	const now = Date.now();
-	for (const [name, relay] of relays) {
-		const st = relay.stats();
-		const prev = lastSample.get(name);
-		if (prev) {
-			const dt = (now - prev.at) / 1000;
-			if (dt > 0) {
-				liveRates.set(name, {
-					// Counters are monotonic; clamp against a mid-sample
-					// restart (a fresh relay's counters start at 0).
-					rxBytesPerSec: Math.max(0, (st.encRxBytes - prev.rx) / dt),
-					txBytesPerSec: Math.max(0, (st.encTxBytes - prev.tx) / dt),
-				});
-			}
-		}
-		lastSample.set(name, {
-			rx: st.encRxBytes,
-			tx: st.encTxBytes,
-			at: now,
-		});
-	}
-	for (const name of [...lastSample.keys()])
-		if (!relays.has(name)) {
-			lastSample.delete(name);
-			liveRates.delete(name);
-		}
+    const now = Date.now();
+    for (const [name, relay] of relays) {
+        const st = relay.stats();
+        const prev = lastSample.get(name);
+        if (prev) {
+            const dt = (now - prev.at) / 1000;
+            if (dt > 0) {
+                liveRates.set(name, {
+                    // Counters are monotonic; clamp against a mid-sample
+                    // restart (a fresh relay's counters start at 0).
+                    rxBytesPerSec: Math.max(0, (st.encRxBytes - prev.rx) / dt),
+                    txBytesPerSec: Math.max(0, (st.encTxBytes - prev.tx) / dt),
+                });
+            }
+        }
+        lastSample.set(name, {
+            rx: st.encRxBytes,
+            tx: st.encTxBytes,
+            at: now,
+        });
+    }
+    for (const name of [...lastSample.keys()])
+        if (!relays.has(name)) {
+            lastSample.delete(name);
+            liveRates.delete(name);
+        }
 }
 
 /** Start the sampler (idempotent); run it for the module's lifetime. */
 function startRateSampler(): void {
-	if (rateTimer) return;
-	rateTimer = setInterval(sampleRates, RATE_SAMPLE_MS);
-	rateTimer.unref?.();
+    if (rateTimer) return;
+    rateTimer = setInterval(sampleRates, RATE_SAMPLE_MS);
+    rateTimer.unref?.();
 }
 
 /** Stop the sampler and drop all samples/rates. */
 function stopRateSampler(): void {
-	if (rateTimer) {
-		clearInterval(rateTimer);
-		rateTimer = undefined;
-	}
-	lastSample.clear();
-	liveRates.clear();
+    if (rateTimer) {
+        clearInterval(rateTimer);
+        rateTimer = undefined;
+    }
+    lastSample.clear();
+    liveRates.clear();
 }
 
 /**
@@ -209,71 +209,76 @@ const lastIfaceAddr = new Map<string, string>();
 const failures = new Map<string, string>();
 /**
  * Kernel leg plans provisioned by this relay (slot + TUN name per interface),
- * so `stopRelay` tears down exactly what `startRelay` installed — even if the
+ * so `stopRelay` tears down exactly what `startRelay` installed - even if the
  * eligible list shifted in the meantime and position-derived slots no longer
  * match.
  */
 const relayLegs = new Map<
-	string,
-{ slot: number; tun: string; uplinkIface: string; vifIp: string; nat: boolean }
+    string,
+    {
+        slot: number;
+        tun: string;
+        uplinkIface: string;
+        vifIp: string;
+        nat: boolean;
+    }
 >();
 
 /** Sudo-wrapped command runner for the privileged netplan/TUN shell-outs. */
 function privilegedRun(): NonNullable<UdpRelayOptions["runCommand"]> {
-	// CommandRunner is variadic; core.run takes args as a single array.
-	return async (cmd: string, ...args: string[]) => {
-		try {
-			const stdout = await core.run(cmd, args, true);
-			return { stdout, exitCode: 0 };
-		} catch {
-			// best-effort steps (del/-D) failing is expected on first run.
-			return { stdout: "", exitCode: 1 };
-		}
-	};
+    // CommandRunner is variadic; core.run takes args as a single array.
+    return async (cmd: string, ...args: string[]) => {
+        try {
+            const stdout = await core.run(cmd, args, true);
+            return { stdout, exitCode: 0 };
+        } catch {
+            // best-effort steps (del/-D) failing is expected on first run.
+            return { stdout: "", exitCode: 1 };
+        }
+    };
 }
 
 type ResolvedConfig = Required<
-	Omit<MoblinkRelayConfig, "interfaceNameOverrides" | "portMap">
+    Omit<MoblinkRelayConfig, "interfaceNameOverrides" | "portMap">
 > & {
-	interfaceNameOverrides: Record<string, string>;
-	portMap: Record<string, number>;
+    interfaceNameOverrides: Record<string, string>;
+    portMap: Record<string, number>;
 };
 
 /** Read the merged config slice (defaults backfilled on first read). */
 function config(): ResolvedConfig {
-	const raw = (core.state.data.moblink ?? {}) as Partial<MoblinkRelayConfig>;
-	const portMap: Record<string, number> = {};
-	for (const [name, port] of Object.entries(raw.portMap ?? {}))
-		if (Number.isInteger(port) && port >= 1 && port <= 65_535)
-			portMap[name] = port;
-	return {
-		enabled: raw.enabled ?? DEFAULTS.enabled,
-		nat: raw.nat ?? DEFAULTS.nat,
-		announceHost: raw.announceHost ?? DEFAULTS.announceHost,
-		listenPortBase: raw.listenPortBase ?? DEFAULTS.listenPortBase,
-		interfaceAllow: raw.interfaceAllow ?? DEFAULTS.interfaceAllow,
-		interfaceIgnore: raw.interfaceIgnore ?? DEFAULTS.interfaceIgnore,
-		interfaceNameOverrides:
-			raw.interfaceNameOverrides ?? DEFAULTS.interfaceNameOverrides,
-		runtimeStatusFile: raw.runtimeStatusFile ?? DEFAULTS.runtimeStatusFile,
-		logLevel: raw.logLevel ?? DEFAULTS.logLevel,
-		portMap,
-	};
+    const raw = (core.state.data.moblink ?? {}) as Partial<MoblinkRelayConfig>;
+    const portMap: Record<string, number> = {};
+    for (const [name, port] of Object.entries(raw.portMap ?? {}))
+        if (Number.isInteger(port) && port >= 1 && port <= 65_535)
+            portMap[name] = port;
+    return {
+        enabled: raw.enabled ?? DEFAULTS.enabled,
+        nat: raw.nat ?? DEFAULTS.nat,
+        announceHost: raw.announceHost ?? DEFAULTS.announceHost,
+        listenPortBase: raw.listenPortBase ?? DEFAULTS.listenPortBase,
+        interfaceAllow: raw.interfaceAllow ?? DEFAULTS.interfaceAllow,
+        interfaceIgnore: raw.interfaceIgnore ?? DEFAULTS.interfaceIgnore,
+        interfaceNameOverrides:
+            raw.interfaceNameOverrides ?? DEFAULTS.interfaceNameOverrides,
+        runtimeStatusFile: raw.runtimeStatusFile ?? DEFAULTS.runtimeStatusFile,
+        logLevel: raw.logLevel ?? DEFAULTS.logLevel,
+        portMap,
+    };
 }
 
 /** Persist the full config slice (for a stable state file). */
 function saveConfig(
-	patch: Partial<MoblinkRelayConfig>,
+    patch: Partial<MoblinkRelayConfig>,
 ): ReturnType<typeof config> {
-	const next = { ...config(), ...patch };
-	core.state.data.moblink = {
-		...next,
-		relayIds: (core.state.data.moblink as Record<string, unknown>)?.relayIds as
-			| Record<string, string>
-			| undefined,
-	};
-	core.saveState();
-	return next;
+    const next = { ...config(), ...patch };
+    core.state.data.moblink = {
+        ...next,
+        relayIds: (core.state.data.moblink as Record<string, unknown>)
+            ?.relayIds as Record<string, string> | undefined,
+    };
+    core.saveState();
+    return next;
 }
 
 /**
@@ -282,69 +287,69 @@ function saveConfig(
  * eligible names (already filtered and sorted).
  */
 export function eligibleInterfaces(
-	ifaces: Array<{ name: string; addresses: string[] }>,
-	cfg: ReturnType<typeof config>,
+    ifaces: Array<{ name: string; addresses: string[] }>,
+    cfg: ReturnType<typeof config>,
 ): string[] {
-	const allow = cfg.interfaceAllow.map((r) => new RegExp(r, "i"));
-	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
-	return ifaces
-		.filter((i) => i.addresses.length > 0)
-		.filter((i) =>
-			allow.length > 0
-				? allow.some((re) => re.test(i.name))
-				: !ignore.some((re) => re.test(i.name)),
-		)
-		.map((i) => i.name)
-		.sort();
+    const allow = cfg.interfaceAllow.map((r) => new RegExp(r, "i"));
+    const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
+    return ifaces
+        .filter((i) => i.addresses.length > 0)
+        .filter((i) =>
+            allow.length > 0
+                ? allow.some((re) => re.test(i.name))
+                : !ignore.some((re) => re.test(i.name)),
+        )
+        .map((i) => i.name)
+        .sort();
 }
 
 /** The interface address a relay should bind to (first IPv4, or the override). */
 function ifaceAddress(
-	name: string,
-	ifaces: Array<{ name: string; addresses: string[] }>,
-	cfg: ReturnType<typeof config> = config(),
+    name: string,
+    ifaces: Array<{ name: string; addresses: string[] }>,
+    cfg: ReturnType<typeof config> = config(),
 ): string | undefined {
-	const override = cfg.interfaceNameOverrides[name];
-	if (override) return override;
-	return ifaces.find((i) => i.name === name)?.addresses[0];
+    const override = cfg.interfaceNameOverrides[name];
+    if (override) return override;
+    return ifaces.find((i) => i.name === name)?.addresses[0];
 }
 
 // ----------------------------------------------------------------------
 // Port allocator (protocol.md §1: high-water mark, stable mappings)
 // ----------------------------------------------------------------------
 /**
- * Resolve `name`'s UDP port. A persisted mapping always wins — adding
+ * Resolve `name`'s UDP port. A persisted mapping always wins - adding
  * interfaces never reindexes existing ports and a downed interface keeps its
  * port. A NEW interface receives `highest_assigned_port + 1` (the port
  * high-water mark; `listenPortBase` seeds the very first allocation) and the
  * mapping is persisted immediately.
  */
 export function allocatePort(name: string): number {
-	const cfg = config();
-	const existing = cfg.portMap[name];
-	if (existing !== undefined) return existing;
-	const ports = Object.values(cfg.portMap);
-	const highWater =
-		ports.length > 0 ? Math.max(...ports) : cfg.listenPortBase - 1;
-	let port = highWater + 1;
-	// Defense against a corrupted map: never hand out a taken port.
-	while (ports.includes(port)) port += 1;
-	if (port > 65_535)
-		throw new ApiError(
-			`no free relay port for ${name} (high water ${highWater})`,
-			409,
-		);
-	saveConfig({ portMap: { ...cfg.portMap, [name]: port } });
-	return port;
+    const cfg = config();
+    const existing = cfg.portMap[name];
+    if (existing !== undefined) return existing;
+    const ports = Object.values(cfg.portMap);
+    const highWater =
+        ports.length > 0 ? Math.max(...ports) : cfg.listenPortBase - 1;
+    let port = highWater + 1;
+    // Defense against a corrupted map: never hand out a taken port.
+    while (ports.includes(port)) port += 1;
+    if (port > 65_535)
+        throw new ApiError(
+            `no free relay port for ${name} (high water ${highWater})`,
+            409,
+        );
+    saveConfig({ portMap: { ...cfg.portMap, [name]: port } });
+    return port;
 }
 
 /** Free a removed interface's port mapping (the other mappings stay put). */
 export function freePort(name: string): void {
-	const cfg = config();
-	if (cfg.portMap[name] === undefined) return;
-	const next = { ...cfg.portMap };
-	delete next[name];
-	saveConfig({ portMap: next });
+    const cfg = config();
+    if (cfg.portMap[name] === undefined) return;
+    const next = { ...cfg.portMap };
+    delete next[name];
+    saveConfig({ portMap: next });
 }
 
 /** Root of the per-interface sysfs dir (test seam: point at a fixture). */
@@ -352,42 +357,44 @@ let sysfsNetDir = "/sys/class/net";
 
 /** Test seam: point the operstate read at a fixture directory (null restores the default). */
 export function setSysfsNetForTest(dir: string | null): void {
-	sysfsNetDir = dir ?? "/sys/class/net";
+    sysfsNetDir = dir ?? "/sys/class/net";
 }
 
 /**
  * Carrier state of a machine interface: `false` only when the OS explicitly
  * reports it down. Read failures (missing sysfs entry, e.g. a test-only
- * interface name) are lenient and report `up` — a relay that cannot bind is
+ * interface name) are lenient and report `up` - a relay that cannot bind is
  * surfaced as a failure, not a carrier loss.
  */
 export function carrierUp(name: string): boolean {
-	try {
-		return (
-			readFileSync(join(sysfsNetDir, name, "operstate"), "utf8").trim() !==
-			"down"
-		);
-	} catch {
-		return true;
-	}
+    try {
+        return (
+            readFileSync(
+                join(sysfsNetDir, name, "operstate"),
+                "utf8",
+            ).trim() !== "down"
+        );
+    } catch {
+        return true;
+    }
 }
 
 /**
  * Negotiated link speed in Mb/s from sysfs; `undefined` when the kernel
- * reports it unknown (-1 / EINVAL — Wi-Fi, most modems, no carrier). Mirrors
+ * reports it unknown (-1 / EINVAL - Wi-Fi, most modems, no carrier). Mirrors
  * the network module's `linkSpeed` so the relay card shows the same value the
  * encoder's interfaces card shows.
  */
 function linkSpeed(name: string): number | undefined {
-	try {
-		const mbps = parseInt(
-			readFileSync(join("/sys/class/net", name, "speed"), "utf8").trim(),
-			10,
-		);
-		return mbps > 0 && mbps < 0xffffffff ? mbps : undefined;
-	} catch {
-		return undefined;
-	}
+    try {
+        const mbps = parseInt(
+            readFileSync(join("/sys/class/net", name, "speed"), "utf8").trim(),
+            10,
+        );
+        return mbps > 0 && mbps < 0xffffffff ? mbps : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -400,16 +407,16 @@ function linkSpeed(name: string): number | undefined {
  * nothing to advertise.
  */
 export function effectiveAnnounceHost(): string {
-	const cfg = config();
-	const manual = cfg.announceHost.trim();
-	if (manual) return manual;
-	const ifaces = netIfaces?.list() ?? [];
-	const auto =
-		[...relays.values()][0]?.interfaceAddress ??
-		eligibleInterfaces(ifaces, cfg)
-			.map((name) => ifaceAddress(name, ifaces, cfg))
-			.find(Boolean);
-	return auto ?? "";
+    const cfg = config();
+    const manual = cfg.announceHost.trim();
+    if (manual) return manual;
+    const ifaces = netIfaces?.list() ?? [];
+    const auto =
+        [...relays.values()][0]?.interfaceAddress ??
+        eligibleInterfaces(ifaces, cfg)
+            .map((name) => ifaceAddress(name, ifaces, cfg))
+            .find(Boolean);
+    return auto ?? "";
 }
 
 /**
@@ -419,75 +426,75 @@ export function effectiveAnnounceHost(): string {
  * entry (this list IS the relay's uplink set).
  */
 export function relayIfaceList(): MoblinkRelayIface[] {
-	const cfg = config();
-	const ifaces = netIfaces?.list() ?? [];
-	return eligibleInterfaces(ifaces, cfg).map((name) => ({
-		iface_name: name,
-		ip: ifaceAddress(name, ifaces, cfg) ?? "",
-		udp_port: allocatePort(name),
-		state: relays.has(name) ? ("up" as const) : ("down" as const),
-		uplink: true,
-	}));
+    const cfg = config();
+    const ifaces = netIfaces?.list() ?? [];
+    return eligibleInterfaces(ifaces, cfg).map((name) => ({
+        iface_name: name,
+        ip: ifaceAddress(name, ifaces, cfg) ?? "",
+        udp_port: allocatePort(name),
+        state: relays.has(name) ? ("up" as const) : ("down" as const),
+        uplink: true,
+    }));
 }
 
 function buildStatus(): MoblinkRuntimeStatus {
-	const cfg = config();
-	const ifaces = netIfaces?.list() ?? [];
-	const availableInterfaces = eligibleInterfaces(ifaces, cfg).map((name) => {
-		const rate = liveRates.get(name);
-		return {
-			name,
-			address: ifaceAddress(name, ifaces, cfg) ?? "",
-			// High-water-mark mapping (protocol.md §1) — never base+index.
-			listenPort: allocatePort(name),
-			state: relays.has(name) ? ("up" as const) : ("down" as const),
-			speed: linkSpeed(name),
-			// The REAL relayed throughput (bytes/sec), sampled live — this is
-			// what the card shows, not the negotiated `speed` above.
-			rxBytesPerSec: rate?.rxBytesPerSec,
-			txBytesPerSec: rate?.txBytesPerSec,
-		};
-	});
-	const relaysArr = [...relays.entries()].map(([name, relay]) => {
-		const st = relay.stats();
-		return {
-			interfaceName: name,
-			interfaceAddress: relay.interfaceAddress,
-			stats: {
-				encRxPackets: st.encRxPackets,
-				encTxPackets: st.encTxPackets,
-				lastEncoderSeen: st.lastEncoderSeen,
-			},
-		};
-	});
-	const downList = [...downIfaces.keys()].filter((name) =>
-		availableInterfaces.some((i) => i.name === name),
-	);
-	// The encoders this relay learned about, each with the live state of the
-	// control-channel WebSocket to it (the card shows the relay→encoder links).
-	const encoders = knownEncoders().map((e) => {
-		const ch = encoderChannels.get(e.encoderId);
-		return {
-			id: e.encoderId,
-			connected: !!ch && ch.ws.readyState === WebSocket.OPEN,
-			lastSeen: e.lastSeen,
-		};
-	});
-	return {
-		connected: relays.size > 0,
-		announceHost: effectiveAnnounceHost(),
-		availableInterfaces,
-		relays: relaysArr,
-		downInterfaces: downList,
-		failures: [...failures.entries()].map(([interfaceName, reason]) => ({
-			interfaceName,
-			reason,
-		})),
-		lastMdnsAnnounceAt,
-		lastUdpAnnounceAt: lastUdpAnnounceAt(),
-		lastWsAdvertiseAt,
-		encoders,
-	};
+    const cfg = config();
+    const ifaces = netIfaces?.list() ?? [];
+    const availableInterfaces = eligibleInterfaces(ifaces, cfg).map((name) => {
+        const rate = liveRates.get(name);
+        return {
+            name,
+            address: ifaceAddress(name, ifaces, cfg) ?? "",
+            // High-water-mark mapping (protocol.md §1) - never base+index.
+            listenPort: allocatePort(name),
+            state: relays.has(name) ? ("up" as const) : ("down" as const),
+            speed: linkSpeed(name),
+            // The REAL relayed throughput (bytes/sec), sampled live - this is
+            // what the card shows, not the negotiated `speed` above.
+            rxBytesPerSec: rate?.rxBytesPerSec,
+            txBytesPerSec: rate?.txBytesPerSec,
+        };
+    });
+    const relaysArr = [...relays.entries()].map(([name, relay]) => {
+        const st = relay.stats();
+        return {
+            interfaceName: name,
+            interfaceAddress: relay.interfaceAddress,
+            stats: {
+                encRxPackets: st.encRxPackets,
+                encTxPackets: st.encTxPackets,
+                lastEncoderSeen: st.lastEncoderSeen,
+            },
+        };
+    });
+    const downList = [...downIfaces.keys()].filter((name) =>
+        availableInterfaces.some((i) => i.name === name),
+    );
+    // The encoders this relay learned about, each with the live state of the
+    // control-channel WebSocket to it (the card shows the relay→encoder links).
+    const encoders = knownEncoders().map((e) => {
+        const ch = encoderChannels.get(e.encoderId);
+        return {
+            id: e.encoderId,
+            connected: !!ch && ch.ws.readyState === WebSocket.OPEN,
+            lastSeen: e.lastSeen,
+        };
+    });
+    return {
+        connected: relays.size > 0,
+        announceHost: effectiveAnnounceHost(),
+        availableInterfaces,
+        relays: relaysArr,
+        downInterfaces: downList,
+        failures: [...failures.entries()].map(([interfaceName, reason]) => ({
+            interfaceName,
+            reason,
+        })),
+        lastMdnsAnnounceAt,
+        lastUdpAnnounceAt: lastUdpAnnounceAt(),
+        lastWsAdvertiseAt,
+        encoders,
+    };
 }
 
 /**
@@ -496,49 +503,49 @@ function buildStatus(): MoblinkRuntimeStatus {
  * offer (no eligible interfaces), so the announce tick is skipped.
  */
 export function announcePayload(): MoblinkAnnounce | null {
-	const cfg = config();
-	const ifaces = buildStatus().availableInterfaces;
-	if (ifaces.length === 0) return null;
-	// The announced relay identity: manual override if set, else the
-	// auto-detected LAN address (the first eligible interface).
-	const host = effectiveAnnounceHost() || ifaces[0].address;
-	if (!host) return null;
-	// A manual announceHost covers every tunnel (NATted / interconnect-only
-	// NIC). In auto mode the encoder dials each interface's OWN IP
-	// (protocol.md §3/§5: "the IP address is the address of the relay
-	// interface that the encoder should use to reach the relay").
-	const perIfaceAddress = cfg.announceHost.trim() === "";
-	return {
-		v: 1,
-		host,
-		hostname: hostname(),
-		interfaces: ifaces.map((i) => ({
-			name: i.name,
-			address: perIfaceAddress ? i.address || host : host,
-			// The vif /32 this leg bridges (the encoder source the relay NATs
-			// to the uplink). Only present while the leg is running.
-			vif_ip: relayLegs.get(i.name)?.vifIp,
-			listenPort: i.listenPort,
-			// Down paths stay advertised (port kept) so the encoder keeps the
-			// mapping and reuses it when the path returns (protocol.md §1/§5).
-			state: i.state,
-		})),
-		ts: Date.now(),
-	};
+    const cfg = config();
+    const ifaces = buildStatus().availableInterfaces;
+    if (ifaces.length === 0) return null;
+    // The announced relay identity: manual override if set, else the
+    // auto-detected LAN address (the first eligible interface).
+    const host = effectiveAnnounceHost() || ifaces[0].address;
+    if (!host) return null;
+    // A manual announceHost covers every tunnel (NATted / interconnect-only
+    // NIC). In auto mode the encoder dials each interface's OWN IP
+    // (protocol.md §3/§5: "the IP address is the address of the relay
+    // interface that the encoder should use to reach the relay").
+    const perIfaceAddress = cfg.announceHost.trim() === "";
+    return {
+        v: 1,
+        host,
+        hostname: hostname(),
+        interfaces: ifaces.map((i) => ({
+            name: i.name,
+            address: perIfaceAddress ? i.address || host : host,
+            // The vif /32 this leg bridges (the encoder source the relay NATs
+            // to the uplink). Only present while the leg is running.
+            vif_ip: relayLegs.get(i.name)?.vifIp,
+            listenPort: i.listenPort,
+            // Down paths stay advertised (port kept) so the encoder keeps the
+            // mapping and reuses it when the path returns (protocol.md §1/§5).
+            state: i.state,
+        })),
+        ts: Date.now(),
+    };
 }
 
 /** Write the runtime status file (best-effort, never throws). */
 async function writeStatusFile(): Promise<void> {
-	const cfg = config();
-	try {
-		const status = buildStatus();
-		await core.writeFileAtomic(
-			cfg.runtimeStatusFile,
-			JSON.stringify(status, null, 2),
-		);
-	} catch (e) {
-		core.logEvent("warn", "Relay", `status file: ${errorMessage(e)}`);
-	}
+    const cfg = config();
+    try {
+        const status = buildStatus();
+        await core.writeFileAtomic(
+            cfg.runtimeStatusFile,
+            JSON.stringify(status, null, 2),
+        );
+    } catch (e) {
+        core.logEvent("warn", "Relay", `status file: ${errorMessage(e)}`);
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -553,116 +560,121 @@ async function writeStatusFile(): Promise<void> {
 let relayTunFactory: UdpRelayOptions["tunFactory"];
 let relaySocketFactory: UdpRelayOptions["socketFactory"];
 export function setRelayFactories(
-	factories: {
-		tunFactory?: UdpRelayOptions["tunFactory"];
-		socketFactory?: UdpRelayOptions["socketFactory"];
-	} | undefined,
+    factories:
+        | {
+              tunFactory?: UdpRelayOptions["tunFactory"];
+              socketFactory?: UdpRelayOptions["socketFactory"];
+          }
+        | undefined,
 ): void {
-	relayTunFactory = factories?.tunFactory;
-	relaySocketFactory = factories?.socketFactory;
+    relayTunFactory = factories?.tunFactory;
+    relaySocketFactory = factories?.socketFactory;
 }
 
 /**
  * Stable leg slot for `name`: its position in the current eligible list.
  * Drives both the routing table (`legTable`) and the TUN name
- * (`relayTunName`) — recorded in `relayLegs` at start so teardown uses the
+ * (`relayTunName`) - recorded in `relayLegs` at start so teardown uses the
  * right table even if the list shifts later.
  */
 function legSlotFor(name: string): number {
-	const ifaces = netIfaces?.list() ?? [];
-	const eligible = eligibleInterfaces(ifaces, config());
-	return Math.max(0, eligible.indexOf(name));
+    const ifaces = netIfaces?.list() ?? [];
+    const eligible = eligibleInterfaces(ifaces, config());
+    return Math.max(0, eligible.indexOf(name));
 }
 
 async function startRelay(
-	name: string,
-	addr: string,
-	listenPort: number,
+    name: string,
+    addr: string,
+    listenPort: number,
 ): Promise<UdpRelay> {
-	const slot = legSlotFor(name);
-	const tunName = relayTunName(slot, name);
-	const relay = await createUdpRelay({
-		interfaceName: name,
-		listenPort,
-		vifIp: addr,
-		interfaceAddress: addr,
-		tunName,
-		// All local addresses: the relay is NIC-agnostic, the kernel pins
-		// egress per-leg (see applyLegPlan).
-		listenAddress: "0.0.0.0",
-		runCommand: privilegedRun(),
-		tunFactory: relayTunFactory,
-		socketFactory: relaySocketFactory,
-		// The leg's kernel netplan (table/iif-rule/NAT/FORWARD) is installed
-		// up front in startRelay now — learning the vif IP only logs it.
-		onVifLearned: (vifIp) =>
-			core.logEvent("info", "Relay", `vif ${vifIp} leg on ${name}`),
-	});
-	await relay.start();
-	// Bring the leg's TUN up + install its kernel netplan. A failure here
-	// tears the relay back down (the port is re-claimed by the failures path).
-	try {
-		await core.run("ip", ["link", "set", tunName, "up"], true);
-		await applyLegPlan(
-			privilegedRun(),
-			{ slot, tun: tunName, uplinkIface: name, vifIp: addr, nat: config().nat },
-		);
-	} catch (e) {
-		await relay.stop().catch(() => {});
-		throw e;
-	}
-	relayLegs.set(name, {
-		slot,
-		tun: tunName,
-		uplinkIface: name,
-		vifIp: addr,
-		nat: config().nat,
-	});
-	relays.set(name, relay);
-	lastIfaceAddr.set(name, addr);
-	failures.delete(name);
-	return relay;
+    const slot = legSlotFor(name);
+    const tunName = relayTunName(slot, name);
+    const relay = await createUdpRelay({
+        interfaceName: name,
+        listenPort,
+        vifIp: addr,
+        interfaceAddress: addr,
+        tunName,
+        // All local addresses: the relay is NIC-agnostic, the kernel pins
+        // egress per-leg (see applyLegPlan).
+        listenAddress: "0.0.0.0",
+        runCommand: privilegedRun(),
+        tunFactory: relayTunFactory,
+        socketFactory: relaySocketFactory,
+        // The leg's kernel netplan (table/iif-rule/NAT/FORWARD) is installed
+        // up front in startRelay now - learning the vif IP only logs it.
+        onVifLearned: (vifIp) =>
+            core.logEvent("info", "Relay", `vif ${vifIp} leg on ${name}`),
+    });
+    await relay.start();
+    // Bring the leg's TUN up + install its kernel netplan. A failure here
+    // tears the relay back down (the port is re-claimed by the failures path).
+    try {
+        await core.run("ip", ["link", "set", tunName, "up"], true);
+        await applyLegPlan(privilegedRun(), {
+            slot,
+            tun: tunName,
+            uplinkIface: name,
+            vifIp: addr,
+            nat: config().nat,
+        });
+    } catch (e) {
+        await relay.stop().catch(() => {});
+        throw e;
+    }
+    relayLegs.set(name, {
+        slot,
+        tun: tunName,
+        uplinkIface: name,
+        vifIp: addr,
+        nat: config().nat,
+    });
+    relays.set(name, relay);
+    lastIfaceAddr.set(name, addr);
+    failures.delete(name);
+    return relay;
 }
 
 async function stopRelay(name: string): Promise<void> {
-	const relay = relays.get(name);
-	if (!relay) return;
-	await relay.stop();
-	relays.delete(name);
-	const leg = relayLegs.get(name);
-	if (leg) {
-		relayLegs.delete(name);
-		// Best-effort: a teardown hiccup must not block the relay stop.
-		void removeLegPlan(privilegedRun(), leg).catch((e: unknown) =>
-			core.logEvent(
-				"warn",
-				"Relay",
-				`leg teardown ${leg.tun}: ${
-					e instanceof Error ? e.message : String(e)
-				}`,
-			),
-		);
-	}
-	liveRates.delete(name);
-	lastIfaceAddr.delete(name);
-	failures.delete(name);
-	downIfaces.delete(name);
+    const relay = relays.get(name);
+    if (!relay) return;
+    await relay.stop();
+    relays.delete(name);
+    const leg = relayLegs.get(name);
+    if (leg) {
+        relayLegs.delete(name);
+        // Best-effort: a teardown hiccup must not block the relay stop.
+        void removeLegPlan(privilegedRun(), leg).catch((e: unknown) =>
+            core.logEvent(
+                "warn",
+                "Relay",
+                `leg teardown ${leg.tun}: ${
+                    e instanceof Error ? e.message : String(e)
+                }`,
+            ),
+        );
+    }
+    liveRates.delete(name);
+    lastIfaceAddr.delete(name);
+    failures.delete(name);
+    downIfaces.delete(name);
 }
 
 /**
  * Interfaces this relay has OFFERED before: ever mapped a port, or ever ran a
- * relay. Drives which `interface_added` / `interface_removed` events fire —
+ * relay. Drives which `interface_added` / `interface_removed` events fire -
  * an interface first announced for the snapshot is not re-announced as
  * "added" (protocol.md §4).
  */
 const seenIfaces = new Set<string>();
 function markSeen(name: string): void {
-	seenIfaces.add(name);
+    seenIfaces.add(name);
 }
 
 /**
  * True once the startup snapshot sync has run. Interfaces first seen in that
- * sync are announced silently — they go out in the WS `hello` snapshot
+ * sync are announced silently - they go out in the WS `hello` snapshot
  * (protocol.md §4). An interface that appears LATER (hotplug, a new segment
  * coming up with the relay already running) is a real change and must reach
  * the connected encoders as `interface_added` immediately. `start()`/`stop()`
@@ -673,16 +685,16 @@ let runtimeSync = false;
 /** Rebuild the "seen" set after a process restart (from persisted mappings).
  * Exported for tests (to reset the history between cases). */
 export function reseedSeen(): void {
-	seenIfaces.clear();
-	for (const name of Object.keys(config().portMap)) seenIfaces.add(name);
+    seenIfaces.clear();
+    for (const name of Object.keys(config().portMap)) seenIfaces.add(name);
 }
 
 const ifaceInfo = (
-	name: string,
-	ifaces: Array<{ name: string; addresses: string[] }>,
+    name: string,
+    ifaces: Array<{ name: string; addresses: string[] }>,
 ): { addr: string; port: number } => ({
-	addr: ifaceAddress(name, ifaces) ?? "",
-	port: allocatePort(name),
+    addr: ifaceAddress(name, ifaces) ?? "",
+    port: allocatePort(name),
 });
 
 /**
@@ -691,11 +703,11 @@ const ifaceInfo = (
  *
  * Port and state semantics (protocol.md §1/§4):
  *  - ports come from the persisted high-water-mark mapping (`allocatePort`)
- *    — an added interface never reindexes the existing ones;
+ *    - an added interface never reindexes the existing ones;
  *  - an ABSENT interface that was offered before is removed (mapping freed,
  *    `interface_removed`);
  *  - a PRESENT interface with no usable path (no IPv4, carrier down, or a
- *    failed bind) is marked DOWN — its mapping is kept, `interface_down`;
+ *    failed bind) is marked DOWN - its mapping is kept, `interface_down`;
  *  - a DOWN interface whose path returned is started on its KEEP port and
  *    reported `interface_up`;
  *  - an interface first seen in the STARTUP snapshot sync is started silently
@@ -704,221 +716,237 @@ const ifaceInfo = (
  *    connected encoders learn about it immediately.
  *
  * The emitted events are returned (and must be forwarded to the connected
- * encoders by the caller — see `startEncoderChannels`).
+ * encoders by the caller - see `startEncoderChannels`).
  */
 export async function syncRelays(rollbackOnFailure = false): Promise<{
-	started: string[];
-	stopped: string[];
-	failures: MoblinkRelayFailure[];
-	events: Array<{ type: MoblinkRelayIfaceEventType; iface: MoblinkRelayIface }>;
+    started: string[];
+    stopped: string[];
+    failures: MoblinkRelayFailure[];
+    events: Array<{
+        type: MoblinkRelayIfaceEventType;
+        iface: MoblinkRelayIface;
+    }>;
 }> {
-	const cfg = config();
-	const ifaces = netIfaces.list();
-	const eligible = new Set(eligibleInterfaces(ifaces, cfg));
-	const started: string[] = [];
-	const stopped: string[] = [];
-	const failuresOut: MoblinkRelayFailure[] = [];
-	const events: Array<{
-		type: MoblinkRelayIfaceEventType;
-		iface: MoblinkRelayIface;
-	}> = [];
-	/** Relays started by THIS pass — rolled back if a later one fails (spec §10.3). */
-	const startedThisPass: string[] = [];
+    const cfg = config();
+    const ifaces = netIfaces.list();
+    const eligible = new Set(eligibleInterfaces(ifaces, cfg));
+    const started: string[] = [];
+    const stopped: string[] = [];
+    const failuresOut: MoblinkRelayFailure[] = [];
+    const events: Array<{
+        type: MoblinkRelayIfaceEventType;
+        iface: MoblinkRelayIface;
+    }> = [];
+    /** Relays started by THIS pass - rolled back if a later one fails (spec §10.3). */
+    const startedThisPass: string[] = [];
 
-	// Interfaces no longer eligible: stop the relay, free the mapping
-	// (protocol.md §1: removals do not reindex the other ports).
-	for (const name of [...relays.keys(), ...downIfaces.keys()]) {
-		if (!eligible.has(name)) {
-			await stopRelay(name);
-			stopped.push(name);
-			if (seenIfaces.has(name)) {
-				const { addr, port } = ifaceInfo(name, ifaces);
-				events.push({
-					type: "interface_removed",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "down",
-						uplink: true,
-					},
-				});
-			}
-			freePort(name);
-			failures.delete(name);
-			seenIfaces.delete(name);
-		}
-	}
+    // Interfaces no longer eligible: stop the relay, free the mapping
+    // (protocol.md §1: removals do not reindex the other ports).
+    for (const name of [...relays.keys(), ...downIfaces.keys()]) {
+        if (!eligible.has(name)) {
+            await stopRelay(name);
+            stopped.push(name);
+            if (seenIfaces.has(name)) {
+                const { addr, port } = ifaceInfo(name, ifaces);
+                events.push({
+                    type: "interface_removed",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            }
+            freePort(name);
+            failures.delete(name);
+            seenIfaces.delete(name);
+        }
+    }
 
-	// Start / update relays for eligible interfaces.
-	for (const name of [...eligible]) {
-		const addr = ifaceAddress(name, ifaces, cfg);
-		const port = allocatePort(name);
-		const existed = seenIfaces.has(name);
-		markSeen(name);
-		if (!addr) {
-			// No IPv4: mark down (mapping kept), report the transition.
-			failures.set(name, "no IPv4 address");
-			failuresOut.push({ interfaceName: name, reason: "no IPv4 address" });
-			if (existed) {
-				await stopRelay(name);
-				downIfaces.set(name, {});
-				events.push({
-					type: "interface_down",
-					iface: {
-						iface_name: name,
-						ip: "",
-						udp_port: port,
-						state: "down",
-						uplink: true,
-					},
-				});
-			}
-			core.logEvent("warn", "Relay", `no IPv4 on ${name}`);
-			continue;
-		}
-		// Carrier down: mark down (mapping kept), report the transition.
-		if (!carrierUp(name)) {
-			failures.set(name, "interface is down");
-			failuresOut.push({ interfaceName: name, reason: "interface is down" });
-			if (existed) {
-				await stopRelay(name);
-				downIfaces.set(name, {});
-				events.push({
-					type: "interface_down",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "down",
-						uplink: true,
-					},
-				});
-			}
-			core.logEvent("warn", "Relay", `${name} is down — port ${port} kept`);
-			continue;
-		}
-		const existing = relays.get(name);
-		const existingAddr = lastIfaceAddr.get(name);
-		if (existing && existingAddr === addr) continue; // already correct
-		const wasDown = !existing && (existed || downIfaces.has(name));
-		if (existing) {
-			// Interface address changed: restart on the SAME (kept) port.
-			await stopRelay(name);
-		}
-		try {
-			await startRelay(name, addr, port);
-			started.push(name);
-			startedThisPass.push(name);
-			if (wasDown)
-				events.push({
-					type: "interface_up",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "up",
-						uplink: true,
-					},
-				});
-			else if (existed || runtimeSync)
-				// `runtimeSync`: an interface first seen while the relay is
-				// already running (hotplug / new segment) must not wait for
-				// the next `hello` — connected encoders get it now.
-				events.push({
-					type: "interface_added",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "up",
-						uplink: true,
-					},
-				});
-		} catch (e) {
-			const reason = errorMessage(e);
-			failures.set(name, reason);
-			failuresOut.push({ interfaceName: name, reason });
-			if (existed) {
-				downIfaces.set(name, { reason });
-				events.push({
-					type: "interface_down",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "down",
-						uplink: true,
-					},
-				});
-			}
-			if (rollbackOnFailure) {
-				// A start is atomic: a failure stops the relays this pass brought up.
-				for (const s of startedThisPass) await stopRelay(s);
-				startedThisPass.length = 0;
-				started.length = 0;
-				// stopRelay() clears the rolled-back entries; re-record this one.
-				failures.set(name, reason);
-				core.logEvent(
-					"error",
-					"Relay",
-					`start ${name} failed — rolled back: ${reason}`,
-				);
-				core.notifyStateChange();
-				await writeStatusFile();
-				throw new ApiError(`cannot start relay on ${name}: ${reason}`, 409);
-			}
-			core.logEvent("error", "Relay", `start ${name}: ${reason}`);
-		}
-	}
+    // Start / update relays for eligible interfaces.
+    for (const name of [...eligible]) {
+        const addr = ifaceAddress(name, ifaces, cfg);
+        const port = allocatePort(name);
+        const existed = seenIfaces.has(name);
+        markSeen(name);
+        if (!addr) {
+            // No IPv4: mark down (mapping kept), report the transition.
+            failures.set(name, "no IPv4 address");
+            failuresOut.push({
+                interfaceName: name,
+                reason: "no IPv4 address",
+            });
+            if (existed) {
+                await stopRelay(name);
+                downIfaces.set(name, {});
+                events.push({
+                    type: "interface_down",
+                    iface: {
+                        iface_name: name,
+                        ip: "",
+                        udp_port: port,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            }
+            core.logEvent("warn", "Relay", `no IPv4 on ${name}`);
+            continue;
+        }
+        // Carrier down: mark down (mapping kept), report the transition.
+        if (!carrierUp(name)) {
+            failures.set(name, "interface is down");
+            failuresOut.push({
+                interfaceName: name,
+                reason: "interface is down",
+            });
+            if (existed) {
+                await stopRelay(name);
+                downIfaces.set(name, {});
+                events.push({
+                    type: "interface_down",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            }
+            core.logEvent(
+                "warn",
+                "Relay",
+                `${name} is down - port ${port} kept`,
+            );
+            continue;
+        }
+        const existing = relays.get(name);
+        const existingAddr = lastIfaceAddr.get(name);
+        if (existing && existingAddr === addr) continue; // already correct
+        const wasDown = !existing && (existed || downIfaces.has(name));
+        if (existing) {
+            // Interface address changed: restart on the SAME (kept) port.
+            await stopRelay(name);
+        }
+        try {
+            await startRelay(name, addr, port);
+            started.push(name);
+            startedThisPass.push(name);
+            if (wasDown)
+                events.push({
+                    type: "interface_up",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "up",
+                        uplink: true,
+                    },
+                });
+            else if (existed || runtimeSync)
+                // `runtimeSync`: an interface first seen while the relay is
+                // already running (hotplug / new segment) must not wait for
+                // the next `hello` - connected encoders get it now.
+                events.push({
+                    type: "interface_added",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "up",
+                        uplink: true,
+                    },
+                });
+        } catch (e) {
+            const reason = errorMessage(e);
+            failures.set(name, reason);
+            failuresOut.push({ interfaceName: name, reason });
+            if (existed) {
+                downIfaces.set(name, { reason });
+                events.push({
+                    type: "interface_down",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            }
+            if (rollbackOnFailure) {
+                // A start is atomic: a failure stops the relays this pass brought up.
+                for (const s of startedThisPass) await stopRelay(s);
+                startedThisPass.length = 0;
+                started.length = 0;
+                // stopRelay() clears the rolled-back entries; re-record this one.
+                failures.set(name, reason);
+                core.logEvent(
+                    "error",
+                    "Relay",
+                    `start ${name} failed - rolled back: ${reason}`,
+                );
+                core.notifyStateChange();
+                await writeStatusFile();
+                throw new ApiError(
+                    `cannot start relay on ${name}: ${reason}`,
+                    409,
+                );
+            }
+            core.logEvent("error", "Relay", `start ${name}: ${reason}`);
+        }
+    }
 
-	core.notifyStateChange();
-	await writeStatusFile();
-	return { started, stopped, failures: failuresOut, events };
+    core.notifyStateChange();
+    await writeStatusFile();
+    return { started, stopped, failures: failuresOut, events };
 }
 
 async function stopAll(): Promise<void> {
-	for (const name of [...relays.keys()]) await stopRelay(name);
-	// Defensive: tear down any leg netplans whose relay left the map (a
-	// restart race can leave one).
-	for (const [name, leg] of [...relayLegs.entries()]) {
-		relayLegs.delete(name);
-		await removeLegPlan(privilegedRun(), leg).catch(() => {});
-	}
-	downIfaces.clear();
-	failures.clear();
-	core.notifyStateChange();
-	await writeStatusFile();
+    for (const name of [...relays.keys()]) await stopRelay(name);
+    // Defensive: tear down any leg netplans whose relay left the map (a
+    // restart race can leave one).
+    for (const [name, leg] of [...relayLegs.entries()]) {
+        relayLegs.delete(name);
+        await removeLegPlan(privilegedRun(), leg).catch(() => {});
+    }
+    downIfaces.clear();
+    failures.clear();
+    core.notifyStateChange();
+    await writeStatusFile();
 }
 
 /** A network interface set changed: resync + forward the interface events.
  * Runs even when no relay is up: that is exactly the moment a recovered or
  * hot-plugged interface must be announced (`interface_up` /
- * `interface_added`) — skipping the sync there is what left the encoders on
+ * `interface_added`) - skipping the sync there is what left the encoders on
  * a dead path until the next reconnect. `enabled` (not relay count) gates it:
  * a disabled module never starts relays from a network event. */
 async function onNetworkChange(): Promise<void> {
-	if (!config().enabled) return;
-	const { events } = await syncRelays();
-	pushIfaceEvents(events);
+    if (!config().enabled) return;
+    const { events } = await syncRelays();
+    pushIfaceEvents(events);
 }
 
 // ----------------------------------------------------------------------
 // Encoder discovery + relay → encoder WebSocket channels (protocol.md §2–§5)
 // ----------------------------------------------------------------------
 /** The relay identity sent in the WS hello (hostnames change when the
- * box is renamed; that is acceptable — encoders track the session, not us). */
+ * box is renamed; that is acceptable - encoders track the session, not us). */
 const RELAY_ID = hostname() || "irlctrl-relay";
 
 /** Reconnect backoff for a dropped relay → encoder WebSocket. */
 const ENCODER_WS_RECONNECT_MS = 5_000;
 
 interface EncoderChannel {
-	ws: WebSocket;
-	gen: number;
-	timer?: ReturnType<typeof setTimeout>;
-	/** Keepalive ping timer (cleared when the channel closes). */
-	hbeat?: ReturnType<typeof setInterval>;
+    ws: WebSocket;
+    gen: number;
+    timer?: ReturnType<typeof setTimeout>;
+    /** Keepalive ping timer (cleared when the channel closes). */
+    hbeat?: ReturnType<typeof setInterval>;
 }
 /** The live relay → encoder channels, keyed by `encoder_id` (announces are
  * re-sent periodically, so the key is stable). */
@@ -928,31 +956,31 @@ const pendingConnects = new Set<string>();
 
 /** The full snapshot message (protocol.md §3/§4: sent on every (re)connect). */
 function helloMessage(): MoblinkRelayWsMessage {
-	return {
-		type: "hello",
-		relay_id: RELAY_ID,
-		proto: MOBLINK_RELAY_WS_PROTOCOL,
-		interfaces: relayIfaceList(),
-	};
+    return {
+        type: "hello",
+        relay_id: RELAY_ID,
+        proto: MOBLINK_RELAY_WS_PROTOCOL,
+        interfaces: relayIfaceList(),
+    };
 }
 
 function closeEncoderChannel(key: string, gen: number): void {
-	const st = encoderChannels.get(key);
-	if (!st || st.gen !== gen) return; // already replaced / stopped
-	if (st.timer) clearTimeout(st.timer);
-	if (st.hbeat) clearInterval(st.hbeat);
-	encoderChannels.delete(key);
-	try {
-		st.ws.close();
-	} catch {
-		/* already closed */
-	}
+    const st = encoderChannels.get(key);
+    if (!st || st.gen !== gen) return; // already replaced / stopped
+    if (st.timer) clearTimeout(st.timer);
+    if (st.hbeat) clearInterval(st.hbeat);
+    encoderChannels.delete(key);
+    try {
+        st.ws.close();
+    } catch {
+        /* already closed */
+    }
 }
 
 function stopEncoderChannel(key: string): void {
-	const st = encoderChannels.get(key);
-	if (st) closeEncoderChannel(key, st.gen);
-	pendingConnects.delete(key);
+    const st = encoderChannels.get(key);
+    if (st) closeEncoderChannel(key, st.gen);
+    pendingConnects.delete(key);
 }
 
 /**
@@ -961,85 +989,85 @@ function stopEncoderChannel(key: string): void {
  * retry with a backoff while the encoder is still known.
  */
 function startEncoderChannel(e: MoblinkDiscoveredEncoder): void {
-	if (pendingConnects.has(e.encoderId)) return;
-	// An open (or connecting) channel already exists: do NOT dial again. The
-	// reconcile runs every announce tick, and a re-dial leaks the previous
-	// socket (the relay never closes it), so the encoder sees a fresh
-	// "relay WS connected" every 5 s — the flapping pattern. A failed connect
-	// removes the entry via `fail()`, which owns the re-dial.
-	const existing = encoderChannels.get(e.encoderId);
-	if (
-		existing &&
-		(existing.ws.readyState === WebSocket.OPEN ||
-			existing.ws.readyState === WebSocket.CONNECTING)
-	)
-		return;
-	pendingConnects.add(e.encoderId);
-	const gen = (existing?.gen ?? 0) + 1;
-	const url = `ws://${e.ip}:${e.wsPort}/moblink${
-		e.token ? `?token=${encodeURIComponent(e.token)}` : ""
-	}`;
-	let ws: WebSocket;
-	try {
-		ws = new WebSocket(url);
-	} catch {
-		pendingConnects.delete(e.encoderId);
-		return;
-	}
-	const st: EncoderChannel = { ws, gen };
-	encoderChannels.set(e.encoderId, st);
-	ws.onopen = (): void => {
-		pendingConnects.delete(e.encoderId);
-		// The channel is live: keep the encoder's TTL fresh (a live channel
-		// is self-sustaining; discovery only matters for the dial).
-		noteEncoder(e);
-		// Full snapshot on (re)connect — the encoder has a consistent view.
-		st.ws.send(JSON.stringify(helloMessage()));
-		lastWsAdvertiseAt = Date.now();
-		// Keepalive: the encoder replies `pong`; every frame in both
-		// directions refreshes the registry TTL (protocol.md §3).
-		st.hbeat = setInterval(() => {
-			if (st.ws.readyState !== WebSocket.OPEN) return;
-			try {
-				st.ws.send(JSON.stringify({ type: "ping" }));
-			} catch {
-				/* close handler owns the re-dial */
-			}
-		}, MOBLINK_ANNOUNCE_INTERVAL_MS);
-		st.hbeat.unref?.();
-		console.log(
-			`moblink_relay: WS connected to encoder ${e.encoderId} — snapshot sent (${relayIfaceList().length} iface(s))`,
-		);
-		// The link state surfaced on the card changed — refresh it now
-		// (don't wait for the next announce tick).
-		core.notifyStateChange();
-		void writeStatusFile();
-	};
-	ws.onmessage = (): void => {
-		// Any frame from the encoder (pong / events) proves the channel is
-		// alive → refresh the registry TTL so the sweep never reaps a live
-		// channel.
-		noteEncoder(e);
-	};
-	const fail = (why: string): void => {
-		if (encoderChannels.get(e.encoderId) !== st) return; // replaced
-		closeEncoderChannel(e.encoderId, st.gen);
-		// The link state surfaced on the card changed — refresh it now.
-		core.notifyStateChange();
-		void writeStatusFile();
-		if (knownEncoders().some((x) => x.encoderId === e.encoderId)) {
-			console.warn(
-				`moblink_relay: WS to encoder ${e.encoderId} lost (${why}) — retrying in ${ENCODER_WS_RECONNECT_MS / 1000}s`,
-			);
-			st.timer = setTimeout(
-				() => startEncoderChannel(e),
-				ENCODER_WS_RECONNECT_MS,
-			);
-			st.timer.unref?.();
-		}
-	};
-	ws.onerror = (): void => {}; // the close handler carries the reason
-	ws.onclose = (ev): void => fail(ev.reason || "closed");
+    if (pendingConnects.has(e.encoderId)) return;
+    // An open (or connecting) channel already exists: do NOT dial again. The
+    // reconcile runs every announce tick, and a re-dial leaks the previous
+    // socket (the relay never closes it), so the encoder sees a fresh
+    // "relay WS connected" every 5 s - the flapping pattern. A failed connect
+    // removes the entry via `fail()`, which owns the re-dial.
+    const existing = encoderChannels.get(e.encoderId);
+    if (
+        existing &&
+        (existing.ws.readyState === WebSocket.OPEN ||
+            existing.ws.readyState === WebSocket.CONNECTING)
+    )
+        return;
+    pendingConnects.add(e.encoderId);
+    const gen = (existing?.gen ?? 0) + 1;
+    const url = `ws://${e.ip}:${e.wsPort}/moblink${
+        e.token ? `?token=${encodeURIComponent(e.token)}` : ""
+    }`;
+    let ws: WebSocket;
+    try {
+        ws = new WebSocket(url);
+    } catch {
+        pendingConnects.delete(e.encoderId);
+        return;
+    }
+    const st: EncoderChannel = { ws, gen };
+    encoderChannels.set(e.encoderId, st);
+    ws.onopen = (): void => {
+        pendingConnects.delete(e.encoderId);
+        // The channel is live: keep the encoder's TTL fresh (a live channel
+        // is self-sustaining; discovery only matters for the dial).
+        noteEncoder(e);
+        // Full snapshot on (re)connect - the encoder has a consistent view.
+        st.ws.send(JSON.stringify(helloMessage()));
+        lastWsAdvertiseAt = Date.now();
+        // Keepalive: the encoder replies `pong`; every frame in both
+        // directions refreshes the registry TTL (protocol.md §3).
+        st.hbeat = setInterval(() => {
+            if (st.ws.readyState !== WebSocket.OPEN) return;
+            try {
+                st.ws.send(JSON.stringify({ type: "ping" }));
+            } catch {
+                /* close handler owns the re-dial */
+            }
+        }, MOBLINK_ANNOUNCE_INTERVAL_MS);
+        st.hbeat.unref?.();
+        console.log(
+            `moblink_relay: WS connected to encoder ${e.encoderId} - snapshot sent (${relayIfaceList().length} iface(s))`,
+        );
+        // The link state surfaced on the card changed - refresh it now
+        // (don't wait for the next announce tick).
+        core.notifyStateChange();
+        void writeStatusFile();
+    };
+    ws.onmessage = (): void => {
+        // Any frame from the encoder (pong / events) proves the channel is
+        // alive → refresh the registry TTL so the sweep never reaps a live
+        // channel.
+        noteEncoder(e);
+    };
+    const fail = (why: string): void => {
+        if (encoderChannels.get(e.encoderId) !== st) return; // replaced
+        closeEncoderChannel(e.encoderId, st.gen);
+        // The link state surfaced on the card changed - refresh it now.
+        core.notifyStateChange();
+        void writeStatusFile();
+        if (knownEncoders().some((x) => x.encoderId === e.encoderId)) {
+            console.warn(
+                `moblink_relay: WS to encoder ${e.encoderId} lost (${why}) - retrying in ${ENCODER_WS_RECONNECT_MS / 1000}s`,
+            );
+            st.timer = setTimeout(
+                () => startEncoderChannel(e),
+                ENCODER_WS_RECONNECT_MS,
+            );
+            st.timer.unref?.();
+        }
+    };
+    ws.onerror = (): void => {}; // the close handler carries the reason
+    ws.onclose = (ev): void => fail(ev.reason || "closed");
 }
 
 /**
@@ -1050,132 +1078,136 @@ function startEncoderChannel(e: MoblinkDiscoveredEncoder): void {
  * dead peer closes itself (the `fail` handler then owns the cleanup).
  */
 function reconcileEncoderChannels(): void {
-	for (const enc of knownEncoders()) startEncoderChannel(enc);
-	for (const [key, st] of [...encoderChannels]) {
-		if (
-			!knownEncoders().some((e) => e.encoderId === key) &&
-			st.ws.readyState !== WebSocket.OPEN &&
-			st.ws.readyState !== WebSocket.CONNECTING
-		)
-			stopEncoderChannel(key);
-	}
+    for (const enc of knownEncoders()) startEncoderChannel(enc);
+    for (const [key, st] of [...encoderChannels]) {
+        if (
+            !knownEncoders().some((e) => e.encoderId === key) &&
+            st.ws.readyState !== WebSocket.OPEN &&
+            st.ws.readyState !== WebSocket.CONNECTING
+        )
+            stopEncoderChannel(key);
+    }
 }
 
 /**
  * Control-server path (protocol.md §2.2): ask the control server for
- * registered encoders and hand them to the encoder registry. Best-effort —
+ * registered encoders and hand them to the encoder registry. Best-effort -
  * a down / unreachable control server must never block UDP discovery.
  * Throttled to one poll per 30 s.
  */
 /**
- * MUST stay well under the encoder registry TTL (15 s) — a control-server-
+ * MUST stay well under the encoder registry TTL (15 s) - a control-server-
  * only link (both boxes reachable, no LAN discovery) must be able to keep
  * the entry fresh on its own.
  */
 const CONTROL_SERVER_INTERVAL_MS = 10_000;
-/** Reset the control-server poll throttle (tests — the timestamp persists across cases). */
+/** Reset the control-server poll throttle (tests - the timestamp persists across cases). */
 export function resetControlServerCheck(): void {
-	lastControlServerCheck = 0;
+    lastControlServerCheck = 0;
 }
 async function ensureControlServerEncoders(): Promise<void> {
-	if (Date.now() - lastControlServerCheck < CONTROL_SERVER_INTERVAL_MS) return;
-	lastControlServerCheck = Date.now();
-	if (core.config.DRY_RUN) return;
-	try {
-		const devs = await core.listDevices();
-		for (const d of devs) {
-			if (d.role !== "encoder" || !d.online) continue;
-			const id = d.hostname ?? d.id;
-			if (knownEncoders().some((x) => x.encoderId === id)) continue;
-			const info = (await core.requestDevice(
-				d.id,
-				"moblink_streamer.encoderInfo",
-			)) as { ip?: string; wsPort?: number; token?: string } | null;
-			if (!info?.ip || !info.wsPort) continue;
-			noteEncoder({
-				encoderId: id,
-				ip: info.ip,
-				wsPort: info.wsPort,
-				proto: MOBLINK_RELAY_WS_PROTOCOL,
-				token: info.token,
-				lastSeen: Date.now(),
-			});
-			const enc = knownEncoders().find((x) => x.encoderId === id);
-			if (enc) startEncoderChannel(enc);
-		}
-	} catch {
-		/* control server down or link closed — UDP discovery keeps working */
-	}
+    if (Date.now() - lastControlServerCheck < CONTROL_SERVER_INTERVAL_MS)
+        return;
+    lastControlServerCheck = Date.now();
+    if (core.config.DRY_RUN) return;
+    try {
+        const devs = await core.listDevices();
+        for (const d of devs) {
+            if (d.role !== "encoder" || !d.online) continue;
+            const id = d.hostname ?? d.id;
+            if (knownEncoders().some((x) => x.encoderId === id)) continue;
+            const info = (await core.requestDevice(
+                d.id,
+                "moblink_streamer.encoderInfo",
+            )) as { ip?: string; wsPort?: number; token?: string } | null;
+            if (!info?.ip || !info.wsPort) continue;
+            noteEncoder({
+                encoderId: id,
+                ip: info.ip,
+                wsPort: info.wsPort,
+                proto: MOBLINK_RELAY_WS_PROTOCOL,
+                token: info.token,
+                lastSeen: Date.now(),
+            });
+            const enc = knownEncoders().find((x) => x.encoderId === id);
+            if (enc) startEncoderChannel(enc);
+        }
+    } catch {
+        /* control server down or link closed - UDP discovery keeps working */
+    }
 }
 
 /** The events the last `pushIfaceEvents` call handed to the encoder WS
  * channels (test seam). */
 let lastPushEvents: Array<{
-	type: MoblinkRelayIfaceEventType;
-	iface: MoblinkRelayIface;
+    type: MoblinkRelayIfaceEventType;
+    iface: MoblinkRelayIface;
 }> = [];
 
 /** Test seam: the events the last `pushIfaceEvents` forwarded to the
  * connected encoders (empty after a push with no changes). */
 export function lastWsPushEvents(): Array<{
-	type: MoblinkRelayIfaceEventType;
-	iface: MoblinkRelayIface;
+    type: MoblinkRelayIfaceEventType;
+    iface: MoblinkRelayIface;
 }> {
-	return lastPushEvents;
+    return lastPushEvents;
 }
 
 /** Forward interface change events to every connected encoder (§4). */
 export function pushIfaceEvents(
-	events: Array<{ type: MoblinkRelayIfaceEventType; iface: MoblinkRelayIface }>,
+    events: Array<{
+        type: MoblinkRelayIfaceEventType;
+        iface: MoblinkRelayIface;
+    }>,
 ): void {
-	lastPushEvents = events;
-	for (const ev of events) {
-		const msg = JSON.stringify({ type: ev.type, iface: ev.iface });
-		for (const [key, st] of encoderChannels) {
-			try {
-				if (st.ws.readyState === WebSocket.OPEN) st.ws.send(msg);
-			} catch (e) {
-				console.warn(
-					`moblink_relay: WS send to ${key} failed: ${errorMessage(e)}`,
-				);
-			}
-		}
-	}
+    lastPushEvents = events;
+    for (const ev of events) {
+        const msg = JSON.stringify({ type: ev.type, iface: ev.iface });
+        for (const [key, st] of encoderChannels) {
+            try {
+                if (st.ws.readyState === WebSocket.OPEN) st.ws.send(msg);
+            } catch (e) {
+                console.warn(
+                    `moblink_relay: WS send to ${key} failed: ${errorMessage(e)}`,
+                );
+            }
+        }
+    }
 }
 
 /**
- * An encoder (re-)announced itself (UDP discovery) — dial it if new.
+ * An encoder (re-)announced itself (UDP discovery) - dial it if new.
  * Exposed for tests.
  */
 export function onEncoderAnnounced(e: MoblinkDiscoveredEncoder): void {
-	if (!encoderChannels.has(e.encoderId) && !pendingConnects.has(e.encoderId))
-		startEncoderChannel(e);
+    if (!encoderChannels.has(e.encoderId) && !pendingConnects.has(e.encoderId))
+        startEncoderChannel(e);
 }
 
 /** Stop all relay → encoder channels (module stop). */
 export function stopEncoderChannels(): void {
-	for (const key of [...encoderChannels.keys()]) stopEncoderChannel(key);
-	lastWsAdvertiseAt = undefined;
-	pendingConnects.clear();
+    for (const key of [...encoderChannels.keys()]) stopEncoderChannel(key);
+    lastWsAdvertiseAt = undefined;
+    pendingConnects.clear();
 }
 
 /** mDNS browse callback (protocol.md §2/§3): encoder TXT is flat
  * (id/ip/port/proto/tok). */
 function onMdnsEncoder(f: MdnsFound): void {
-	const encoderId = f.fields.get("id");
-	const ip = f.fields.get("ip");
-	const wsPort = Number(f.fields.get("port") ?? "");
-	if (!encoderId || !ip || !Number.isInteger(wsPort) || wsPort <= 0) return;
-	const enc: MoblinkDiscoveredEncoder = {
-		encoderId,
-		ip,
-		wsPort,
-		proto: Number(f.fields.get("proto") ?? "1") || 1,
-		token: f.fields.get("tok") ?? undefined,
-		lastSeen: Date.now(),
-	};
-	noteEncoder(enc);
-	onEncoderAnnounced(enc);
+    const encoderId = f.fields.get("id");
+    const ip = f.fields.get("ip");
+    const wsPort = Number(f.fields.get("port") ?? "");
+    if (!encoderId || !ip || !Number.isInteger(wsPort) || wsPort <= 0) return;
+    const enc: MoblinkDiscoveredEncoder = {
+        encoderId,
+        ip,
+        wsPort,
+        proto: Number(f.fields.get("proto") ?? "1") || 1,
+        token: f.fields.get("tok") ?? undefined,
+        lastSeen: Date.now(),
+    };
+    noteEncoder(enc);
+    onEncoderAnnounced(enc);
 }
 
 /**
@@ -1184,318 +1216,333 @@ function onMdnsEncoder(f: MdnsFound): void {
  * control-server reconciler. Idempotent.
  */
 function startDiscovery(): void {
-	startListeningForEncoders(onEncoderAnnounced, {
-		dryRun: core.config.DRY_RUN,
-	});
-	// mDNS path: encoders advertise `_irlctrl-encoder._udp.local`.
-	mdnsBrowseStop?.();
-	mdnsBrowseStop = startMdnsBrowser({
-		service: MDNS_ENCODER_SERVICE,
-		dryRun: core.config.DRY_RUN,
-		onFound: onMdnsEncoder,
-	});
-	if (!encoderSweep) {
-		encoderSweep = setInterval(() => {
-			sweepEncoders();
-			reconcileEncoderChannels();
-			void ensureControlServerEncoders();
-		}, MOBLINK_ANNOUNCE_INTERVAL_MS);
-		encoderSweep.unref?.();
-	}
+    startListeningForEncoders(onEncoderAnnounced, {
+        dryRun: core.config.DRY_RUN,
+    });
+    // mDNS path: encoders advertise `_irlctrl-encoder._udp.local`.
+    mdnsBrowseStop?.();
+    mdnsBrowseStop = startMdnsBrowser({
+        service: MDNS_ENCODER_SERVICE,
+        dryRun: core.config.DRY_RUN,
+        onFound: onMdnsEncoder,
+    });
+    if (!encoderSweep) {
+        encoderSweep = setInterval(() => {
+            sweepEncoders();
+            reconcileEncoderChannels();
+            void ensureControlServerEncoders();
+        }, MOBLINK_ANNOUNCE_INTERVAL_MS);
+        encoderSweep.unref?.();
+    }
 }
 
 /** Stop encoder discovery and tear down every relay → encoder channel. */
 function stopDiscovery(): void {
-	stopListeningForEncoders();
-	mdnsBrowseStop?.();
-	mdnsBrowseStop = undefined;
-	if (encoderSweep) {
-		clearInterval(encoderSweep);
-		encoderSweep = undefined;
-	}
-	stopEncoderChannels();
+    stopListeningForEncoders();
+    mdnsBrowseStop?.();
+    mdnsBrowseStop = undefined;
+    if (encoderSweep) {
+        clearInterval(encoderSweep);
+        encoderSweep = undefined;
+    }
+    stopEncoderChannels();
 }
 
 /**
  * Advertise this relay to encoders via BOTH paths (protocol.md §3): UDP
  * broadcasts on 10333 AND the mDNS `_irlctrl-relay._udp.local` service. mDNS
  * TXT is compact (`h`; `ip`; `i=name=addr:port;...`), so the endpoint list is
- * truncated at 255 B — the encoder keeps the longer set across sources (the
+ * truncated at 255 B - the encoder keeps the longer set across sources (the
  * full list comes back with the next WS hello).
  */
 function startAdvertiseAll(): void {
-	// Per-segment announce sockets: bind addresses are the REAL interface
-	// addresses, not the announce payload's (a manual `announceHost`
-	// override collapses the payload to one IP — see `startAnnouncing`).
-	const segs = buildStatus()
-		.availableInterfaces.map((i) => i.address)
-		.filter((a): a is string => typeof a === "string" && a.length > 0);
-	startAnnouncing(announcePayload, {
-		dryRun: core.config.DRY_RUN,
-		binds: segs,
-	});
-	mdnsAdvertiseStop?.();
-	mdnsAdvertiseStop = startMdnsAdvertiser({
-		instance: hostname() || "irlctrl-relay",
-		service: MDNS_RELAY_SERVICE,
-		servicePort: MOBLINK_DISCOVERY_PORT,
-		dryRun: core.config.DRY_RUN,
-		onAdvertise: (ts) => {
-			lastMdnsAnnounceAt = ts;
-		},
-		buildTxt: (): string[] | null => {
-			const p = announcePayload();
-			if (!p) return null;
-			const fields = [`h=${p.hostname ?? p.host}`, `ip=${p.host}`];
-			const i = p.interfaces
-				.map((e) => `${e.name}=${e.address}:${e.listenPort}`)
-				.join(";");
-			if (i) fields.push(`i=${i}`);
-			return fields;
-		},
-	});
+    // Per-segment announce sockets: bind addresses are the REAL interface
+    // addresses, not the announce payload's (a manual `announceHost`
+    // override collapses the payload to one IP - see `startAnnouncing`).
+    const segs = buildStatus()
+        .availableInterfaces.map((i) => i.address)
+        .filter((a): a is string => typeof a === "string" && a.length > 0);
+    startAnnouncing(announcePayload, {
+        dryRun: core.config.DRY_RUN,
+        binds: segs,
+    });
+    mdnsAdvertiseStop?.();
+    mdnsAdvertiseStop = startMdnsAdvertiser({
+        instance: hostname() || "irlctrl-relay",
+        service: MDNS_RELAY_SERVICE,
+        servicePort: MOBLINK_DISCOVERY_PORT,
+        dryRun: core.config.DRY_RUN,
+        onAdvertise: (ts) => {
+            lastMdnsAnnounceAt = ts;
+        },
+        buildTxt: (): string[] | null => {
+            const p = announcePayload();
+            if (!p) return null;
+            const fields = [`h=${p.hostname ?? p.host}`, `ip=${p.host}`];
+            const i = p.interfaces
+                .map((e) => `${e.name}=${e.address}:${e.listenPort}`)
+                .join(";");
+            if (i) fields.push(`i=${i}`);
+            return fields;
+        },
+    });
 }
 
 /** Stop both relay-advertise paths (UDP + mDNS). */
 function stopAdvertiseAll(): void {
-	stopAnnouncing();
-	mdnsAdvertiseStop?.();
-	mdnsAdvertiseStop = undefined;
-	lastMdnsAnnounceAt = undefined;
+    stopAnnouncing();
+    mdnsAdvertiseStop?.();
+    mdnsAdvertiseStop = undefined;
+    lastMdnsAnnounceAt = undefined;
 }
 
 // ----------------------------------------------------------------------
 // Registration
 // ----------------------------------------------------------------------
 const registration: BackendModule<ModuleCore> = {
-	kind: "device",
-	id: "moblink_relay",
-	title: "Moblink Relay",
-	roleDefinitions: [
-		{
-			id: "moblink_relay",
-			titleKey: "role.moblink_relay",
-			taglineKey: "setup.role.moblink_relay_tag",
-			order: 50,
-			default: false,
-			setupSelectable: true,
-		},
-	],
-	roles: ["moblink_relay"],
-	/** Opt-in: never auto-forward on devices upgrading (spec §7.4). */
-	enabledByDefault: false,
-	/** Depends on the network module for the interface list + uplinks file. */
-	dependencies: ["network"],
-	methods: [
-		"moblink_relay.start",
-		"moblink_relay.stop",
-		"moblink_relay.status",
-		"moblink_relay.getConfig",
-		"moblink_relay.setConfig",
-	],
-	events: ["moblink_relay.stats"],
-	configDefaults: {
-		enabled: false,
-		listenPortBase: 4000,
-		interfaceAllow: [],
-		interfaceIgnore: ["docker.*", "veth.*"],
-		interfaceNameOverrides: {},
-		logLevel: "info",
-	},
-	log,
-	bind(c) {
-		core = c;
-		netIfaces = requireCapability<NetworkInterfaces>("network.interfaces");
-		// Bind-time validation only: the relay needs the network uplinks
-		// capability to exist (TUN IPs surface through it) but never calls it.
-		requireCapability<Uplinks>("network.uplinks");
-	},
-	/**
-	 * `modules.configure`: persist the settings-page fields to the module slice.
-	 * Without this hook the settings page would only save `enabled`. The core
-	 * restarts the module afterwards, so a port-base change
-	 * re-syncs the relays (spec §5.4).
-	 */
-	configure(patch, s) {
-		const next: Partial<MoblinkRelayConfig> = {};
-		if (typeof patch.enabled === "boolean") {
-			next.enabled = patch.enabled;
-			s.enabled = patch.enabled;
-		}
-		if (typeof patch.nat === "boolean") next.nat = patch.nat;
-		if (typeof patch.announceHost === "string")
-			next.announceHost = patch.announceHost.trim();
-		if (typeof patch.listenPortBase === "number")
-			next.listenPortBase = patch.listenPortBase;
-		if (Array.isArray(patch.interfaceAllow))
-			next.interfaceAllow = (patch.interfaceAllow as string[]).filter(
-				(v) => typeof v === "string",
-			);
-		if (Array.isArray(patch.interfaceIgnore))
-			next.interfaceIgnore = (patch.interfaceIgnore as string[]).filter(
-				(v) => typeof v === "string",
-			);
-		if (typeof patch.logLevel === "string")
-			next.logLevel = patch.logLevel as MoblinkRelayConfig["logLevel"];
-		if (Object.keys(next).length > 0) saveConfig(next);
-	},
-	async start(ctx) {
-		core = ctx.core;
-		// Make sure the interface monitor is running (it may not be if the
-		// network module's slice is disabled on this role).
-		await netIfaces.ensureMonitoring();
-		netUnsub = netIfaces.onChanged(() => void onNetworkChange());
-		// Sample each relay's live forwarded throughput (bytes/sec) for the
-		// card's "real speed" — the negotiated link speed is not what matters.
-		startRateSampler();
-		// Interface history: an interface that got a port mapping before this
-		// process started must not be re-announced as `interface_added` — it
-		// goes out in the WS snapshot (protocol.md §4).
-		reseedSeen();
-		// Clear leg TUNs left behind by a crashed relay run (they would
-		// collide with the fresh `relay<slot>_<iface>` names). Best-effort.
-		if (config().enabled)
-			void sweepStaleLegTuns(privilegedRun()).catch((e: unknown) =>
-				core.logEvent(
-					"warn",
-					"Relay",
-					`stale TUN sweep: ${e instanceof Error ? e.message : String(e)}`,
-				),
-			);
-		runtimeSync = false; // the snapshot sync below is silent for first-seen ifaces
-		// Learn encoders (protocol.md §2): UDP announces on the discovery
-		// port + a throttled control-server lookup. The listener callback
-		// dials each new encoder's WebSocket; the sweep drops encoders that
-		// stop announcing and reconciles the channel set.
-		if (config().enabled) startDiscovery();
-		// Autostart if the slice is enabled. Best-effort: a single interface's
-		// bind conflict must not crash the client on boot — the failed interface
-		// is recorded in status (`failures`) and the others keep running.
-		if (config().enabled) {
-			const res = await syncRelays(false);
-			pushIfaceEvents(res.events);
-			if (res.started.length > 0) startAdvertiseAll();
-			void ensureControlServerEncoders();
-		}
-		// From here on, interface changes are runtime events: first-seen
-		// interfaces are announced `interface_added` to the connected
-		// encoders instead of waiting for the next `hello`.
-		runtimeSync = true;
-	},
-	async stop() {
-		netUnsub?.();
-		netUnsub = undefined;
-		runtimeSync = false;
-		stopRateSampler();
-		stopAdvertiseAll();
-		stopDiscovery();
-		await stopAll();
-	},
-	async status() {
-		return {
-			state: {
-				moblink: buildStatus() as unknown as MoblinkRelayState,
-			},
-		};
-	},
-	async dispatch(method: string, p: Params) {
-		switch (method) {
-			case "moblink_relay.status":
-				return { moblink: buildStatus() };
-			case "moblink_relay.getConfig":
-				return { config: config() };
-			case "moblink_relay.start": {
-				core.cancelAutostart();
-				const patch: Partial<MoblinkRelayConfig> = {};
-				if (p.announceHost !== undefined && p.announceHost !== "") {
-					patch.announceHost = requireHost(p, "announceHost");
-				}
-				if (Object.keys(patch).length > 0) saveConfig(patch);
-				saveConfig({ enabled: true });
-				startDiscovery();
-				void ensureControlServerEncoders();
-				// Best-effort: never throw on a per-interface bind conflict — the
-				// failed interface is surfaced in `moblink.failures`, others run.
-				const result = await syncRelays(false);
-				pushIfaceEvents(result.events);
-				// Both UDP + mDNS advertise paths (per-segment sockets), so a
-				// UI start (e.g. after an announceHost change) is consistent
-				// with the autostart path.
-				if (result.started.length > 0) startAdvertiseAll();
-				return { moblink: buildStatus(), ...result };
-			}
-			case "moblink_relay.stop":
-				core.cancelAutostart();
-				saveConfig({ enabled: false });
-				stopAnnouncing();
-				stopDiscovery();
-				await stopAll();
-				return { moblink: buildStatus() };
-			case "moblink_relay.setConfig": {
-				const patch: Partial<MoblinkRelayConfig> = {};
-				if (p.enabled !== undefined)
-					patch.enabled = requireBoolean(p, "enabled");
-				if (p.announceHost !== undefined) {
-					const ip = String(p.announceHost).trim();
-					patch.announceHost = ip === "" ? "" : requireHost(p, "announceHost");
-				}
-				if (p.listenPortBase !== undefined) {
-					const base = Number(p.listenPortBase);
-					if (!Number.isInteger(base) || base < 1 || base > 65535)
-						throw new ApiError("listenPortBase out of range", 400);
-					patch.listenPortBase = base;
-				}
-				if (p.interfaceAllow !== undefined)
-					patch.interfaceAllow = optionalStringList(p, "interfaceAllow") ?? [];
-				if (p.interfaceIgnore !== undefined)
-					patch.interfaceIgnore =
-						optionalStringList(p, "interfaceIgnore") ?? [];
-				if (p.interfaceNameOverrides !== undefined) {
-					const overrides = p.interfaceNameOverrides as Record<string, unknown>;
-					if (typeof overrides !== "object" || overrides === null)
-						throw new ApiError("interfaceNameOverrides must be an object", 400);
-					patch.interfaceNameOverrides = Object.fromEntries(
-						Object.entries(overrides).map(([k, v]) => [k, String(v)]),
-					);
-				}
-				if (p.runtimeStatusFile !== undefined) {
-					const path = String(p.runtimeStatusFile);
-					if (!path.startsWith("/"))
-						throw new ApiError(
-							"runtimeStatusFile must be an absolute path",
-							400,
-						);
-					patch.runtimeStatusFile = path;
-				}
-				if (p.logLevel !== undefined) {
-					const level = String(p.logLevel);
-					if (!["trace", "debug", "info", "warn", "error"].includes(level))
-						throw new ApiError("invalid logLevel", 400);
-					patch.logLevel = level as MoblinkRelayConfig["logLevel"];
-				}
-				saveConfig(patch);
-				// Restart affected relays if the config that affects them changed
-				// and forward the resulting interface events to the connected
-				// encoders (a config change can add/drop interfaces — the
-				// encoder must not wait for the next `hello` for that).
-				if (
-					patch.listenPortBase !== undefined ||
-					patch.interfaceAllow !== undefined ||
-					patch.interfaceIgnore !== undefined ||
-					patch.interfaceNameOverrides !== undefined
-				) {
-					if (config().enabled) {
-						const res = await syncRelays();
-						pushIfaceEvents(res.events);
-						if (res.started.length > 0) startAdvertiseAll();
-					} else await stopAll();
-				}
-				return { config: config(), moblink: buildStatus() };
-			}
-			default:
-				throw new ApiError(`unknown method ${method}`, 404);
-		}
-	},
+    kind: "device",
+    id: "moblink_relay",
+    title: "Moblink Relay",
+    roleDefinitions: [
+        {
+            id: "moblink_relay",
+            titleKey: "role.moblink_relay",
+            taglineKey: "setup.role.moblink_relay_tag",
+            order: 50,
+            default: false,
+            setupSelectable: true,
+        },
+    ],
+    roles: ["moblink_relay"],
+    /** Opt-in: never auto-forward on devices upgrading (spec §7.4). */
+    enabledByDefault: false,
+    /** Depends on the network module for the interface list + uplinks file. */
+    dependencies: ["network"],
+    methods: [
+        "moblink_relay.start",
+        "moblink_relay.stop",
+        "moblink_relay.status",
+        "moblink_relay.getConfig",
+        "moblink_relay.setConfig",
+    ],
+    events: ["moblink_relay.stats"],
+    configDefaults: {
+        enabled: false,
+        listenPortBase: 4000,
+        interfaceAllow: [],
+        interfaceIgnore: ["docker.*", "veth.*"],
+        interfaceNameOverrides: {},
+        logLevel: "info",
+    },
+    log,
+    bind(c) {
+        core = c;
+        netIfaces = requireCapability<NetworkInterfaces>("network.interfaces");
+        // Bind-time validation only: the relay needs the network uplinks
+        // capability to exist (TUN IPs surface through it) but never calls it.
+        requireCapability<Uplinks>("network.uplinks");
+    },
+    /**
+     * `modules.configure`: persist the settings-page fields to the module slice.
+     * Without this hook the settings page would only save `enabled`. The core
+     * restarts the module afterwards, so a port-base change
+     * re-syncs the relays (spec §5.4).
+     */
+    configure(patch, s) {
+        const next: Partial<MoblinkRelayConfig> = {};
+        if (typeof patch.enabled === "boolean") {
+            next.enabled = patch.enabled;
+            s.enabled = patch.enabled;
+        }
+        if (typeof patch.nat === "boolean") next.nat = patch.nat;
+        if (typeof patch.announceHost === "string")
+            next.announceHost = patch.announceHost.trim();
+        if (typeof patch.listenPortBase === "number")
+            next.listenPortBase = patch.listenPortBase;
+        if (Array.isArray(patch.interfaceAllow))
+            next.interfaceAllow = (patch.interfaceAllow as string[]).filter(
+                (v) => typeof v === "string",
+            );
+        if (Array.isArray(patch.interfaceIgnore))
+            next.interfaceIgnore = (patch.interfaceIgnore as string[]).filter(
+                (v) => typeof v === "string",
+            );
+        if (typeof patch.logLevel === "string")
+            next.logLevel = patch.logLevel as MoblinkRelayConfig["logLevel"];
+        if (Object.keys(next).length > 0) saveConfig(next);
+    },
+    async start(ctx) {
+        core = ctx.core;
+        // Make sure the interface monitor is running (it may not be if the
+        // network module's slice is disabled on this role).
+        await netIfaces.ensureMonitoring();
+        netUnsub = netIfaces.onChanged(() => void onNetworkChange());
+        // Sample each relay's live forwarded throughput (bytes/sec) for the
+        // card's "real speed" - the negotiated link speed is not what matters.
+        startRateSampler();
+        // Interface history: an interface that got a port mapping before this
+        // process started must not be re-announced as `interface_added` - it
+        // goes out in the WS snapshot (protocol.md §4).
+        reseedSeen();
+        // Clear leg TUNs left behind by a crashed relay run (they would
+        // collide with the fresh `relay<slot>_<iface>` names). Best-effort.
+        if (config().enabled)
+            void sweepStaleLegTuns(privilegedRun()).catch((e: unknown) =>
+                core.logEvent(
+                    "warn",
+                    "Relay",
+                    `stale TUN sweep: ${e instanceof Error ? e.message : String(e)}`,
+                ),
+            );
+        runtimeSync = false; // the snapshot sync below is silent for first-seen ifaces
+        // Learn encoders (protocol.md §2): UDP announces on the discovery
+        // port + a throttled control-server lookup. The listener callback
+        // dials each new encoder's WebSocket; the sweep drops encoders that
+        // stop announcing and reconciles the channel set.
+        if (config().enabled) startDiscovery();
+        // Autostart if the slice is enabled. Best-effort: a single interface's
+        // bind conflict must not crash the client on boot - the failed interface
+        // is recorded in status (`failures`) and the others keep running.
+        if (config().enabled) {
+            const res = await syncRelays(false);
+            pushIfaceEvents(res.events);
+            if (res.started.length > 0) startAdvertiseAll();
+            void ensureControlServerEncoders();
+        }
+        // From here on, interface changes are runtime events: first-seen
+        // interfaces are announced `interface_added` to the connected
+        // encoders instead of waiting for the next `hello`.
+        runtimeSync = true;
+    },
+    async stop() {
+        netUnsub?.();
+        netUnsub = undefined;
+        runtimeSync = false;
+        stopRateSampler();
+        stopAdvertiseAll();
+        stopDiscovery();
+        await stopAll();
+    },
+    async status() {
+        return {
+            state: {
+                moblink: buildStatus() as unknown as MoblinkRelayState,
+            },
+        };
+    },
+    async dispatch(method: string, p: Params) {
+        switch (method) {
+            case "moblink_relay.status":
+                return { moblink: buildStatus() };
+            case "moblink_relay.getConfig":
+                return { config: config() };
+            case "moblink_relay.start": {
+                core.cancelAutostart();
+                const patch: Partial<MoblinkRelayConfig> = {};
+                if (p.announceHost !== undefined && p.announceHost !== "") {
+                    patch.announceHost = requireHost(p, "announceHost");
+                }
+                if (Object.keys(patch).length > 0) saveConfig(patch);
+                saveConfig({ enabled: true });
+                startDiscovery();
+                void ensureControlServerEncoders();
+                // Best-effort: never throw on a per-interface bind conflict - the
+                // failed interface is surfaced in `moblink.failures`, others run.
+                const result = await syncRelays(false);
+                pushIfaceEvents(result.events);
+                // Both UDP + mDNS advertise paths (per-segment sockets), so a
+                // UI start (e.g. after an announceHost change) is consistent
+                // with the autostart path.
+                if (result.started.length > 0) startAdvertiseAll();
+                return { moblink: buildStatus(), ...result };
+            }
+            case "moblink_relay.stop":
+                core.cancelAutostart();
+                saveConfig({ enabled: false });
+                stopAnnouncing();
+                stopDiscovery();
+                await stopAll();
+                return { moblink: buildStatus() };
+            case "moblink_relay.setConfig": {
+                const patch: Partial<MoblinkRelayConfig> = {};
+                if (p.enabled !== undefined)
+                    patch.enabled = requireBoolean(p, "enabled");
+                if (p.announceHost !== undefined) {
+                    const ip = String(p.announceHost).trim();
+                    patch.announceHost =
+                        ip === "" ? "" : requireHost(p, "announceHost");
+                }
+                if (p.listenPortBase !== undefined) {
+                    const base = Number(p.listenPortBase);
+                    if (!Number.isInteger(base) || base < 1 || base > 65535)
+                        throw new ApiError("listenPortBase out of range", 400);
+                    patch.listenPortBase = base;
+                }
+                if (p.interfaceAllow !== undefined)
+                    patch.interfaceAllow =
+                        optionalStringList(p, "interfaceAllow") ?? [];
+                if (p.interfaceIgnore !== undefined)
+                    patch.interfaceIgnore =
+                        optionalStringList(p, "interfaceIgnore") ?? [];
+                if (p.interfaceNameOverrides !== undefined) {
+                    const overrides = p.interfaceNameOverrides as Record<
+                        string,
+                        unknown
+                    >;
+                    if (typeof overrides !== "object" || overrides === null)
+                        throw new ApiError(
+                            "interfaceNameOverrides must be an object",
+                            400,
+                        );
+                    patch.interfaceNameOverrides = Object.fromEntries(
+                        Object.entries(overrides).map(([k, v]) => [
+                            k,
+                            String(v),
+                        ]),
+                    );
+                }
+                if (p.runtimeStatusFile !== undefined) {
+                    const path = String(p.runtimeStatusFile);
+                    if (!path.startsWith("/"))
+                        throw new ApiError(
+                            "runtimeStatusFile must be an absolute path",
+                            400,
+                        );
+                    patch.runtimeStatusFile = path;
+                }
+                if (p.logLevel !== undefined) {
+                    const level = String(p.logLevel);
+                    if (
+                        !["trace", "debug", "info", "warn", "error"].includes(
+                            level,
+                        )
+                    )
+                        throw new ApiError("invalid logLevel", 400);
+                    patch.logLevel = level as MoblinkRelayConfig["logLevel"];
+                }
+                saveConfig(patch);
+                // Restart affected relays if the config that affects them changed
+                // and forward the resulting interface events to the connected
+                // encoders (a config change can add/drop interfaces - the
+                // encoder must not wait for the next `hello` for that).
+                if (
+                    patch.listenPortBase !== undefined ||
+                    patch.interfaceAllow !== undefined ||
+                    patch.interfaceIgnore !== undefined ||
+                    patch.interfaceNameOverrides !== undefined
+                ) {
+                    if (config().enabled) {
+                        const res = await syncRelays();
+                        pushIfaceEvents(res.events);
+                        if (res.started.length > 0) startAdvertiseAll();
+                    } else await stopAll();
+                }
+                return { config: config(), moblink: buildStatus() };
+            }
+            default:
+                throw new ApiError(`unknown method ${method}`, 404);
+        }
+    },
 };
 
 export default registration;

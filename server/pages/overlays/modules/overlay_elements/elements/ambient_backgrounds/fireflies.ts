@@ -1,5 +1,5 @@
 /*
- * `fireflies` — a swarm of warm points that hover, wander gently, and blink
+ * `fireflies` - a swarm of warm points that hover, wander gently, and blink
  * in and out slowly, evoking fireflies drifting in the dark.
  * Original (invented for the ambient set).
  */

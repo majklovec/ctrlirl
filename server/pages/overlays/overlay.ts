@@ -44,7 +44,7 @@ export interface Transform {
 }
 
 /** CSS filter functions an element may stack (each carries a single value).
- * `drop-shadow` is intentionally excluded — it needs four parameters and a
+ * `drop-shadow` is intentionally excluded - it needs four parameters and a
  * colour, which don't fit the `{ type, value }` model. */
 export type OverlayFilterType =
     | "blur"
@@ -138,11 +138,11 @@ export type ElementBase = {
     /**
      * Attribute path → variable binding. Keys may target:
      *
-     * - `props.<name>` — the raw element prop (text, url, fill, …); the
+     * - `props.<name>` - the raw element prop (text, url, fill, …); the
      *   variable value replaces the prop value,
-     * - `transform.<field>` — x, y, width, height, rotation, opacity; the
+     * - `transform.<field>` - x, y, width, height, rotation, opacity; the
      *   variable value is coerced to a finite number (opacity must be 0–1),
-     * - `visible` — the element is shown when the variable value is truthy.
+     * - `visible` - the element is shown when the variable value is truthy.
      *
      * `resolveElement` (frontend) evaluates all of them at render time.
      */
@@ -501,7 +501,7 @@ const MIGRATIONS: Record<number, Migration> = {
 /**
  * Load a persisted overlay: run pending migrations, then normalize.
  * Throws `Error` with a user-visible message when the overlay is corrupt or
- * from an unknown (newer) schema — callers surface that, never render half
+ * from an unknown (newer) schema - callers surface that, never render half
  * an overlay.
  */
 export function migrateOverlayBlob(raw: unknown): {

@@ -32,24 +32,24 @@ For quality/acceptance claims, read [evaluation-design.md](evaluation-design.md)
 
 Priority signals:
 
-| Observation | What must be demonstrated before calling it a defect |
-|---|---|
-| Prompt-only restrictions | A reachable path lacks mandatory runtime enforcement of the required rule |
-| Loop/retry without total budget | A retry is reachable without a finite time/iteration/cost limit, or stopping is ignored |
-| Validator after tool dispatch | An invalid/unauthorized action can occur before checking |
-| Write retry after timeout | Duplicate effect is possible; check downstream contract, SDK retries, and idempotency |
-| Agent says “done” | No reliable basis confirms the effect; intention/HTTP 200 substitutes for actual state |
-| Checkpoint exists, recovery is unsafe | Resume repeats an effect or uses stale permission, state, or tenant |
-| Shared memory/index | Required mandatory scope, freshness, or provenance restrictions on reads/writes are absent |
-| Secret/other party's data in context | A reachable disclosure path and relevant access boundary are established |
-| RAG returns stale/other party's data | Source, ACL, revocation, refresh, or cache fails required correctness |
-| Only final answers in observed trace | Other logs/services lack information needed for investigation; unknown does not mean absent |
-| “99% success” from demo/evaluation | Metric mismatches the requirement or sample/denominator/environment does not support the claim |
-| Many agents/layers | Concrete harm exists: conflicting writes/rights, context loss, latency/cost over budget, not merely many files |
-| Only a skeleton and workflow stages | A required domain capability is not performed on a reachable path; no other component supplies the method/control. Separate incomplete documentation from an implementation defect |
-| Installed skills do not change results | The required procedure is not selected, unavailable, or receives wrong context in a concrete scenario; files alone are insufficient |
-| Method unexpectedly changes during a task | Version substitution on resume/update violates the accepted contract; check authorized migration and revoked rights |
-| Checks green, main work incomplete | Checks accept a concrete unacceptable result; CI/linter presence proves neither quality nor mandatory enforcement |
+| Observation                               | What must be demonstrated before calling it a defect                                                                                                                               |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt-only restrictions                  | A reachable path lacks mandatory runtime enforcement of the required rule                                                                                                          |
+| Loop/retry without total budget           | A retry is reachable without a finite time/iteration/cost limit, or stopping is ignored                                                                                            |
+| Validator after tool dispatch             | An invalid/unauthorized action can occur before checking                                                                                                                           |
+| Write retry after timeout                 | Duplicate effect is possible; check downstream contract, SDK retries, and idempotency                                                                                              |
+| Agent says “done”                         | No reliable basis confirms the effect; intention/HTTP 200 substitutes for actual state                                                                                             |
+| Checkpoint exists, recovery is unsafe     | Resume repeats an effect or uses stale permission, state, or tenant                                                                                                                |
+| Shared memory/index                       | Required mandatory scope, freshness, or provenance restrictions on reads/writes are absent                                                                                         |
+| Secret/other party's data in context      | A reachable disclosure path and relevant access boundary are established                                                                                                           |
+| RAG returns stale/other party's data      | Source, ACL, revocation, refresh, or cache fails required correctness                                                                                                              |
+| Only final answers in observed trace      | Other logs/services lack information needed for investigation; unknown does not mean absent                                                                                        |
+| “99% success” from demo/evaluation        | Metric mismatches the requirement or sample/denominator/environment does not support the claim                                                                                     |
+| Many agents/layers                        | Concrete harm exists: conflicting writes/rights, context loss, latency/cost over budget, not merely many files                                                                     |
+| Only a skeleton and workflow stages       | A required domain capability is not performed on a reachable path; no other component supplies the method/control. Separate incomplete documentation from an implementation defect |
+| Installed skills do not change results    | The required procedure is not selected, unavailable, or receives wrong context in a concrete scenario; files alone are insufficient                                                |
+| Method unexpectedly changes during a task | Version substitution on resume/update violates the accepted contract; check authorized migration and revoked rights                                                                |
+| Checks green, main work incomplete        | Checks accept a concrete unacceptable result; CI/linter presence proves neither quality nor mandatory enforcement                                                                  |
 
 Failure to find a guarantee in the inspected fragment is an **evidence gap**. For example: “POST retry after timeout confirmed; billing guarantee unavailable; duplication risk needs checking.” Do not call this a demonstrated double refund. If absent guarantees themselves violate a mandatory admission contract, identify that documentation defect and its source separately.
 
@@ -59,7 +59,7 @@ Absence of RAG, MCP, a framework, vector database, four memory types, microservi
 
 Each finding contains:
 
-1. **Priority and short title.** Critical—reachable critical harm/boundary violation; Important—mandatory scenario violation or substantial correctness/recovery/cost risk; Improvement—bounded improvement without a demonstrated requirement violation.
+1. **Priority and short title.** Critical-reachable critical harm/boundary violation; Important-mandatory scenario violation or substantial correctness/recovery/cost risk; Improvement-bounded improvement without a demonstrated requirement violation.
 2. **Observation:** exact file/lines/symbol/version, document, or trace event. Do not invent lines for unavailable code.
 3. **Condition:** concrete input or failure and reachable path to the problem.
 4. **Consequence:** violated need, guarantee, or invariant.
@@ -73,12 +73,12 @@ The textbook explains principles; source code and requirements demonstrate defec
 
 Lead with the most important conclusion and review boundaries. Then provide:
 
-- a brief actual architecture;
-- Critical/Important findings ordered by impact;
-- evidence gaps and specific minimum reading/testing to close them;
-- for diagnosis, a brief failure chain and hypotheses with discriminating checks/status; detail only significant unresolved causes;
-- acceptable tradeoffs and Improvements if useful to the user;
-- a prioritized architectural correction plan with closure criteria.
+-   a brief actual architecture;
+-   Critical/Important findings ordered by impact;
+-   evidence gaps and specific minimum reading/testing to close them;
+-   for diagnosis, a brief failure chain and hypotheses with discriminating checks/status; detail only significant unresolved causes;
+-   acceptable tradeoffs and Improvements if useful to the user;
+-   a prioritized architectural correction plan with closure criteria.
 
 If no clear errors are found, say so **within the checked scope**. Do not invent a finding for the report or call the agent ideal/safe under all conditions. Reading does not replace runtime evaluations or security tests.
 

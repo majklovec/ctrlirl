@@ -1,5 +1,5 @@
 /*
- * `bubbles` — round bubbles of varying size rising from the bottom, swaying
+ * `bubbles` - round bubbles of varying size rising from the bottom, swaying
  * gently as they drift up, popping at the top.
  * Original (invented for the ambient set).
  */

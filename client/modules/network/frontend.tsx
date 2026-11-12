@@ -1,6 +1,6 @@
 /* Network card: interface detection, bond selection per interface, and the
  * live srtla_send link stats matched to interfaces by source IP (shown on
- * the roles that push the SRTLA leg's stats — `relay.stats` on the relay,
+ * the roles that push the SRTLA leg's stats - `relay.stats` on the relay,
  * `stream.stats` on the encoder; the link columns sit muted until/unless
  * stats arrive).
  */
@@ -54,7 +54,7 @@ function statsFrame(
 
 /** Signal-quality meter with its percentage. */
 function signal(quality?: number): Child {
-	if (quality === undefined) return "—";
+	if (quality === undefined) return "-";
 	return (
 		<span>
 			<meter
@@ -95,7 +95,7 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
 			{child}
 		</td>
 	);
-	if (!l) return Array.from({ length: LINK_COLUMNS }, () => cell("—", "muted"));
+	if (!l) return Array.from({ length: LINK_COLUMNS }, () => cell("-", "muted"));
 	const share = total ? l.bitrate_bytes_per_sec / total : 0;
 	return [
 		cell(linkState(l), "", l.label ?? ""),
@@ -116,7 +116,7 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
 			"num",
 		),
 		cell(
-			l.connected ? `${Math.round(l.rtt_ms)} ms` : "—",
+			l.connected ? `${Math.round(l.rtt_ms)} ms` : "-",
 			"num is-rtt",
 			t("dev.link_min_rtt", { rtt: Math.round(l.rtt_min_ms) }),
 		),
@@ -126,7 +126,7 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
 		cell(
 			l.quality_multiplier !== undefined
 				? `×${l.quality_multiplier.toFixed(2)}`
-				: "—",
+				: "-",
 			"num is-quality",
 			l.base_score !== undefined
 				? t("dev.link_score", { score: l.base_score })
@@ -163,7 +163,7 @@ function linkHeader(): m.Vnode {
 /**
  * One MobLink TUN (an encoder tunnel to a shared relay interface) as a row in
  * the same 11-column design as the device's own interfaces. Like the own
- * interfaces it is bondable (`modems.toggle` by TUN name — the TUN is a
+ * interfaces it is bondable (`modems.toggle` by TUN name - the TUN is a
  * regular interface to the routing layer); the SRTLA link columns resolve
  * from the tunnel IP (the TUN IP is registered as an uplink, so `links`
  * holds its stats).
@@ -199,8 +199,8 @@ function tunnelRow(
 					{tun.relayHost}:{tun.relayPort}
 				</span>
 			</td>
-			<td class="is-signal">—</td>
-			<td class="is-network">—</td>
+			<td class="is-signal">-</td>
+			<td class="is-network">-</td>
 			{linkCells(links.get(tun.interfaceAddress), total)}
 		</tr>
 	);
@@ -228,7 +228,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 	// `status.state.moblinkStreamer` (the streamer backend's `status()`), which
 	// is merged into every card's live status. Their TUN interfaces (e.g.
 	// `relay0_wg0`) are tunnels to a relay's shared uplink, not the machine's
-	// own interfaces — they also appear in the OS `status.interfaces` list, so
+	// own interfaces - they also appear in the OS `status.interfaces` list, so
 	// we list each one under its relay group (below) and hide it from "Own
 	// interfaces". The name rule (`isMoblinkTun`) catches them even when the
 	// streamer isn't reporting them live yet; `tunnelIfaceNames` additionally
@@ -286,7 +286,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 					{sub ? <span class="iface-sub muted">{sub}</span> : null}
 				</td>
 				<td class="is-signal">{signal(i.signalQuality)}</td>
-				<td class="is-network">{network || "—"}</td>
+				<td class="is-network">{network || "-"}</td>
 				{linkCells(links.get(i.ip), total)}
 			</tr>
 		);
@@ -298,7 +298,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 	// group shows its tunnels in the same table as the own interfaces. A TUN's
 	// `relayHost` is the specific relay *interface* it tunnels through (one of
 	// the relay's shared endpoints), not necessarily the relay's canonical
-	// `host` — e.g. a relay on 192.168.1.136 may expose endpoint 192.168.225.12
+	// `host` - e.g. a relay on 192.168.1.136 may expose endpoint 192.168.225.12
 	// (wg0) as a second tunnel. Resolve the owning relay by matching the TUN's
 	// endpoint against every relay's host + interface addresses.
 	const relayEndpointHosts = new Map<string, string>(); // endpoint addr → relay host
@@ -326,17 +326,17 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 		</tr>
 	);
 	// The encoder's own self-announce freshness (how recently it told the
-	// relays it's here) — encoder role only; mirrors the relay card.
-	const selfAnnounceRow = streamer?.runtime ? (
-		groupHeader(
-			"grp:self",
-			<>
-				<span class="muted">{t("dev.net_self_announce")}</span>{" "}
-				mDNS {since(streamer.runtime.lastMdnsAnnounceAt)} · UDP{" "}
-				{since(streamer.runtime.lastUdpAnnounceAt)}
-			</>,
-		)
-	) : null;
+	// relays it's here) - encoder role only; mirrors the relay card.
+	const selfAnnounceRow = streamer?.runtime
+		? groupHeader(
+				"grp:self",
+				<>
+					<span class="muted">{t("dev.net_self_announce")}</span> mDNS{" "}
+					{since(streamer.runtime.lastMdnsAnnounceAt)} · UDP{" "}
+					{since(streamer.runtime.lastUdpAnnounceAt)}
+				</>,
+			)
+		: null;
 	const tbodyRows: m.Vnode[] = [
 		...(selfAnnounceRow ? [selfAnnounceRow] : []),
 		groupHeader("grp:own", t("dev.own_interfaces")),
@@ -367,7 +367,8 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 						{r.hostname ? <small class="muted"> · {r.host}</small> : null}
 						{r.lastSeen ? (
 							<small class="muted" title={t("dev.net_last_seen")}>
-								{" "}· {since(r.lastSeen)}
+								{" "}
+								· {since(r.lastSeen)}
 							</small>
 						) : null}
 					</>,

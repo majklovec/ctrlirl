@@ -40,7 +40,7 @@ function broadcasterCardBody(
 			) : null
 		) : (
 			// One row per bonded link, plus a totals footer (combined
-			// bandwidth and NAK count) — a bond aggregates its links, so
+			// bandwidth and NAK count) - a bond aggregates its links, so
 			// the per-link sum is the figure the operator reads off.
 			<div class="broadcaster-links">
 				<h3>{t("dev.kp_links")}</h3>
@@ -178,7 +178,7 @@ const broadcasterSummaryColumns = [
 		available: (device: DeviceSummary) => device.role === "broadcaster",
 		header: () => t("mgmt.th.stream"),
 		cell: (device: DeviceSummary) => {
-			if (!device.online) return "—";
+			if (!device.online) return "-";
 			const { stream } = device as BroadcasterDeviceSummary;
 			if (stream === "running")
 				return <Badge text={t("dev.badge.live")} kind="on" />;

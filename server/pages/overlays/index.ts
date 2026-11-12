@@ -1,6 +1,6 @@
 /*
  * The overlays page module. The runtime page (loaded by OBS) serves files
- * of the owner's asset library, so the routes need the assets store —
+ * of the owner's asset library, so the routes need the assets store -
  * pulled from the "assets" capability the assets page provides (declared
  * in `dependencies` so it inits first).
  */

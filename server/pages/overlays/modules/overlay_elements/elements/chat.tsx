@@ -1,16 +1,16 @@
 /** @jsx m */
 /*
- * OBS overlay chat element — a self-contained live chat feed that draws its
+ * OBS overlay chat element - a self-contained live chat feed that draws its
  * platforms and channels directly on the element, independent of any
  * dashboard chat widget.
- *   - Channels: a filters-style list — add rows, pick a platform, type the
+ *   - Channels: a filters-style list - add rows, pick a platform, type the
  *     handle. No widget to link, no URL to paste.
  *   - Display: new-message order, banned-message handling, timestamps and
- *     platform icons. The visible history is not a prop — the feed sizes
+ *     platform icons. The visible history is not a prop - the feed sizes
  *     itself to the element's box.
  *   - Feed text: size, weight, colour, line-height, spacing, fade, alignment.
  * The live text renders straight into the same DOM the overlay composites, so
- * a browser tab shows the exact feed OBS sees. It never uses an <iframe> — a
+ * a browser tab shows the exact feed OBS sees. It never uses an <iframe> - a
  * browser-source capture composites iframes opaquely. The feed is fed by the
  * scene token + id through the module's `LiveChatFeed` connector (the
  * overlay's token-scoped chat WebSocket); props are normalized & clamped by
@@ -86,7 +86,7 @@ export const DEFAULT_CHAT_PROPS: Required<ChatProps> = {
 	lineHeight: 1.2,
 	messageSpacing: 0,
 	fadeDirection: "off",
-	// ~6rem — the size of a few feed lines.
+	// ~6rem - the size of a few feed lines.
 	fadeSize: 96,
 	textAlign: "left",
 };
@@ -370,7 +370,7 @@ function editForm({
 
 function validate(_e: OverlayElement): string[] {
 	// Channels are optional while editing (an empty list just shows nothing),
-	// and there is no URL to point at — so there is nothing to check.
+	// and there is no URL to point at - so there is nothing to check.
 	return [];
 }
 

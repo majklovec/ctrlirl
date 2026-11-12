@@ -8,7 +8,7 @@ import type { AmbientEnv } from "../server/pages/overlays/modules/overlay_elemen
  * coordinates (a broken math port would surface here as an immediate fail).
  *
  * The element module imports the browser i18n, which touches document/window
- * at import time — stub minimal globals before the dynamic import so the
+ * at import time - stub minimal globals before the dynamic import so the
  * registry loads headlessly (same convention as overlay_elements.test.ts).
  */
 
@@ -20,344 +20,372 @@ type CtxCalls = { name: string; args: unknown[] }[];
  * the moment a non-finite number reaches the canvas API. `draws` counts the
  * composites to THIS canvas (drawImage). */
 function makeCtx(calls: CtxCalls): {
-	draws: number;
-	ops: () => Record<string, unknown>;
+    draws: number;
+    ops: () => Record<string, unknown>;
 } {
-	const box: { draws: number; ops: () => Record<string, unknown> } = {
-		draws: 0,
-		ops: () => ({}) as Record<string, unknown>,
-	};
-	const check = (name: string, ...args: unknown[]): void => {
-		for (const a of args)
-			if (typeof a === "number" && !Number.isFinite(a))
-				throw new Error(`${name}: non-finite argument`);
-		calls.push({ name, args });
-	};
-	const ops = () =>
-		({
-			fillStyle: "",
-			save() {},
-			restore() {},
-			clearRect: (x: number, y: number, w: number, h: number) =>
-				check("clearRect", x, y, w, h),
-			fillRect: (x: number, y: number, w: number, h: number) =>
-				check("fillRect", x, y, w, h),
-			drawImage() {
-				box.draws++;
-			},
-			beginPath() {},
-			closePath() {},
-			stroke() {},
-			fill() {
-				check("fill", this.fillStyle);
-			},
-			strokeRect: (x: number, y: number, w: number, h: number) =>
-				check("strokeRect", x, y, w, h),
-			moveTo: (x: number, y: number) => check("moveTo", x, y),
-			lineTo: (x: number, y: number) => check("lineTo", x, y),
-			arc: (x: number, y: number, r: number, a0: number, a1: number) =>
-				check("arc", x, y, r, a0, a1),
-			translate: (x: number, y: number) => check("translate", x, y),
-			rotate: (a: number) => check("rotate", a),
-			createLinearGradient: (
-				x0: number,
-				y0: number,
-				x1: number,
-				y1: number,
-			) => {
-				check("createLinearGradient", x0, y0, x1, y1);
-				return { addColorStop(_offset: number, _color: string) {} };
-			},
-		}) as Record<string, unknown>;
-	box.ops = ops;
-	return box;
+    const box: { draws: number; ops: () => Record<string, unknown> } = {
+        draws: 0,
+        ops: () => ({}) as Record<string, unknown>,
+    };
+    const check = (name: string, ...args: unknown[]): void => {
+        for (const a of args)
+            if (typeof a === "number" && !Number.isFinite(a))
+                throw new Error(`${name}: non-finite argument`);
+        calls.push({ name, args });
+    };
+    const ops = () =>
+        ({
+            fillStyle: "",
+            save() {},
+            restore() {},
+            clearRect: (x: number, y: number, w: number, h: number) =>
+                check("clearRect", x, y, w, h),
+            fillRect: (x: number, y: number, w: number, h: number) =>
+                check("fillRect", x, y, w, h),
+            drawImage() {
+                box.draws++;
+            },
+            beginPath() {},
+            closePath() {},
+            stroke() {},
+            fill() {
+                check("fill", this.fillStyle);
+            },
+            strokeRect: (x: number, y: number, w: number, h: number) =>
+                check("strokeRect", x, y, w, h),
+            moveTo: (x: number, y: number) => check("moveTo", x, y),
+            lineTo: (x: number, y: number) => check("lineTo", x, y),
+            arc: (x: number, y: number, r: number, a0: number, a1: number) =>
+                check("arc", x, y, r, a0, a1),
+            translate: (x: number, y: number) => check("translate", x, y),
+            rotate: (a: number) => check("rotate", a),
+            createLinearGradient: (
+                x0: number,
+                y0: number,
+                x1: number,
+                y1: number,
+            ) => {
+                check("createLinearGradient", x0, y0, x1, y1);
+                return { addColorStop(_offset: number, _color: string) {} };
+            },
+        }) as Record<string, unknown>;
+    box.ops = ops;
+    return box;
 }
 
 // Minimal browser globals before the element modules load.
 (globalThis as Record<string, unknown>).document ??= {
-	documentElement: {},
-	createElement: () => ({ width: 0, height: 0 }),
+    documentElement: {},
+    createElement: () => ({ width: 0, height: 0 }),
 };
 (globalThis as Record<string, unknown>).window ??= {
-	location: { origin: "http://localhost" },
+    location: { origin: "http://localhost" },
 };
 
 const { AMBIENT_VARIANTS } = await import(
-	"../server/pages/overlays/modules/overlay_elements/elements/ambient_backgrounds"
+    "../server/pages/overlays/modules/overlay_elements/elements/ambient_backgrounds"
 );
 const { ambientElement, DEFAULT_AMBIENT_PROPS } = await import(
-	"../server/pages/overlays/modules/overlay_elements/elements/ambient"
+    "../server/pages/overlays/modules/overlay_elements/elements/ambient"
 );
 
 /** Run one background's rAF loop for FRAMES frames on a stubbed env, with
  * options built the way the element builds them (custom props over the
  * variant's registered defaults). */
 function runFrames(
-	v: (typeof AMBIENT_VARIANTS)[number],
-	custom: Record<string, number> = {},
-	speed = 1.5,
+    v: (typeof AMBIENT_VARIANTS)[number],
+    custom: Record<string, number> = {},
+    speed = 1.5,
 ): {
-	visibleDraws: number;
-	shapeCalls: number;
-	calls: CtxCalls;
+    visibleDraws: number;
+    shapeCalls: number;
+    calls: CtxCalls;
 } {
-	let scheduled = 0;
-	// rAF stub: schedule `fn` synchronously until FRAMES frames are done, so
-	// the loop runs exactly FRAMES iterations in the test.
-	(globalThis as Record<string, unknown>).requestAnimationFrame = (
-		fn: () => void,
-	): number => {
-		if (scheduled >= FRAMES) return 0;
-		scheduled++;
-		fn();
-		return scheduled;
-	};
-	// The loop's cleanup cancels its last frame; a no-op is enough headless.
-	(globalThis as Record<string, unknown>).cancelAnimationFrame = () => {};
-	const calls: CtxCalls = [];
-	const offscreen = makeCtx(calls);
-	const visible = makeCtx(calls);
-	const width = 800;
-	const height = 450;
-	const env = {
-		a: { width, height },
-		b: { width, height },
-		aw: offscreen.ops(),
-		bw: visible.ops(),
-		width,
-		height,
-	};
-	v.start(env as unknown as AmbientEnv, {
-		speed,
-		trail: 1,
-		background: "#05070d",
-		custom: { ...v.customDefaults, ...custom },
-	});
-	return { visibleDraws: visible.draws, shapeCalls: calls.length, calls };
+    let scheduled = 0;
+    // rAF stub: schedule `fn` synchronously until FRAMES frames are done, so
+    // the loop runs exactly FRAMES iterations in the test.
+    (globalThis as Record<string, unknown>).requestAnimationFrame = (
+        fn: () => void,
+    ): number => {
+        if (scheduled >= FRAMES) return 0;
+        scheduled++;
+        fn();
+        return scheduled;
+    };
+    // The loop's cleanup cancels its last frame; a no-op is enough headless.
+    (globalThis as Record<string, unknown>).cancelAnimationFrame = () => {};
+    const calls: CtxCalls = [];
+    const offscreen = makeCtx(calls);
+    const visible = makeCtx(calls);
+    const width = 800;
+    const height = 450;
+    const env = {
+        a: { width, height },
+        b: { width, height },
+        aw: offscreen.ops(),
+        bw: visible.ops(),
+        width,
+        height,
+    };
+    v.start(env as unknown as AmbientEnv, {
+        speed,
+        trail: 1,
+        background: "#05070d",
+        custom: { ...v.customDefaults, ...custom },
+    });
+    return { visibleDraws: visible.draws, shapeCalls: calls.length, calls };
 }
 
 describe("ambient backgrounds (headless run)", () => {
-	test("every variant animates and composites to the visible canvas", () => {
-		expect(AMBIENT_VARIANTS.length).toBeGreaterThanOrEqual(5);
-		for (const v of AMBIENT_VARIANTS) {
-			const { visibleDraws, shapeCalls } = runFrames(v);
-			expect(visibleDraws, `${v.id}: composites frames`).toBeGreaterThan(0);
-			expect(shapeCalls, `${v.id}: draws shapes`).toBeGreaterThan(0);
-		}
-	});
+    test("every variant animates and composites to the visible canvas", () => {
+        expect(AMBIENT_VARIANTS.length).toBeGreaterThanOrEqual(5);
+        for (const v of AMBIENT_VARIANTS) {
+            const { visibleDraws, shapeCalls } = runFrames(v);
+            expect(visibleDraws, `${v.id}: composites frames`).toBeGreaterThan(
+                0,
+            );
+            expect(shapeCalls, `${v.id}: draws shapes`).toBeGreaterThan(0);
+        }
+    });
 
-	test("Shift uses its circle count, hue and radius parameters", () => {
-		const shift = AMBIENT_VARIANTS.find((v) => v.id === "shift");
-		if (!shift) throw new Error("variant missing: shift");
-		expect(runFrames(shift).calls.filter((call) => call.name === "arc"))
-			.toHaveLength(150 * FRAMES);
-		const { calls } = runFrames(shift, {
-			circle_count: 3,
-			base_hue: 130,
-			range_hue: 0,
-			base_radius: 12,
-			range_radius: 0,
-		});
-		const arcs = calls.filter((call) => call.name === "arc");
-		expect(arcs).toHaveLength(3 * FRAMES);
-		for (const arc of arcs) expect(arc.args[2]).toBe(12);
-		for (const fill of calls.filter((call) => call.name === "fill"))
-			expect(String(fill.args[0])).toMatch(/^hsla\(130,/);
-		const varied = runFrames(shift, {
-			circle_count: 3,
-			base_hue: 130,
-			range_hue: 20,
-			base_radius: 12,
-			range_radius: 60,
-		}).calls;
-		for (const arc of varied.filter((call) => call.name === "arc")) {
-			expect(Number(arc.args[2])).toBeGreaterThanOrEqual(12);
-			expect(Number(arc.args[2])).toBeLessThanOrEqual(72);
-		}
-		expect(varied.some((call) => call.name === "arc" && Number(call.args[2]) > 12)).toBe(true);
-		for (const fill of varied.filter((call) => call.name === "fill")) {
-			const hue = Number(String(fill.args[0]).slice(5).split(",")[0]);
-			expect(hue).toBeGreaterThanOrEqual(110);
-			expect(hue).toBeLessThanOrEqual(150);
-		}
-		expect(varied.some((call) => call.name === "fill" && !String(call.args[0]).startsWith("hsla(130,"))).toBe(true);
-	});
+    test("Shift uses its circle count, hue and radius parameters", () => {
+        const shift = AMBIENT_VARIANTS.find((v) => v.id === "shift");
+        if (!shift) throw new Error("variant missing: shift");
+        expect(
+            runFrames(shift).calls.filter((call) => call.name === "arc"),
+        ).toHaveLength(150 * FRAMES);
+        const { calls } = runFrames(shift, {
+            circle_count: 3,
+            base_hue: 130,
+            range_hue: 0,
+            base_radius: 12,
+            range_radius: 0,
+        });
+        const arcs = calls.filter((call) => call.name === "arc");
+        expect(arcs).toHaveLength(3 * FRAMES);
+        for (const arc of arcs) expect(arc.args[2]).toBe(12);
+        for (const fill of calls.filter((call) => call.name === "fill"))
+            expect(String(fill.args[0])).toMatch(/^hsla\(130,/);
+        const varied = runFrames(shift, {
+            circle_count: 3,
+            base_hue: 130,
+            range_hue: 20,
+            base_radius: 12,
+            range_radius: 60,
+        }).calls;
+        for (const arc of varied.filter((call) => call.name === "arc")) {
+            expect(Number(arc.args[2])).toBeGreaterThanOrEqual(12);
+            expect(Number(arc.args[2])).toBeLessThanOrEqual(72);
+        }
+        expect(
+            varied.some(
+                (call) => call.name === "arc" && Number(call.args[2]) > 12,
+            ),
+        ).toBe(true);
+        for (const fill of varied.filter((call) => call.name === "fill")) {
+            const hue = Number(String(fill.args[0]).slice(5).split(",")[0]);
+            expect(hue).toBeGreaterThanOrEqual(110);
+            expect(hue).toBeLessThanOrEqual(150);
+        }
+        expect(
+            varied.some(
+                (call) =>
+                    call.name === "fill" &&
+                    !String(call.args[0]).startsWith("hsla(130,"),
+            ),
+        ).toBe(true);
+    });
 
-	test("Shift uses fixed base speed and applies the shared speed multiplier", () => {
-		const shift = AMBIENT_VARIANTS.find((v) => v.id === "shift");
-		if (!shift) throw new Error("variant missing: shift");
-		const random = spyOn(Math, "random").mockReturnValue(0.5);
-		try {
-			const distance = (speed: number): number => {
-				const arcs = runFrames(shift, { circle_count: 1, base_speed: 2 }, speed)
-					.calls.filter((call) => call.name === "arc");
-				return Math.hypot(
-					Number(arcs[1].args[0]) - Number(arcs[0].args[0]),
-					Number(arcs[1].args[1]) - Number(arcs[0].args[1]),
-				);
-			};
-			expect(distance(1)).toBeCloseTo(0.6, 4);
-			expect(distance(2)).toBeCloseTo(1.2, 4);
-		} finally {
-			random.mockRestore();
-		}
-	});
+    test("Shift uses fixed base speed and applies the shared speed multiplier", () => {
+        const shift = AMBIENT_VARIANTS.find((v) => v.id === "shift");
+        if (!shift) throw new Error("variant missing: shift");
+        const random = spyOn(Math, "random").mockReturnValue(0.5);
+        try {
+            const distance = (speed: number): number => {
+                const arcs = runFrames(
+                    shift,
+                    { circle_count: 1, base_speed: 2 },
+                    speed,
+                ).calls.filter((call) => call.name === "arc");
+                return Math.hypot(
+                    Number(arcs[1].args[0]) - Number(arcs[0].args[0]),
+                    Number(arcs[1].args[1]) - Number(arcs[0].args[1]),
+                );
+            };
+            expect(distance(1)).toBeCloseTo(0.6, 4);
+            expect(distance(2)).toBeCloseTo(1.2, 4);
+        } finally {
+            random.mockRestore();
+        }
+    });
 });
 
 describe("variant registration (class shape)", () => {
-	const byId = (id: string) => {
-		const v = AMBIENT_VARIANTS.find((v) => v.id === id);
-		if (!v) throw new Error(`variant missing: ${id}`);
-		return v;
-	};
-	// `customFormRows` receives the element (it reads `element.props` for the
-	// current values); an empty-props stub is enough for the shape checks.
-	const el = { props: {} } as never;
+    const byId = (id: string) => {
+        const v = AMBIENT_VARIANTS.find((v) => v.id === id);
+        if (!v) throw new Error(`variant missing: ${id}`);
+        return v;
+    };
+    // `customFormRows` receives the element (it reads `element.props` for the
+    // current values); an empty-props stub is enough for the shape checks.
+    const el = { props: {} } as never;
 
-	test("every variant is an AmbientVariant with a stable id, label and start", () => {
-		for (const v of AMBIENT_VARIANTS) {
-			expect(v.id.length).toBeGreaterThan(0);
-			expect(v.labelKey).toMatch(/^overlay\.ambient_/);
-			expect(typeof v.start).toBe("function");
-			expect(v.customDefaults).toBeTypeOf("object");
-		}
-	});
+    test("every variant is an AmbientVariant with a stable id, label and start", () => {
+        for (const v of AMBIENT_VARIANTS) {
+            expect(v.id.length).toBeGreaterThan(0);
+            expect(v.labelKey).toMatch(/^overlay\.ambient_/);
+            expect(typeof v.start).toBe("function");
+            expect(v.customDefaults).toBeTypeOf("object");
+        }
+    });
 
-	test("pipeline and Shift own their custom props; the other backgrounds have none", () => {
-		expect(byId("pipeline").customDefaults).toEqual({
-			trail_faster: 3,
-			head_brightness: 1,
-		});
-		expect(byId("pipeline").customFormRows(el).length).toBe(2);
+    test("pipeline and Shift own their custom props; the other backgrounds have none", () => {
+        expect(byId("pipeline").customDefaults).toEqual({
+            trail_faster: 3,
+            head_brightness: 1,
+        });
+        expect(byId("pipeline").customFormRows(el).length).toBe(2);
 
-		expect(byId("shift").customDefaults).toEqual({
-			circle_count: 150,
-			base_hue: 220,
-			range_hue: 60,
-			base_radius: 100,
-			range_radius: 200,
-		});
-		const rows = byId("shift").customFormRows(el);
-		expect(rows).toHaveLength(5);
-		expect(ambientElement.propKeys).not.toContain("base_speed");
-		for (const row of rows) {
-			expect(ambientElement.propKeys).toContain(row.path.slice(6));
-			expect(row.value).toBe(byId("shift").customDefaults[row.path.slice(6)]);
-		}
+        expect(byId("shift").customDefaults).toEqual({
+            circle_count: 150,
+            base_hue: 220,
+            range_hue: 60,
+            base_radius: 100,
+            range_radius: 200,
+        });
+        const rows = byId("shift").customFormRows(el);
+        expect(rows).toHaveLength(5);
+        expect(ambientElement.propKeys).not.toContain("base_speed");
+        for (const row of rows) {
+            expect(ambientElement.propKeys).toContain(row.path.slice(6));
+            expect(row.value).toBe(
+                byId("shift").customDefaults[row.path.slice(6)],
+            );
+        }
 
-		for (const id of ["aurora", "coalesce", "swirl"]) {
-			expect(byId(id).customDefaults).toEqual({});
-			expect(byId(id).customFormRows(el)).toEqual([]);
-		}
-	});
+        for (const id of ["aurora", "coalesce", "swirl"]) {
+            expect(byId(id).customDefaults).toEqual({});
+            expect(byId(id).customFormRows(el)).toEqual([]);
+        }
+    });
 });
 
 describe("ambient element contract", () => {
-	test("normalizeProps clamps into the safe ranges (speed, trail) and falls back on unknown kind", () => {
-		const clamp = (props: Record<string, unknown>): Record<string, unknown> =>
-			ambientElement.normalizeProps(props, {
-				num: (k, fb, min, max) => {
-					const v = props[k];
-					if (typeof v === "number" && Number.isFinite(v))
-						return Math.min(max, Math.max(min, v));
-					return fb;
-				},
-				hex: (k, fb) =>
-					typeof props[k] === "string"
-						? (props[k] as string).toLowerCase()
-						: fb,
-				str: (k, fb) =>
-					typeof props[k] === "string" ? (props[k] as string) : fb,
-				oneOf: <T extends string>(
-					k: string,
-					allowed: readonly T[],
-					fb: T,
-				): T => {
-					const v = props[k];
-					return typeof v === "string" &&
-						(allowed as readonly string[]).includes(v)
-						? (v as T)
-						: fb;
-				},
-				bool: (k) => props[k] === true,
-			});
+    test("normalizeProps clamps into the safe ranges (speed, trail) and falls back on unknown kind", () => {
+        const clamp = (
+            props: Record<string, unknown>,
+        ): Record<string, unknown> =>
+            ambientElement.normalizeProps(props, {
+                num: (k, fb, min, max) => {
+                    const v = props[k];
+                    if (typeof v === "number" && Number.isFinite(v))
+                        return Math.min(max, Math.max(min, v));
+                    return fb;
+                },
+                hex: (k, fb) =>
+                    typeof props[k] === "string"
+                        ? (props[k] as string).toLowerCase()
+                        : fb,
+                str: (k, fb) =>
+                    typeof props[k] === "string" ? (props[k] as string) : fb,
+                oneOf: <T extends string>(
+                    k: string,
+                    allowed: readonly T[],
+                    fb: T,
+                ): T => {
+                    const v = props[k];
+                    return typeof v === "string" &&
+                        (allowed as readonly string[]).includes(v)
+                        ? (v as T)
+                        : fb;
+                },
+                bool: (k) => props[k] === true,
+            });
 
-		expect(clamp({})).toEqual({
-			kind: DEFAULT_AMBIENT_PROPS.kind,
-			speed: DEFAULT_AMBIENT_PROPS.speed,
-			trail: DEFAULT_AMBIENT_PROPS.trail,
-			background: DEFAULT_AMBIENT_PROPS.background,
-		});
-		// The pipeline registers custom props: `trail_faster` clamped into
-		// [0.5, 10] and `head_brightness` into [0, 4], both defaulted when
-		// missing.
-		expect(clamp({ kind: "pipeline", trail_faster: 99 })).toEqual({
-			kind: "pipeline",
-			speed: 1,
-			trail: 1,
-			trail_faster: 10,
-			head_brightness: 1,
-			background: "#05070d",
-		});
-		expect(clamp({ kind: "pipeline" }).trail_faster).toBe(3);
-		expect(clamp({ kind: "pipeline" }).head_brightness).toBe(1);
-		expect(clamp({ kind: "pipeline", head_brightness: 99 }).head_brightness).toBe(4);
-		const shift = AMBIENT_VARIANTS.find((v) => v.id === "shift");
-		if (!shift) throw new Error("variant missing: shift");
-		expect(clamp({ kind: "shift" })).toEqual({
-			...DEFAULT_AMBIENT_PROPS,
-			kind: "shift",
-			...shift.customDefaults,
-		});
-		expect(clamp({ kind: "shift", base_speed: 2 })).toEqual(
-			clamp({ kind: "shift" }),
-		);
-		for (const row of shift.customFormRows({ props: {} } as never)) {
-			const key = row.path.slice(6);
-			expect(clamp({ kind: "shift", [key]: -100 })[key]).toBe(row.min);
-			expect(clamp({ kind: "shift", [key]: 10000 })[key]).toBe(row.max);
-			for (const value of [NaN, Infinity, "invalid"])
-				expect(clamp({ kind: "shift", [key]: value })[key]).toBe(shift.customDefaults[key]);
-		}
-		expect(clamp({ kind: "shift", circle_count: 3.7 }).circle_count).toBe(4);
-		// Backgrounds without custom props normalize to just the shared trio.
-		expect(clamp({ kind: "swirl", speed: 99, trail: 99 })).toEqual({
-			kind: "swirl",
-			speed: 4,
-			trail: 10,
-			background: "#05070d",
-		});
-		expect(clamp({ kind: "bogus" }).kind).toBe(DEFAULT_AMBIENT_PROPS.kind);
-	});
+        expect(clamp({})).toEqual({
+            kind: DEFAULT_AMBIENT_PROPS.kind,
+            speed: DEFAULT_AMBIENT_PROPS.speed,
+            trail: DEFAULT_AMBIENT_PROPS.trail,
+            background: DEFAULT_AMBIENT_PROPS.background,
+        });
+        // The pipeline registers custom props: `trail_faster` clamped into
+        // [0.5, 10] and `head_brightness` into [0, 4], both defaulted when
+        // missing.
+        expect(clamp({ kind: "pipeline", trail_faster: 99 })).toEqual({
+            kind: "pipeline",
+            speed: 1,
+            trail: 1,
+            trail_faster: 10,
+            head_brightness: 1,
+            background: "#05070d",
+        });
+        expect(clamp({ kind: "pipeline" }).trail_faster).toBe(3);
+        expect(clamp({ kind: "pipeline" }).head_brightness).toBe(1);
+        expect(
+            clamp({ kind: "pipeline", head_brightness: 99 }).head_brightness,
+        ).toBe(4);
+        const shift = AMBIENT_VARIANTS.find((v) => v.id === "shift");
+        if (!shift) throw new Error("variant missing: shift");
+        expect(clamp({ kind: "shift" })).toEqual({
+            ...DEFAULT_AMBIENT_PROPS,
+            kind: "shift",
+            ...shift.customDefaults,
+        });
+        expect(clamp({ kind: "shift", base_speed: 2 })).toEqual(
+            clamp({ kind: "shift" }),
+        );
+        for (const row of shift.customFormRows({ props: {} } as never)) {
+            const key = row.path.slice(6);
+            expect(clamp({ kind: "shift", [key]: -100 })[key]).toBe(row.min);
+            expect(clamp({ kind: "shift", [key]: 10000 })[key]).toBe(row.max);
+            for (const value of [NaN, Infinity, "invalid"])
+                expect(clamp({ kind: "shift", [key]: value })[key]).toBe(
+                    shift.customDefaults[key],
+                );
+        }
+        expect(clamp({ kind: "shift", circle_count: 3.7 }).circle_count).toBe(
+            4,
+        );
+        // Backgrounds without custom props normalize to just the shared trio.
+        expect(clamp({ kind: "swirl", speed: 99, trail: 99 })).toEqual({
+            kind: "swirl",
+            speed: 4,
+            trail: 10,
+            background: "#05070d",
+        });
+        expect(clamp({ kind: "bogus" }).kind).toBe(DEFAULT_AMBIENT_PROPS.kind);
+    });
 
-	test("validate() accepts every registered variant and rejects unknown ones", () => {
-		const el = (kind: string) => ({
-			id: "e1",
-			name: "e",
-			type: "ambient",
-			transform: {
-				x: 0,
-				y: 0,
-				width: 100,
-				height: 100,
-				rotation: 0,
-				opacity: 1,
-			},
-			visible: true,
-			locked: false,
-			parentId: null,
-			bindings: {},
-			props: { kind, speed: 1, trail: 1, background: "#05070d" },
-		});
-		for (const v of AMBIENT_VARIANTS)
-			expect(ambientElement.validate(el(v.id))).toEqual([]);
-		expect(ambientElement.validate(el("bogus"))).not.toEqual([]);
-	});
+    test("validate() accepts every registered variant and rejects unknown ones", () => {
+        const el = (kind: string) => ({
+            id: "e1",
+            name: "e",
+            type: "ambient",
+            transform: {
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 100,
+                rotation: 0,
+                opacity: 1,
+            },
+            visible: true,
+            locked: false,
+            parentId: null,
+            bindings: {},
+            props: { kind, speed: 1, trail: 1, background: "#05070d" },
+        });
+        for (const v of AMBIENT_VARIANTS)
+            expect(ambientElement.validate(el(v.id))).toEqual([]);
+        expect(ambientElement.validate(el("bogus"))).not.toEqual([]);
+    });
 
-	test("defaultProps seed a well-formed box element", () => {
-		expect(ambientElement.defaultProps).toEqual({ ...DEFAULT_AMBIENT_PROPS });
-		expect(ambientElement.defaultSize.width).toBeGreaterThan(0);
-		expect(ambientElement.defaultSize.height).toBeGreaterThan(0);
-		expect(ambientElement.handles).toBe("box");
-	});
+    test("defaultProps seed a well-formed box element", () => {
+        expect(ambientElement.defaultProps).toEqual({
+            ...DEFAULT_AMBIENT_PROPS,
+        });
+        expect(ambientElement.defaultSize.width).toBeGreaterThan(0);
+        expect(ambientElement.defaultSize.height).toBeGreaterThan(0);
+        expect(ambientElement.handles).toBe("box");
+    });
 });

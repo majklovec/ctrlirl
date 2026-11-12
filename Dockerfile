@@ -38,20 +38,20 @@ COPY --from=builder /app/i18n ./i18n
 COPY --from=builder /app/scripts ./scripts
 # The seed overlay templates ride under /app: on boot the server copies them
 # into the storage dir's overlay_templates/ when that is missing (a fresh
-# volume). The copy must not live under a mount target — /assets is bind-
+# volume). The copy must not live under a mount target - /assets is bind-
 # mounted in Nomad, which would hide it.
 COPY --from=builder /app/assets/overlay_templates /app/assets/overlay_templates
 # tsconfig.json drives the JSX transform at bundle time (jsxFactory "m" ->
 # Mithril). Without it Bun defaults to react/jsx-dev-runtime, which isn't a dep.
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
-# generated/ is gitignored and regenerated at startup (scripts/gen_modules.ts) —
+# generated/ is gitignored and regenerated at startup (scripts/gen_modules.ts) -
 # create it writable by the runtime user (1000:1000).
 RUN mkdir -p /app/generated && chown 1000:1000 /app/generated
 
 # Expose the default control-server port
 EXPOSE 8090
 
-# Default entrypoint — override with `command` in docker-compose
+# Default entrypoint - override with `command` in docker-compose
 ENTRYPOINT ["bun", "server/main.ts"]
 CMD ["--host", "0.0.0.0", "--port", "8090"]

@@ -3,7 +3,7 @@
  * contribute (`<module>/overlay_schema.ts`, collected into
  * generated/overlay_schemas.ts by scripts/gen_modules.ts), keyed by type.
  * The scene normaliser in shared/overlay.ts validates element types and
- * props through this map — the core names no element type.
+ * props through this map - the core names no element type.
  */
 
 import SCHEMA_MANIFEST from "../../../generated/overlay_schemas";

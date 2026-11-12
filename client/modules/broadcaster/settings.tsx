@@ -45,7 +45,7 @@ interface BroadcasterModuleView extends ModuleSliceView {
 
 /**
  * Editable copy of the relay's RTMP destinations and ffmpeg output profile;
- * stream keys are write-only — the device only ever reports them as
+ * stream keys are write-only - the device only ever reports them as
  * {keyConfigured}.
  */
 const draft = {
@@ -63,7 +63,7 @@ let syncSignature: string | null = null;
  *    row count and the operator's unsaved fields follow the device view; the
  *    service is re-derived (catalog id → URL inference → custom) and the URL
  *    is mirrored.
- *  - Keys are write-only — the device never echoes them, so the operator's
+ *  - Keys are write-only - the device never echoes them, so the operator's
  *    text always wins and they are not touched.
  *  - A profile that no longer exists on the device is reset to the copy
  *    profile; an in-progress choice the device has not saved yet is kept.
@@ -118,7 +118,7 @@ const ProfileOptions = {
  * the entries are alphabetical. The group and custom labels follow the
  * current locale. A component view's bare array is rendered as a Mithril
  * fragment, so the subtree must be uniformly unkeyed (no `key` attributes)
- * — mixing keyed and unkeyed vnodes makes Mithril throw.
+ * - mixing keyed and unkeyed vnodes makes Mithril throw.
  */
 const ServiceOptions = {
 	view: () => {
@@ -168,11 +168,11 @@ export const def: ModuleDef = {
 	visible: (ctx) => ctx.role === "broadcaster",
 	refresh: (ctx) => {
 		// A status push while a save is in flight must not clobber the
-		// operator's edits — the in-flight save already carries them.
+		// operator's edits - the in-flight save already carries them.
 		if (ctx.busy) return;
 		const view = ctx.modules.broadcaster as BroadcasterModuleView | undefined;
 		// The view lags the draft until a save round-trips, so a push that
-		// carries no change since the last sync must not touch the draft —
+		// carries no change since the last sync must not touch the draft -
 		// the operator may be mid-edit. Set only after the sync below: a
 		// push skipped while a save was in flight must not count as synced.
 		const signature = JSON.stringify(view);

@@ -43,7 +43,7 @@ import {
 import { serverLive } from "../../../shell/live";
 import { configSelectField } from "./widget_config_select";
 
-/** Device-independent widget types — offered once, with no device of their
+/** Device-independent widget types - offered once, with no device of their
  * own: the channel widgets (their data is fetched by the control server) and
  * the fleet widgets (their config names the devices they drive). The modules
  * declare their own types; the core routes through the registry. */
@@ -68,7 +68,7 @@ interface Connection {
 let rpcConn: RpcClient | null = null;
 
 /** One server websocket for the dashboard pages: the live device list,
- * cross-client dashboard sync, and the channel widgets' frames — every frame
+ * cross-client dashboard sync, and the channel widgets' frames - every frame
  * the core does not own itself is forwarded to the widget modules, which fold
  * the ones they care about into their own per-channel live state. */
 function ensureDashboardsConn(): void {
@@ -100,14 +100,14 @@ export function ensureDashboardsWs(): void {
 	ensureDashboardsConn();
 }
 
-/** A channel widget's normalized channel key ("" when not configured) — the
+/** A channel widget's normalized channel key ("" when not configured) - the
  * universal `channel` config parameter shared by the channel widgets. */
 export const widgetChannel = (w: ServerDashboardWidget): string =>
 	(w.config?.channel ?? "").trim().toLowerCase();
 
 /** The render context the core hands a widget module: its normalized channel,
  * its device's live bag (null for device-independent widgets) plus the device
- * info — the module reads what it composes structurally. */
+ * info - the module reads what it composes structurally. */
 export const widgetCtx = (w: ServerDashboardWidget): WidgetContext => ({
 	channel: widgetChannel(w),
 	deviceLive: (connectionFor(effectiveDeviceId(w))?.live ?? null) as Record<
@@ -151,13 +151,13 @@ export function widgetTypesFor(d: DeviceSummary): WidgetType[] {
 	return deviceWidgetTypesFor(d);
 }
 
-/** Widget types that are not tied to a device: always offered — channel
+/** Widget types that are not tied to a device: always offered - channel
  * widgets (their data is fetched by the server) and fleet widgets. */
 export function independentTypes(): WidgetType[] {
 	return [...widgetModuleTypes(), ...fleetWidgetTypes()] as WidgetType[];
 }
 
-/** The device a widget's data comes from — its own for device-bound widgets;
+/** The device a widget's data comes from - its own for device-bound widgets;
  * channel widgets are device-independent and don't open a device connection. */
 export function effectiveDeviceId(w: ServerDashboardWidget): string {
 	return isIndependent(w.type) ? "" : w.deviceId;
@@ -195,7 +195,7 @@ function openConnection(id: string): Connection {
 	rpc.on("close", () => conn.card.clearEvents());
 	// Warm start: pull last snapshots once the socket is open (a 409 means the
 	// module is not enabled there). `call` rejects before the socket is OPEN, so
-	// this must run from the "open" event — initial connect and every reconnect.
+	// this must run from the "open" event - initial connect and every reconnect.
 	rpc.on("open", () => {
 		conn.card.handleEvent("open", undefined);
 		void rpc.call("status").catch(() => undefined);
@@ -235,7 +235,7 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 }
 
 /** Drop the connections a fleet widget's editor opened on demand (`connect`)
- * that no saved widget needs — run when the editor closes. */
+ * that no saved widget needs - run when the editor closes. */
 const pruneConnections = (): void => syncConnectionsFor(syncedDash);
 
 const connectionFor = (deviceId: string): Connection | undefined =>
@@ -417,7 +417,7 @@ function configEditorForm(w: ServerDashboardWidget): m.Vnode {
 	const visibleFields = custom ? [] : visibleWidgetConfigFields(fields);
 	return (
 		// Keyed so Mithril replaces it wholesale when the widget swaps
-		// between body (`key="buttons-live"` & co.) and config form — an
+		// between body (`key="buttons-live"` & co.) and config form - an
 		// in-place patch would repurpose a live GridStack host node.
 		<div class="dash-config-form" key="dash-config-form">
 			{[
@@ -555,7 +555,7 @@ function bodyFor(w: ServerDashboardWidget): m.Children {
 	return deviceWidget(w);
 }
 
-/** Default/min/max `{w, h}` for a widget type — the module's own grid
+/** Default/min/max `{w, h}` for a widget type - the module's own grid
  * contract, used when adding a widget or constraining a resize. */
 export function widgetSize(type: WidgetType): {
 	default: GridSize;

@@ -202,7 +202,7 @@ export const Checkbox = {
 	BoundProps & { onChange?: (checked: boolean) => void } & m.Attributes
 >;
 
-/** Attributes of a numeric <input>. (Plain function — it returns attrs, not a vnode.) */
+/** Attributes of a numeric <input>. (Plain function - it returns attrs, not a vnode.) */
 export const numberAttrs = (
 	min: number,
 	max: number,

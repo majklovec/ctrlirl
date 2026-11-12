@@ -16,12 +16,12 @@ Several files or tables do not automatically form a consistent snapshot. Choose 
 
 Handoff must let the next session continue without reading the entire conversation or repeating a general interview.
 
-| Function | Sufficient content | Example representation |
-|---|---|---|
-| Environment restoration | Dependency/configuration versions, authorized preparation, tool/data availability checks | init.sh, PowerShell, image, or native bootstrap |
-| Human-readable progress | Goal, accepted decisions and reasons, completed work, blockers/unknowns, next step | progress.md or a database-record view |
-| Machine-readable tasks | Stable IDs, dependencies, state, completion criteria, result and related-operation links | feature-list.json, tasks table, native graph state |
-| Verification package | Versioned pointer to outputs, checks, effects, and decisions | Evidence Bundle manifest under [validation-loop.md](validation-loop.md) |
+| Function                | Sufficient content                                                                       | Example representation                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Environment restoration | Dependency/configuration versions, authorized preparation, tool/data availability checks | init.sh, PowerShell, image, or native bootstrap                         |
+| Human-readable progress | Goal, accepted decisions and reasons, completed work, blockers/unknowns, next step       | progress.md or a database-record view                                   |
+| Machine-readable tasks  | Stable IDs, dependencies, state, completion criteria, result and related-operation links | feature-list.json, tasks table, native graph state                      |
+| Verification package    | Versioned pointer to outputs, checks, effects, and decisions                             | Evidence Bundle manifest under [validation-loop.md](validation-loop.md) |
 
 Do not duplicate authoritative state in independent inconsistent copies: the human view can derive from the same records. The package stores no secrets; bootstrap obtains them through an authorized environment and grants no new rights. An addressable file, actually loaded context, and correct continuation are separately verifiable states.
 
@@ -47,7 +47,7 @@ The long-horizon matrix in [evaluation-design.md](evaluation-design.md) distingu
 
 ## 5. Lifecycle-based storage
 
-For large volumes or long retention, compare one durable backend with logical tiers: hot—low-latency active state; warm—recently completed/paused tasks; cold—archive based on cost and applicable rules. Three tiers are not mandatory; a task without storage needs none. A storage tier is not a trust level, and compressed model context does not replace a primary artifact.
+For large volumes or long retention, compare one durable backend with logical tiers: hot-low-latency active state; warm-recently completed/paused tasks; cold-archive based on cost and applicable rules. Three tiers are not mandatory; a task without storage needs none. A storage tier is not a trust level, and compressed model context does not replace a primary artifact.
 
 Define `object/source of truth → tier → transition event/time → owner → access/retention → retrieval latency/cost → check`. Automatic migration uses stable IDs/versions and a verifiable manifest: copy and verify integrity → atomically switch address → remove previous copy under policy. Reads during migration must not mix versions; failure leaves the latest intact available version. Archive restoration (rehydration) has a waiting status, timeout, and missing/corrupt-object outcome. Transparency to the agent means preserving read contract and identity, not promising instant access.
 

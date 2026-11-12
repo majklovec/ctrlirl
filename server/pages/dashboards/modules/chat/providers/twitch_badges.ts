@@ -34,8 +34,8 @@ export function twitchBadgeUrl(
 }
 
 /** Parse the `badges` tag (`moderator/1,turbo/1,...`) to wire badges in the
- * order Twitch lists them. The version is intentionally pinned to `1` — the
- * chat feed renders one art per `set_id` rather than per tier/month — so the
+ * order Twitch lists them. The version is intentionally pinned to `1` - the
+ * chat feed renders one art per `set_id` rather than per tier/month - so the
  * tag's own version segment is ignored and only the `set_id` selects the art.
  * Pairs with no known art are skipped; the list is left out entirely when
  * nothing resolves. */

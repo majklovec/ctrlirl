@@ -4,7 +4,7 @@ job "[[.DOMAIN]]" {
   type        = "service"
 
   # ============================================================
-  # Group 1 — the existing irlctrl-server (unchanged)
+  # Group 1 - the existing irlctrl-server (unchanged)
   # ============================================================
   group "[[.SERVICE_ID]]" {
     count = 1
@@ -87,11 +87,11 @@ job "[[.DOMAIN]]" {
   }
 
   # ============================================================
-  # Group 2 — coturn TURN server (new)
+  # Group 2 - coturn TURN server (new)
   #
   # Why a separate group? A Nomad group shares ONE network mode,
   # and coturn must use HOST networking so it can bind the full UDP
-  # relay range (49152-65535) directly — Docker's userland proxy
+  # relay range (49152-65535) directly - Docker's userland proxy
   # cannot port-map that range efficiently.
   #
   # Node requirements:
@@ -133,7 +133,7 @@ job "[[.DOMAIN]]" {
 
         # Enable TURN-over-TLS (turns:) by uncommenting this mount AND
         # the matching tls-* lines in the template. Requires real,
-        # client-trusted certs (e.g. Let's Encrypt) — self-signed
+        # client-trusted certs (e.g. Let's Encrypt) - self-signed
         # certificates are rejected by browsers.
         #
         # mount {

@@ -10,16 +10,16 @@ An early design enables feedback. Deliver it immediately when context suffices, 
 
 After a substantive block, show a brief checkpoint: what was learned, which decision changed, which material topics remain open, and what will be ready after the next block. Do not promise “one last question” while material gaps remain. Do not invent a readiness percentage from filled rows. Moving to the next stage needs no separate permission.
 
-## 2. One turn—one clear task for the interlocutor
+## 2. One turn-one clear task for the interlocutor
 
 Choose the question whose answer most affects boundaries, output, safety, cost, or feasibility. Briefly connect it to the previous answer: **what I understood → what remains unknown → which decision depends on the answer → question**. Do not turn this into four repeated headings.
 
-- By default, ask about one decision or working episode. A related clarification is acceptable; multiple questions are acceptable by user preference or when answers naturally come together. Do not bundle deadline, server, budget, and on-call owner into one numbered item.
-- Count independent information requests, not numbers or question marks. To evaluate the interview, retain counts of turns, separate topics, repetitions of known facts, and questions with no decision impact.
-- Ask for the latest real case. If none exists, work through an explicitly simulated case and identify who will verify it before implementation and how. Do not force invented statistics.
-- Offer optional answer examples if starting is difficult. “In your own words / I don't know yet” is acceptable; selecting a suggestion does not prove an architectural decision.
-- Do not ask a customer about frameworks, database schemas, or fencing when they need to describe desired behavior. The architect proposes technical mechanisms, verifies API facts through authorized sources, or addresses the technical owner.
-- “I don't know” moves the question to the register with an owner and verification method. Repeat it after a new source or contradiction emerges, not merely to fill a template.
+-   By default, ask about one decision or working episode. A related clarification is acceptable; multiple questions are acceptable by user preference or when answers naturally come together. Do not bundle deadline, server, budget, and on-call owner into one numbered item.
+-   Count independent information requests, not numbers or question marks. To evaluate the interview, retain counts of turns, separate topics, repetitions of known facts, and questions with no decision impact.
+-   Ask for the latest real case. If none exists, work through an explicitly simulated case and identify who will verify it before implementation and how. Do not force invented statistics.
+-   Offer optional answer examples if starting is difficult. “In your own words / I don't know yet” is acceptable; selecting a suggestion does not prove an architectural decision.
+-   Do not ask a customer about frameworks, database schemas, or fencing when they need to describe desired behavior. The architect proposes technical mechanisms, verifies API facts through authorized sources, or addresses the technical owner.
+-   “I don't know” moves the question to the register with an owner and verification method. Repeat it after a new source or contradiction emerges, not merely to fill a template.
 
 Connected example: “A corrected file must not run automatically. How does the manager identify the version to check again?” After the answer, record the exact signal and version; do not add hosting and hiring questions in the same turn.
 
@@ -27,24 +27,24 @@ Connected example: “A corrected file must not run automatically. How does the 
 
 Maintain one compact map; documents and previous answers populate it without repeated questioning. For a material row: **basis → decision/constraint → knowledge status → who closes the gap and with what**. Do not replace SKILL.md knowledge statuses with a generic “discussed.” “Not applicable” needs a reason. There is no one-question-per-row requirement.
 
-| Area | Sufficient basis for a decision |
-|---|---|
-| Change and first scope | Current work, required result and recipient, why start now, included/deferred scope; observable success criterion |
+| Area                     | Sufficient basis for a decision                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Change and first scope   | Current work, required result and recipient, why start now, included/deferred scope; observable success criterion                                             |
 | Working cases and method | For material task classes: trigger, concrete input, substantive decisions, actions, handoff, output, and validation; ordinary case and significant exceptions |
-| Data and authority | Sources of truth, access and prohibitions, whose identity acts, exact confirmation subject; unknown rights are not permission |
-| State and failure | What survives a run, state owner, retry/cancel/effect reconciliation, recovery and problem owner; as applicable |
-| Human work | Where tasks are assigned, queues/errors viewed, confirmation or correction and resumption occur; response deadlines and no-response behavior |
-| Feasibility | Desired pilot deadline, available implementers/support, existing environment, budget/load constraints; unknowns affecting first scope |
-| Selection and acceptance | Justified execution approach, capability/output contracts, significant alternatives, success/unacceptable-result checks, acceptance owner |
+| Data and authority       | Sources of truth, access and prohibitions, whose identity acts, exact confirmation subject; unknown rights are not permission                                 |
+| State and failure        | What survives a run, state owner, retry/cancel/effect reconciliation, recovery and problem owner; as applicable                                               |
+| Human work               | Where tasks are assigned, queues/errors viewed, confirmation or correction and resumption occur; response deadlines and no-response behavior                  |
+| Feasibility              | Desired pilot deadline, available implementers/support, existing environment, budget/load constraints; unknowns affecting first scope                         |
+| Selection and acceptance | Justified execution approach, capability/output contracts, significant alternatives, success/unacceptable-result checks, acceptance owner                     |
 
 One typical example does not cover different authority, user, or external-effect classes. Select additional cases by risk and diversity, explaining the selection. Do not design the entire deferred backlog for a “complete interview.”
 
 At a checkpoint, separate remaining items:
 
-- **Blocks a decision/implementation:** the answer changes a mandatory capability, data/authority boundary, operational ownership, or deadline feasibility. Continue specific clarification or explicitly limit the relevant part's readiness.
-- **Requires engineer verification:** for example, the Pipeline rerun contract. Identify owner/role, exact material, and criterion; without access, do not portray verification as completed.
-- **Can be proposed and calibrated:** internal timeout or pool size. Show consequences and tuning method; do not call it agreed.
-- **Deferred/not applicable:** reason and revisit trigger where needed.
+-   **Blocks a decision/implementation:** the answer changes a mandatory capability, data/authority boundary, operational ownership, or deadline feasibility. Continue specific clarification or explicitly limit the relevant part's readiness.
+-   **Requires engineer verification:** for example, the Pipeline rerun contract. Identify owner/role, exact material, and criterion; without access, do not portray verification as completed.
+-   **Can be proposed and calibrated:** internal timeout or pool size. Show consequences and tuning method; do not call it agreed.
+-   **Deferred/not applicable:** reason and revisit trigger where needed.
 
 Finish investigation when material areas have sufficient grounds for the declared scope, when further progress requires an unavailable source/owner, or when the user stops questions. In the latter two cases, deliver a substantive conditional result and exact remaining verification now. Do not continue repetitive questions, wait indefinitely, or declare a gap closed. SKILL.md stopping instructions take precedence.
 

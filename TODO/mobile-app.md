@@ -1,16 +1,16 @@
-# Project Specification: IRLCTRL Mobile — SRTLA Streaming Encoder for Android
+# Project Specification: IRLCTRL Mobile - SRTLA Streaming Encoder for Android
 
 **Document type:** Handoff specification for an implementing AI agent
 **Target repository:** `majklovec/irlctrl`
 **Proposed module name:** `android-encoder` (native Android client)
 **Status:** Draft for implementation
-**Revision:** 2 — adds implementation-language decision (§2.4, §7.2)
+**Revision:** 2 - adds implementation-language decision (§2.4, §7.2)
 
 ---
 
 ## 1. Executive Summary
 
-IRLCTRL is a Bun-based controller for BELABOX-style bonded streaming. It exposes four device roles — `relay`, `encoder`, `obs`, and `broadcaster` — and an optional control server that manages devices over an outbound WebSocket connection. Today the `encoder` role runs on Linux-class devices with GStreamer pipelines and a local `srtla_send` process.
+IRLCTRL is a Bun-based controller for BELABOX-style bonded streaming. It exposes four device roles - `relay`, `encoder`, `obs`, and `broadcaster` - and an optional control server that manages devices over an outbound WebSocket connection. Today the `encoder` role runs on Linux-class devices with GStreamer pipelines and a local `srtla_send` process.
 
 This project adds **a native Android application** that fulfils the **`encoder` role on a mobile device**. The Android app will:
 
@@ -55,22 +55,22 @@ The deliverable is a new Android module (Gradle project) inside the `irlctrl` re
 | Wire-protocol contracts                                                          | **Kotlin data classes** mirroring TypeScript contracts                                             | Type-safe RPC router; drift caught by contract tests.                            |
 | Build / tooling                                                                  | Kotlin DSL Gradle 8.x, AGP 8.x, JDK 17, Compose BOM, `kotlinx.serialization`                       | Standard Android stack.                                                          |
 
-**Target split:** ~85% Kotlin, ~15% native — and the native portion is confined to exactly one module (`srtla-core`) with a fixed, small API surface.
+**Target split:** ~85% Kotlin, ~15% native - and the native portion is confined to exactly one module (`srtla-core`) with a fixed, small API surface.
 
-### 2.4 Language Selection — Detailed Rationale
+### 2.4 Language Selection - Detailed Rationale
 
 **Kotlin as the primary language** is chosen because:
 
 -   The Android toolchain (Compose, CameraX, MediaCodec, `ConnectivityManager`, foreground services) is Kotlin-first.
 -   Coroutines + `Flow` map directly onto IRLCTRL’s event model: each incoming `{ type: "event", … }` becomes an emission on a `SharedFlow<DeviceEvent>`; each `{ id, method, params }` becomes a `suspend fun` return.
--   `srtdroid` — the maintained SRT JNI wrapper — exposes a Kotlin API. No bridging code needed for the SRT layer.
+-   `srtdroid` - the maintained SRT JNI wrapper - exposes a Kotlin API. No bridging code needed for the SRT layer.
 -   Kotlin data classes diff cleanly against the TypeScript types in `shared/contracts/`, which makes the wire contract reviewable by the same maintainers who own the Bun code.
 
 **The SRTLA bonding engine is the one component that must stay swappable.** It processes every packet on the wire (thousands of packets/second) and must avoid GC-induced jitter. Three strategies, in order of preference:
 
--   **Option A — Pure Kotlin (default).** `DatagramChannel`/`DatagramSocket` per link, non-blocking, dedicated thread (not a coroutine dispatcher), pre-allocated and reused `ByteBuffer`s, allocation-free hot path. This is the starting point. Brix demonstrates pure Kotlin/Java SRT/SRTLA is workable on Android.
--   **Option B — C/C++ via JNI (production fallback).** Compile the BELABOX `srtla_send` C reference with the NDK. Expose a thin JNI shim; Kotlin owns the direct `ByteBuffer` pool and the native side does zero-copy `sendto()` per link. Crossed once per packet, not per byte.
--   **Option C — Rust via JNI (modern alternative).** Bridge via the `jni` crate, build with `cargo-ndk`. Adds a Rust toolchain to CI; only chosen if the Rust `srtla_send` reference is the preferred upstream.
+-   **Option A - Pure Kotlin (default).** `DatagramChannel`/`DatagramSocket` per link, non-blocking, dedicated thread (not a coroutine dispatcher), pre-allocated and reused `ByteBuffer`s, allocation-free hot path. This is the starting point. Brix demonstrates pure Kotlin/Java SRT/SRTLA is workable on Android.
+-   **Option B - C/C++ via JNI (production fallback).** Compile the BELABOX `srtla_send` C reference with the NDK. Expose a thin JNI shim; Kotlin owns the direct `ByteBuffer` pool and the native side does zero-copy `sendto()` per link. Crossed once per packet, not per byte.
+-   **Option C - Rust via JNI (modern alternative).** Bridge via the `jni` crate, build with `cargo-ndk`. Adds a Rust toolchain to CI; only chosen if the Rust `srtla_send` reference is the preferred upstream.
 
 **Promotion rule:** Ship Option A in milestone M4. If measured loss/retransmit rate exceeds the §10 acceptance criteria at the target bitrate, promote to Option B _without changing the Kotlin-facing `SrtlaBond` API_. The native build stays out of the CI pipeline until then.
 
@@ -150,7 +150,7 @@ Modules are co-located like irlctrl device modules (`client/modules/<name>`). Th
 
 | Stream | Codec                            | Container / transport                         |
 | ------ | -------------------------------- | --------------------------------------------- |
-| Video  | H.264 AVC, hardware `MediaCodec` | SRT payload (MPEG-TS or raw H.264 — see §5.2) |
+| Video  | H.264 AVC, hardware `MediaCodec` | SRT payload (MPEG-TS or raw H.264 - see §5.2) |
 | Audio  | AAC-LC                           | SRT payload                                   |
 
 -   Bitrate range: 500 kbps – 8 Mbps (configurable).
@@ -176,8 +176,8 @@ interface SrtlaBond {
 
 Two implementations live behind this interface:
 
--   `KotlinSrtlaBond` — pure Kotlin, the default shipped in M4.
--   `NativeSrtlaBond` — JNI-backed (C/C++ or Rust), added only if the promotion rule in §2.4 triggers.
+-   `KotlinSrtlaBond` - pure Kotlin, the default shipped in M4.
+-   `NativeSrtlaBond` - JNI-backed (C/C++ or Rust), added only if the promotion rule in §2.4 triggers.
 
 The rest of the app must only reference `SrtlaBond`, never the implementations.
 
@@ -237,7 +237,7 @@ AudioRecord ──▶ MediaCodec (AAC) ┘
 Choose **one** of the following and document the choice in the implementation:
 
 -   **Option A (recommended):** MPEG-TS muxer inside the app (`MediaMuxer` with `MUXER_OUTPUT_MPEG_TS` is not universally available; a lightweight TS writer or a library like `mp4parser` adapted for TS is acceptable). Feed the TS stream into SRT as payload.
--   **Option B:** Raw H.264/AAC with a custom framing header, matching what the IRLCTRL relay/broadcaster expects. **This must be verified against the relay’s `srtla_rec` configuration** — a relay that expects TS will fail on raw frames.
+-   **Option B:** Raw H.264/AAC with a custom framing header, matching what the IRLCTRL relay/broadcaster expects. **This must be verified against the relay’s `srtla_rec` configuration** - a relay that expects TS will fail on raw frames.
 
 > **Handoff instruction:** Before implementing the packetiser, read `client/modules/relay` and `client/modules/broadcaster` in irlctrl to determine the exact SRT payload format the relay forwards. Align the Android encoder with that format.
 
@@ -256,13 +256,13 @@ Use `System.nanoTime()` for monotonic timestamps. SRT requires a 32-bit timestam
 | `device.uuid`        | String | generated         | Fixed identity          |
 | `device.hostname`    | String | `android-encoder` | User-editable           |
 | `device.role`        | String | `encoder`         | Read-only               |
-| `control.url`        | String | —                 | `wss://…/device`        |
-| `control.token`      | String | —                 | Bearer token            |
+| `control.url`        | String | -                 | `wss://…/device`        |
+| `control.token`      | String | -                 | Bearer token            |
 | `encoder.resolution` | String | `1280x720`        |                         |
 | `encoder.bitrate`    | Int    | `2500000`         | bps                     |
 | `encoder.fps`        | Int    | `30`              |                         |
 | `encoder.camera`     | String | `back`            | `back` / `front`        |
-| `srtla.relayHost`    | String | —                 | Relay hostname/IP       |
+| `srtla.relayHost`    | String | -                 | Relay hostname/IP       |
 | `srtla.relayPort`    | Int    | `6000`            | Relay SRTLA port        |
 | `srtla.links`        | JSON   | auto              | Enabled network handles |
 
@@ -295,7 +295,7 @@ On `encoder.start`, transition through `STARTING` (camera open, encoder configur
 ### 7.2 Language and Interop Conventions
 
 -   All Android-side code is Kotlin. No Java sources except generated stubs.
--   The only place Java/Kotlin interacts with native code is `srtla-core`. The JNI shim must be minimal — one `external fun` per operation listed in the `SrtlaBond` interface, no per-byte callbacks.
+-   The only place Java/Kotlin interacts with native code is `srtla-core`. The JNI shim must be minimal - one `external fun` per operation listed in the `SrtlaBond` interface, no per-byte callbacks.
 -   Kotlin direct `ByteBuffer`s are owned by the Kotlin caller; the native side must not retain references after `submit()`/`poll()` return.
 -   Kotlin/JVM unit tests must be able to run against both `KotlinSrtlaBond` and a test double, without an NDK toolchain.
 -   Wire-contract Kotlin types live in `shared-contracts/` with a header comment pointing at the TypeScript source of truth. A contract test serialises Kotlin objects and compares against fixtures generated from the Bun client.
@@ -349,13 +349,13 @@ Add a GitHub Actions workflow:
 
 | Milestone                                | Deliverable                                                                                                                             | Estimated effort |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| **M1 — Skeleton + control client**       | Android project (Kotlin) builds; WebSocket connects to `bun run dev` server; `encoder.status` returns a static payload.                 | 3–5 days         |
-| **M2 — Capture + encode**                | CameraX preview, MediaCodec H.264/AAC output to a local file (no network).                                                              | 4–6 days         |
-| **M3 — SRT transport**                   | Encoded stream sent over a single SRT socket (`srtdroid`) to a local receiver.                                                          | 3–4 days         |
-| **M4 — SRTLA bonding (pure Kotlin)**     | `KotlinSrtlaBond` implementing the `SrtlaBond` interface; multi-socket bonding with `srtla_send`-compatible handshake; failover tested. | 7–10 days        |
-| **M4b — Native promotion (conditional)** | `NativeSrtlaBond` via JNI (C/C++ `srtla_send` or Rust) behind the same interface. Triggered only if §8.3 gate fails.                    | +5–8 days        |
-| **M5 — Control-server RPC surface**      | Full `encoder.*` method set, status events, reconnection, settings persistence.                                                         | 4–6 days         |
-| **M6 — UI + polish**                     | Compose UI for setup/live/diagnostics; foreground service notification; APK signing.                                                    | 5–7 days         |
+| **M1 - Skeleton + control client**       | Android project (Kotlin) builds; WebSocket connects to `bun run dev` server; `encoder.status` returns a static payload.                 | 3–5 days         |
+| **M2 - Capture + encode**                | CameraX preview, MediaCodec H.264/AAC output to a local file (no network).                                                              | 4–6 days         |
+| **M3 - SRT transport**                   | Encoded stream sent over a single SRT socket (`srtdroid`) to a local receiver.                                                          | 3–4 days         |
+| **M4 - SRTLA bonding (pure Kotlin)**     | `KotlinSrtlaBond` implementing the `SrtlaBond` interface; multi-socket bonding with `srtla_send`-compatible handshake; failover tested. | 7–10 days        |
+| **M4b - Native promotion (conditional)** | `NativeSrtlaBond` via JNI (C/C++ `srtla_send` or Rust) behind the same interface. Triggered only if §8.3 gate fails.                    | +5–8 days        |
+| **M5 - Control-server RPC surface**      | Full `encoder.*` method set, status events, reconnection, settings persistence.                                                         | 4–6 days         |
+| **M6 - UI + polish**                     | Compose UI for setup/live/diagnostics; foreground service notification; APK signing.                                                    | 5–7 days         |
 
 **Total:** ~26–38 developer-days for the Kotlin baseline; +5–8 days if native promotion is needed.
 
@@ -365,13 +365,13 @@ Add a GitHub Actions workflow:
 
 | Risk                                                    | Impact                                          | Mitigation                                                                                                                                             |
 | ------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No Android SRTLA library exists                         | High — bonding must be written from scratch     | Ship pure-Kotlin `KotlinSrtlaBond` first (Brix reference, `srtla_send` Rust reference); keep it behind `SrtlaBond` so native replacement is a drop-in. |
-| Pure-Kotlin bonding misses the performance gate (§8.3)  | High — stream quality degrades at high bitrate  | Pre-allocate buffers, dedicated thread, no per-packet allocations; promote to native via §2.4.                                                         |
-| Relay expects a specific SRT payload format (TS vs raw) | Medium — stream may not be accepted             | Inspect `client/modules/relay` and `broadcaster` before choosing a packetiser.                                                                         |
-| Android restricts simultaneous Wi‑Fi + cellular use     | Medium — bonding may be impossible on some OEMs | Use `ConnectivityManager` request-network APIs correctly; provide a “single-link mode” fallback and document OEM limitations.                          |
-| Control-server protocol drift                           | Medium — RPC mismatch                           | Copy method signatures from `client/modules/encoder`; add a contract test that runs against `bun run dev`.                                             |
-| Battery / thermal throttling                            | Medium — stream degrades                        | Expose thermal status in diagnostics; allow automatic bitrate/fps reduction.                                                                           |
-| JNI bugs in native bonding                              | Medium — hard crashes on the streaming path     | Only added if needed; interface parity tests against `KotlinSrtlaBond`; aggressive `ByteBuffer` lifetime tests.                                        |
+| No Android SRTLA library exists                         | High - bonding must be written from scratch     | Ship pure-Kotlin `KotlinSrtlaBond` first (Brix reference, `srtla_send` Rust reference); keep it behind `SrtlaBond` so native replacement is a drop-in. |
+| Pure-Kotlin bonding misses the performance gate (§8.3)  | High - stream quality degrades at high bitrate  | Pre-allocate buffers, dedicated thread, no per-packet allocations; promote to native via §2.4.                                                         |
+| Relay expects a specific SRT payload format (TS vs raw) | Medium - stream may not be accepted             | Inspect `client/modules/relay` and `broadcaster` before choosing a packetiser.                                                                         |
+| Android restricts simultaneous Wi‑Fi + cellular use     | Medium - bonding may be impossible on some OEMs | Use `ConnectivityManager` request-network APIs correctly; provide a “single-link mode” fallback and document OEM limitations.                          |
+| Control-server protocol drift                           | Medium - RPC mismatch                           | Copy method signatures from `client/modules/encoder`; add a contract test that runs against `bun run dev`.                                             |
+| Battery / thermal throttling                            | Medium - stream degrades                        | Expose thermal status in diagnostics; allow automatic bitrate/fps reduction.                                                                           |
+| JNI bugs in native bonding                              | Medium - hard crashes on the streaming path     | Only added if needed; interface parity tests against `KotlinSrtlaBond`; aggressive `ByteBuffer` lifetime tests.                                        |
 
 ---
 
@@ -383,7 +383,7 @@ Add a GitHub Actions workflow:
 4. **Do not change the control-server protocol.** The Android app is a new device on the same wire protocol. If you need a method that does not exist, propose it as an additive change to `methods.ts` and update both the Bun encoder and the Android encoder.
 5. **Use Brix as the primary Android reference.** It is an AGPL-3.0 Android app that implements SRT and SRTLA from scratch and runs on Android 10+. Respect its licence when consulting it.
 6. **Validate against a real IRLCTRL relay early.** Spin up the Docker Compose stack (`docker compose up relay server`) and point the emulator/device at the relay’s SRTLA port. This catches payload-format issues before the UI is polished.
-7. **Keep the JNI surface small.** If native promotion is triggered, the JNI boundary is _only_ the `SrtlaBond` methods — one `external fun` per operation, `ByteBuffer`-based, no per-byte callbacks. Never call native from the UI thread.
+7. **Keep the JNI surface small.** If native promotion is triggered, the JNI boundary is _only_ the `SrtlaBond` methods - one `external fun` per operation, `ByteBuffer`-based, no per-byte callbacks. Never call native from the UI thread.
 8. **Document every deviation.** If you cannot implement a behaviour exactly as specified (e.g. an Android API limitation), record it in `android-encoder/DEVIATIONS.md` with the reason and the workaround.
 
 ---

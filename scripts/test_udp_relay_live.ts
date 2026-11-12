@@ -20,11 +20,11 @@
  * do the NAT, so replies leave <iface> with the uplink's source IP.
  *
  * It runs two checks:
- *   1. RELAY TUNNEL — a framed data-frame sent to the relay's UDP socket is
+ *   1. RELAY TUNNEL - a framed data-frame sent to the relay's UDP socket is
  *                     forwarded out the physical interface intact (verified on
  *                     the wire with tcpdump: right src/dst + payload), sourced
  *                     from the uplink IP (no vif/pinned source on the wire).
- *   2. RELAY → OBS  — a burst down the same path toward the real ingress; we
+ *   2. RELAY → OBS  - a burst down the same path toward the real ingress; we
  *                     verify egress out <iface> and print the OBS-side
  *                     tcpdump to confirm receipt there (OBS is remote).
  *
@@ -44,20 +44,24 @@
  *   --slot <n>          leg slot for table/TUN naming (default 0)
  *   --keep              don't delete temp captures / the TUN
  */
-import { spawn, type ChildProcess } from "node:child_process";
-import { execFileSync, spawnSync } from "node:child_process";
+import {
+    type ChildProcess,
+    execFileSync,
+    spawn,
+    spawnSync,
+} from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
     applyLegPlan,
     buildUdpIpPacket,
+    type CommandRunner,
     createUdpRelay,
     encodeDataFrame,
     legTable,
     relayTunName,
     removeLegPlan,
-    type CommandRunner,
     type UdpRelay,
 } from "../shared/lib/udp_relay/src/index";
 
@@ -83,17 +87,25 @@ const KEEP = flag("keep");
 const TUN = relayTunName(SLOT, IFACE);
 
 if (process.getuid?.() !== 0) {
-    console.error("\nThis test must run as root (TUN + iptables). Try: sudo bun ...");
+    console.error(
+        "\nThis test must run as root (TUN + iptables). Try: sudo bun ...",
+    );
     process.exit(2);
 }
 
 /** Root shell-out: the kernel netplan + TUN bring-up. */
 const rootRun: CommandRunner = async (cmd, ...args) => {
     try {
-        return { stdout: execFileSync(cmd, args, { encoding: "utf8" }), exitCode: 0 };
+        return {
+            stdout: execFileSync(cmd, args, { encoding: "utf8" }),
+            exitCode: 0,
+        };
     } catch (e) {
         const err = e as { status?: number; stdout?: string; stderr?: string };
-        return { stdout: err.stdout ?? err.stderr ?? "", exitCode: err.status ?? 1 };
+        return {
+            stdout: err.stdout ?? err.stderr ?? "",
+            exitCode: err.status ?? 1,
+        };
     }
 };
 
@@ -110,10 +122,10 @@ let fail = 0;
 function ok(label: string, cond: boolean, detail = ""): void {
     if (cond) {
         pass++;
-        console.log(`  \u2713 PASS  ${label}${detail ? ` — ${detail}` : ""}`);
+        console.log(`  \u2713 PASS  ${label}${detail ? ` - ${detail}` : ""}`);
     } else {
         fail++;
-        console.log(`  \u2717 FAIL  ${label}${detail ? ` — ${detail}` : ""}`);
+        console.log(`  \u2717 FAIL  ${label}${detail ? ` - ${detail}` : ""}`);
     }
 }
 function sleep(ms: number): Promise<void> {
@@ -121,13 +133,19 @@ function sleep(ms: number): Promise<void> {
 }
 
 const TCPDUMP = "/usr/bin/tcpdump";
-if (!existsSync(TCPDUMP) && !spawnSync("which", ["tcpdump"]).stdout?.toString().trim()) {
-    console.error("tcpdump not found — install it to run this test.");
+if (
+    !existsSync(TCPDUMP) &&
+    !spawnSync("which", ["tcpdump"]).stdout?.toString().trim()
+) {
+    console.error("tcpdump not found - install it to run this test.");
     process.exit(2);
 }
 
 /** Start a tcpdump capture on `iface`; resolve `file` when ready to read. */
-function startCapture(file: string, filter: string): {
+function startCapture(
+    file: string,
+    filter: string,
+): {
     child: ChildProcess;
     stop: () => Promise<void>;
 } {
@@ -196,90 +214,140 @@ try {
     await relay.start();
     // Bring the leg up: TUN + kernel netplan (table/iif-rule/MASQUERADE/FORWARD).
     await rootRun("ip", "link", "set", TUN, "up");
-    await applyLegPlan(rootRun, { slot: SLOT, tun: TUN, uplinkIface: IFACE, vifIp: VIF_IP });
+    await applyLegPlan(rootRun, {
+        slot: SLOT,
+        tun: TUN,
+        uplinkIface: IFACE,
+        vifIp: VIF_IP,
+    });
     ok("relay started + leg netplan installed", relay.isRunning());
     setupOk = relay.isRunning();
 } catch (e) {
-    ok("setup: relay + leg netplan", false, e instanceof Error ? e.message : String(e));
+    ok(
+        "setup: relay + leg netplan",
+        false,
+        e instanceof Error ? e.message : String(e),
+    );
 }
 
 // ---------------------------------------------------------------------------
-// Test 1 — the relay tunnel (framed packet → kernel NAT → out the uplink)
+// Test 1 - the relay tunnel (framed packet → kernel NAT → out the uplink)
 // ---------------------------------------------------------------------------
 if (!setupOk) {
-    console.log(`\n[1] RELAY TUNNEL  (skipped — setup failed)`);
+    console.log(`\n[1] RELAY TUNNEL  (skipped - setup failed)`);
 } else {
-    console.log(`\n[1] RELAY TUNNEL  (frame → TUN → kernel NAT → out ${IFACE})`);
-{
-    const marker = `IRELAY-T1-${Date.now()}-x${Math.floor(Math.random() * 1e6)}`;
-    const inner = buildUdpIpPacket({
-        srcIp: VIF_IP,
-        dstIp: OBS_HOST,
-        srcPort: 6000,
-        dstPort: OBS_PORT,
-        payload: enc.encode(marker),
-    });
-    const frame = encodeDataFrame(inner, VIF_IP);
-
-    const cap = startCapture(pcap("t1.pcap"), `udp and host ${OBS_HOST} and port ${OBS_PORT}`);
-    await sleep(300); // let tcpdump program the BPF filter
-
-    // The "encoder" side: one framed datagram to the relay's UDP socket.
-    const sock = await Bun.udpSocket({ binaryType: "uint8array" });
-    sock.send(frame, RELAY_PORT, "127.0.0.1");
-    await sleep(1500); // give the relay + kernel + wire time to deliver
-    await cap.stop();
-
-    const s = relay?.stats();
-    ok("relay saw the encoded frame (encRxPackets ≥ 1)", (s?.encRxPackets ?? 0) >= 1, `encRx=${s?.encRxPackets}`);
-    ok("relay handed it to the TUN (vifTxPackets ≥ 1)", (s?.vifTxPackets ?? 0) >= 1, `vifTx=${s?.vifTxPackets}`);
-    ok("packet egressed out the uplink (tcpdump)", pcapHasPackets(pcap("t1.pcap")), pcap("t1.pcap"));
-    ok("payload intact on the wire (marker present)", pcapHasMarker(pcap("t1.pcap"), marker), marker);
-    console.log(`\n    OBS-side check (run on ${OBS_HOST}):`);
-    console.log(`      tcpdump -ni <iface> 'udp and host ${OBS_HOST} and port ${OBS_PORT}'`);
-    console.log(`    → expect: <uplink-IP>.<ephemeral> > ${OBS_HOST}.${OBS_PORT} (payload "${marker}")`);
-}
-}
-
-// ---------------------------------------------------------------------------
-// Test 2 — relay → OBS (a burst down the same path toward the real ingress)
-// ---------------------------------------------------------------------------
-if (!setupOk) {
-    console.log(`\n[2] RELAY → OBS  (skipped — setup failed)`);
-} else {
-    console.log(`\n[2] RELAY → OBS  (datagrams leave ${IFACE} toward ${OBS_HOST}:${OBS_PORT})`);
-{
-    const cap = startCapture(pcap("t2.pcap"), `udp and host ${OBS_HOST} and port ${OBS_PORT}`);
-    await sleep(300);
-
-    const sock = await Bun.udpSocket({ binaryType: "uint8array" });
-    for (let i = 0; i < 20; i++) {
+    console.log(
+        `\n[1] RELAY TUNNEL  (frame → TUN → kernel NAT → out ${IFACE})`,
+    );
+    {
+        const marker = `IRELAY-T1-${Date.now()}-x${Math.floor(Math.random() * 1e6)}`;
         const inner = buildUdpIpPacket({
             srcIp: VIF_IP,
             dstIp: OBS_HOST,
-            srcPort: 6000 + i,
+            srcPort: 6000,
             dstPort: OBS_PORT,
-            payload: enc.encode(`T2-${i}`),
+            payload: enc.encode(marker),
         });
-        sock.send(encodeDataFrame(inner, VIF_IP), RELAY_PORT, "127.0.0.1");
-        await sleep(40);
-    }
-    await cap.stop();
+        const frame = encodeDataFrame(inner, VIF_IP);
 
-    ok("≥1 datagram egressed out the uplink toward OBS", pcapHasPackets(pcap("t2.pcap")), pcap("t2.pcap"));
-    console.log(`\n    OBS-side check (run on ${OBS_HOST}):`);
-    console.log(`      tcpdump -ni <iface> -c 5 'udp and host ${OBS_HOST} and port ${OBS_PORT}'`);
-    console.log(`    → expect SRTLA handshake/data from <uplink-IP> → ${OBS_HOST}:${OBS_PORT}`);
+        const cap = startCapture(
+            pcap("t1.pcap"),
+            `udp and host ${OBS_HOST} and port ${OBS_PORT}`,
+        );
+        await sleep(300); // let tcpdump program the BPF filter
+
+        // The "encoder" side: one framed datagram to the relay's UDP socket.
+        const sock = await Bun.udpSocket({ binaryType: "uint8array" });
+        sock.send(frame, RELAY_PORT, "127.0.0.1");
+        await sleep(1500); // give the relay + kernel + wire time to deliver
+        await cap.stop();
+
+        const s = relay?.stats();
+        ok(
+            "relay saw the encoded frame (encRxPackets ≥ 1)",
+            (s?.encRxPackets ?? 0) >= 1,
+            `encRx=${s?.encRxPackets}`,
+        );
+        ok(
+            "relay handed it to the TUN (vifTxPackets ≥ 1)",
+            (s?.vifTxPackets ?? 0) >= 1,
+            `vifTx=${s?.vifTxPackets}`,
+        );
+        ok(
+            "packet egressed out the uplink (tcpdump)",
+            pcapHasPackets(pcap("t1.pcap")),
+            pcap("t1.pcap"),
+        );
+        ok(
+            "payload intact on the wire (marker present)",
+            pcapHasMarker(pcap("t1.pcap"), marker),
+            marker,
+        );
+        console.log(`\n    OBS-side check (run on ${OBS_HOST}):`);
+        console.log(
+            `      tcpdump -ni <iface> 'udp and host ${OBS_HOST} and port ${OBS_PORT}'`,
+        );
+        console.log(
+            `    → expect: <uplink-IP>.<ephemeral> > ${OBS_HOST}.${OBS_PORT} (payload "${marker}")`,
+        );
+    }
 }
+
+// ---------------------------------------------------------------------------
+// Test 2 - relay → OBS (a burst down the same path toward the real ingress)
+// ---------------------------------------------------------------------------
+if (!setupOk) {
+    console.log(`\n[2] RELAY → OBS  (skipped - setup failed)`);
+} else {
+    console.log(
+        `\n[2] RELAY → OBS  (datagrams leave ${IFACE} toward ${OBS_HOST}:${OBS_PORT})`,
+    );
+    {
+        const cap = startCapture(
+            pcap("t2.pcap"),
+            `udp and host ${OBS_HOST} and port ${OBS_PORT}`,
+        );
+        await sleep(300);
+
+        const sock = await Bun.udpSocket({ binaryType: "uint8array" });
+        for (let i = 0; i < 20; i++) {
+            const inner = buildUdpIpPacket({
+                srcIp: VIF_IP,
+                dstIp: OBS_HOST,
+                srcPort: 6000 + i,
+                dstPort: OBS_PORT,
+                payload: enc.encode(`T2-${i}`),
+            });
+            sock.send(encodeDataFrame(inner, VIF_IP), RELAY_PORT, "127.0.0.1");
+            await sleep(40);
+        }
+        await cap.stop();
+
+        ok(
+            "≥1 datagram egressed out the uplink toward OBS",
+            pcapHasPackets(pcap("t2.pcap")),
+            pcap("t2.pcap"),
+        );
+        console.log(`\n    OBS-side check (run on ${OBS_HOST}):`);
+        console.log(
+            `      tcpdump -ni <iface> -c 5 'udp and host ${OBS_HOST} and port ${OBS_PORT}'`,
+        );
+        console.log(
+            `    → expect SRTLA handshake/data from <uplink-IP> → ${OBS_HOST}:${OBS_PORT}`,
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
 relay?.stop().catch(() => {});
 // Best-effort teardown of the leg netplan + TUN (kept with --keep).
 if (!KEEP) {
-    await removeLegPlan(rootRun, { slot: SLOT, tun: TUN, uplinkIface: IFACE, vifIp: VIF_IP }).catch(
-        () => {},
-    );
+    await removeLegPlan(rootRun, {
+        slot: SLOT,
+        tun: TUN,
+        uplinkIface: IFACE,
+        vifIp: VIF_IP,
+    }).catch(() => {});
     try {
         execFileSync("/usr/sbin/ip", ["link", "del", TUN]);
     } catch {

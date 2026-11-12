@@ -15,7 +15,7 @@
     --hl-value: #c9d1d9;
 }
 
-/* Pipeline editor panel — every block on its own full-width row. */
+/* Pipeline editor panel - every block on its own full-width row. */
 .pipeline-editor {
     flex-direction: column;
     flex-wrap: nowrap;

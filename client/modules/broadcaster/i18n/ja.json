@@ -22,7 +22,7 @@
     "set.service_group_common": "よく使う",
     "set.service_group_other": "その他",
     "set.broadcaster": "RTMP 出力",
-    "set.broadcaster_desc": "配信先ごとのサービス、URL、キーを設定します — すべての配信先は同じ ffmpeg プロファイルを使用します。ストリームキーは書き込み専用です。保存後にストリームは再起動されます。",
+    "set.broadcaster_desc": "配信先ごとのサービス、URL、キーを設定します - すべての配信先は同じ ffmpeg プロファイルを使用します。ストリームキーは書き込み専用です。保存後にストリームは再起動されます。",
     "set.broadcaster_profile": "出力プロファイル",
     "role.broadcaster": "broadcaster",
     "setup.role.broadcaster_tag": "RTMP宛先に配信します"

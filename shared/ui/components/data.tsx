@@ -4,10 +4,10 @@ import m from "mithril";
 import type { MithrilJSXComponent } from "../jsx";
 import type { Child } from "../util";
 
-/** <dl> of dt/dd rows; empty values render "—". */
+/** <dl> of dt/dd rows; empty values render "-". */
 export const DefinitionList = {
 	view: ({ attrs: { rows } }) => (
-		<dl>{rows.flatMap(([k, v]) => [<dt>{k}</dt>, <dd>{v ?? "—"}</dd>])}</dl>
+		<dl>{rows.flatMap(([k, v]) => [<dt>{k}</dt>, <dd>{v ?? "-"}</dd>])}</dl>
 	),
 } as MithrilJSXComponent<{ rows: [string, Child][] }>;
 

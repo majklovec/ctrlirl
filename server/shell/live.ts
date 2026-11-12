@@ -3,14 +3,14 @@
  * the dashboard list (dashboards.snapshot / dashboards.changed) and the
  * channel-widget frames the dashboard pages subscribe to separately. One
  * auto-reconnecting socket per page; pages register the events they need.
- * Handlers are plain subscribers — callers redraw themselves. */
+ * Handlers are plain subscribers - callers redraw themselves. */
 
 import { RpcClient, socketUrl } from "@ui/services/rpc";
-import { getActiveProjectId } from "./project_select";
 import type {
     DeviceSummary,
     ServerDashboard,
 } from "../../shared/contracts/wire";
+import { getActiveProjectId } from "./project_select";
 
 /** A `dashboards.changed` event: the dashboard object (create/update) or
  * `{id, deleted: true}` (delete). */
@@ -42,7 +42,7 @@ const handlers = new Set<Handlers>();
 let dashboards: ServerDashboard[] = [];
 /** The last widget-hub snapshot: the socket can deliver it before a dashboard
  * page has registered its `onAny` handler (the client connects at module load,
- * the page subscribes at mount) — late subscribers get a copy on registration. */
+ * the page subscribes at mount) - late subscribers get a copy on registration. */
 let widgetSnapshot: unknown = null;
 
 const applyDevices = (list: DeviceSummary[]): void => {

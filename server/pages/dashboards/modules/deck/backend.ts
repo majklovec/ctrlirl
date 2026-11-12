@@ -1,5 +1,5 @@
 /*
- * Buttons widget backend — registers the `deck` fleet dashboard widget (a
+ * Buttons widget backend - registers the `deck` fleet dashboard widget (a
  * virtual StreamDeck, offered once per dashboard, driving any of the user's
  * devices) and validates its config on the control server. It has no device
  * lifecycle and no RPC methods of its own: a button fires another module's
@@ -26,8 +26,8 @@ const deckWidget: ModuleWidget = {
         // Another user's device is never accepted. Strict (creating the
         // dashboard) also rejects devices that are gone and actions a device
         // does not offer (its catalogue is known once it reported a status); a
-        // later save keeps those buttons — the widget shows them as
-        // unavailable — so a pruned device or a disabled module cannot brick
+        // later save keeps those buttons - the widget shows them as
+        // unavailable - so a pruned device or a disabled module cannot brick
         // the dashboard.
         const foreign = buttonDevices(deck).filter(
             (id) => !ownsDevice(id) && (strict || deviceExists(id)),

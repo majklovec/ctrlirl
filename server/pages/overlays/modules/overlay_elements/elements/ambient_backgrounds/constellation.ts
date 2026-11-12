@@ -1,5 +1,5 @@
 /*
- * `constellation` — slow-drifting stars that twinkle and link to their
+ * `constellation` - slow-drifting stars that twinkle and link to their
  * nearest neighbours with faint lines, like a night-sky star map.
  * Original (invented for the ambient set).
  */

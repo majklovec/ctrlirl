@@ -1,9 +1,9 @@
 -- Asset files live on disk only (the `--storage`/`STORAGE_DIR` directory).
--- The legacy `data` BLOB column — kept after 0007 as a fallback for files
--- uploaded before the disk migration — is dropped now that the embedded/
+-- The legacy `data` BLOB column - kept after 0007 as a fallback for files
+-- uploaded before the disk migration - is dropped now that the embedded/
 -- BLOB asset paths are gone: files that only exist in the database have no
 -- serving path left, so the column is pure dead weight. (SQLite cannot drop
--- a column in place before 3.35, hence the table rebuild — every row is
+-- a column in place before 3.35, hence the table rebuild - every row is
 -- carried over.)
 CREATE TABLE asset_files_disk (
     id TEXT PRIMARY KEY,

@@ -1,5 +1,5 @@
 /*
- * Design tokens — the single place colours, radii, motion and breakpoints
+ * Design tokens - the single place colours, radii, motion and breakpoints
  * are defined. Everything else (shared/css/style.css, the module
  * stylesheets) uses these variables; test/css_tokens.test.ts rejects a hex
  * literal anywhere but a custom-property value, so a module that needs a
@@ -10,7 +10,7 @@
     color-scheme: dark;
 
     /* ──────────────────────────────────────────────────────────
-     THEME SEED — change this one value to retheme the whole UI.
+     THEME SEED - change this one value to retheme the whole UI.
      Everything below derives from it. Try: #3b82f6, #8b5cf6,
      #10b981, #f97316, #ef4444, #0ea5e9, #eab308.
      ────────────────────────────────────────────────────────── */
@@ -74,7 +74,7 @@
 
     /* Mobile-first breakpoint scale (Bulma/Pico inspired). Browsers do not
      * accept var() in @media conditions, so the queries below spell out the
-     * same literal values — these variables document the shared scale. */
+     * same literal values - these variables document the shared scale. */
     --bp-sm: 576px;
     --bp-md: 768px;
     --bp-lg: 1024px;

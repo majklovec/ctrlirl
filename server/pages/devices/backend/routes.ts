@@ -1,6 +1,6 @@
 /*
  * The device page's server half: the device registry (moved from
- * the devices slice registry (01-refactor: this file was server/backend/devices/device_registry.ts)) plus its four route groups —
+ * the devices slice registry (01-refactor: this file was server/backend/devices/device_registry.ts)) plus its four route groups -
  * the list page (`/`, `/devices/`, `/api/devices`), the device connection
  * WS (`/device`), the device pages (`/d/*`) and the viewer WS
  * (`/d/:id/ws`). The groups stay separate Elysia plugins (their derive /
@@ -16,18 +16,18 @@ import {
     text,
     upgradeRequired,
 } from "../../../../shared/http";
-import { socketMessage } from "../../../../shared/socket_message";
-import { modulePage } from "../../../../shared/registry";
-import { projectParam } from "../../../../shared/project_param";
 import { ApiError } from "../../../../shared/params";
-import type { PageServices, ProjectAccess } from "../../../core/contracts";
-import { apiGuard, scopedProject } from "../../../core/project_scope";
-import { ID_RE, LOCAL_PROJECT_ID, type WsData } from "../../../core/runtime";
-import { socketAdapter } from "../../../core/socket";
+import { projectParam } from "../../../../shared/project_param";
+import { modulePage } from "../../../../shared/registry";
+import { socketMessage } from "../../../../shared/socket_message";
 import {
     authenticatedHandler,
     unauthenticatedResponse,
 } from "../../../core/auth/authenticated";
+import type { PageServices, ProjectAccess } from "../../../core/contracts";
+import { apiGuard, scopedProject } from "../../../core/project_scope";
+import { ID_RE, LOCAL_PROJECT_ID, type WsData } from "../../../core/runtime";
+import { socketAdapter } from "../../../core/socket";
 import type { createDevices } from "./registry";
 
 type Devices = ReturnType<typeof createDevices>;
@@ -37,32 +37,29 @@ const ALL_ROLES = ["viewer", "editor", "owner"] as const;
 
 /* The device list: its page (`/devices/`, also the home page `/`) and the
  * summaries API it reads. */
-function deviceListRoutes(
-	s: PageServices,
-	devices: Devices,
-) {
-	const { auth, capabilities, frontend } = s;
-	const access = capabilities.require<ProjectAccess>("projectAccess");
-	const page = authenticatedHandler(auth, () =>
-		frontend.htmlResponse("device_list"),
-	);
-	return new Elysia({ name: "control-device-list" })
-		.get("/", page)
-		.get("/devices/", page)
-		.get(
-			"/api/devices",
-			authenticatedHandler(auth, (request, user) =>
-				apiGuard(() => {
-					const projectId = scopedProject(
-						access,
-						new URL(request.url),
-						user,
-						ALL_ROLES,
-					);
-					return Response.json(devices.summaries(projectId));
-				}),
-			),
-		);
+function deviceListRoutes(s: PageServices, devices: Devices) {
+    const { auth, capabilities, frontend } = s;
+    const access = capabilities.require<ProjectAccess>("projectAccess");
+    const page = authenticatedHandler(auth, () =>
+        frontend.htmlResponse("device_list"),
+    );
+    return new Elysia({ name: "control-device-list" })
+        .get("/", page)
+        .get("/devices/", page)
+        .get(
+            "/api/devices",
+            authenticatedHandler(auth, (request, user) =>
+                apiGuard(() => {
+                    const projectId = scopedProject(
+                        access,
+                        new URL(request.url),
+                        user,
+                        ALL_ROLES,
+                    );
+                    return Response.json(devices.summaries(projectId));
+                }),
+            ),
+        );
 }
 
 function deviceConnectionRoutes(devices: Devices) {
@@ -115,8 +112,9 @@ function deviceConnectionRoutes(devices: Devices) {
 function devicePageRoutes(s: PageServices, devices: Devices) {
     const { auth, capabilities, frontend } = s;
     const access = capabilities.require<ProjectAccess>("projectAccess");
-    const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
-    /** `/d/<id>/<rest>` — `rest` is matched against the module-declared page routes. */
+    const DEVICE_PATH_RE =
+        /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
+    /** `/d/<id>/<rest>` - `rest` is matched against the module-declared page routes. */
     const DEVICE_SUBPATH_RE = /^\/d\/([^/]+)(\/.+)$/;
 
     function deviceId(rawId: string): string | Response {
@@ -134,12 +132,7 @@ function devicePageRoutes(s: PageServices, devices: Devices) {
         authenticatedHandler(auth, (request, user) =>
             apiGuard(() => {
                 const url = new URL(request.url);
-                const projectId = scopedProject(
-                    access,
-                    url,
-                    user,
-                    ALL_ROLES,
-                );
+                const projectId = scopedProject(access, url, user, ALL_ROLES);
                 const path = url.pathname;
                 const sub = path.match(DEVICE_SUBPATH_RE);
                 const modulePageName = sub ? modulePage(sub[2]) : undefined;
@@ -161,7 +154,10 @@ function devicePageRoutes(s: PageServices, devices: Devices) {
                 const id = deviceId(rawId);
                 if (id instanceof Response) return id;
                 const device = devices.getDevice(id);
-                if (!device || (device.project ?? LOCAL_PROJECT_ID) !== projectId)
+                if (
+                    !device ||
+                    (device.project ?? LOCAL_PROJECT_ID) !== projectId
+                )
                     return notFound();
 
                 const base = `/d/${encodeURIComponent(id)}/`;
@@ -178,11 +174,8 @@ function devicePageRoutes(s: PageServices, devices: Devices) {
                         : Response.redirect(`${base}${page}/`, 308);
                 if (!slash) return Response.redirect(base, 308);
                 const setupRequired =
-                    device.status?.setupRequired &&
-                    !url.searchParams.has("ui");
-                return frontend.htmlResponse(
-                    setupRequired ? "setup" : "index",
-                );
+                    device.status?.setupRequired && !url.searchParams.has("ui");
+                return frontend.htmlResponse(setupRequired ? "setup" : "index");
             }),
         ),
     );
@@ -210,8 +203,7 @@ function deviceViewerRoutes(s: PageServices, devices: Devices) {
         user: string,
     ): ViewerData | Response {
         const url = new URL(request.url);
-        const projectId =
-            projectParam(url) ?? access.personalProjectId(user);
+        const projectId = projectParam(url) ?? access.personalProjectId(user);
         try {
             access.requireRole(user, projectId, ALL_ROLES);
         } catch (err: unknown) {

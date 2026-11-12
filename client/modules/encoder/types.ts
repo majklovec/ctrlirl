@@ -5,6 +5,7 @@ import type {
     SetupInfo,
     Status,
 } from "../../../shared/contracts/wire";
+
 export type {
     SrtlaConfig,
     SrtlaControlState,
@@ -35,7 +36,7 @@ export interface AudioSource {
 /** Complete encoder start / restart configuration (`encoder.start` params; the last used one is kept in state). */
 export interface EncoderConfig {
     pipeline: string;
-    host: string; // SRT destination (127.0.0.1 — the local srtla_send)
+    host: string; // SRT destination (127.0.0.1 - the local srtla_send)
     port: string;
     minBitrate: number; // kbps
     maxBitrate: number; // kbps

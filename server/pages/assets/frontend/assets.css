@@ -89,7 +89,7 @@
 }
 
 /* The chevron is a plain toggle: keep the global hover/active/focus
- * button treatments (accent background, ring, press shift) off it —
+ * button treatments (accent background, ring, press shift) off it -
  * the row keeps its own affordances. */
 .asset-chevron:hover,
 .asset-chevron:active,

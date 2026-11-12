@@ -1,5 +1,5 @@
 /*
- * `coalesce` — particles spiralling into the center.
+ * `coalesce` - particles spiralling into the center.
  * Port of `coalesce.js` from crnacura/AmbientCanvasBackgrounds (CC BY-SA).
  */
 

@@ -1,7 +1,7 @@
 /** @jsx m */
 /*
  * Projects page (TODO/01-projects.md): the user's projects with their
- * membership roles, plus the management of the selected project — rename,
+ * membership roles, plus the management of the selected project - rename,
  * delete, member roles and the single-use invite links. The same page
  * doubles as the invite-accept screen: under /projects/join/<token> it
  * shows the join card instead of the list.
@@ -364,7 +364,7 @@ function revokeInvite(invite: Invite): void {
 		});
 }
 
-/** POST /api/projects/:id/tokens — the response carries the full token value
+/** POST /api/projects/:id/tokens - the response carries the full token value
  * (the only time the server returns one), so it is appended for copying. */
 function addToken(): void {
 	if (state.tokenBusy || !state.selected) return;
@@ -442,10 +442,9 @@ function acceptInvite(): void {
 	state.joinBusy = true;
 	state.joinFailed = false;
 	render();
-	void apiJson<{ project: { name: string; role: string } }>(
-		joinApiPath(),
-		{ method: "POST" },
-	)
+	void apiJson<{ project: { name: string; role: string } }>(joinApiPath(), {
+		method: "POST",
+	})
 		.then(({ project }) => {
 			state.joined = project;
 			render();
@@ -722,7 +721,7 @@ const App: m.Component = {
 															<td>
 																{inv.expiresAt
 																	? new Date(inv.expiresAt).toLocaleString()
-																	: "—"}
+																	: "-"}
 															</td>
 															<td class="right">
 																{inv.usedBy ? null : (

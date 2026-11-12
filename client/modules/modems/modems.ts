@@ -6,7 +6,7 @@
  * Connectivity follows the reference implementation (belaUI.js): a persistent
  * NetworkManager `type gsm` autoconnect connection per (device, SIM) dials on
  * boot and a periodic loop reactivates it whenever it drops and the modem is
- * registered. `mmcli --simple-connect` is deliberately NOT used — it fights
+ * registered. `mmcli --simple-connect` is deliberately NOT used - it fights
  * NetworkManager and cannot auto-reconnect.
  */
 import { errorMessage } from "../../../shared/util";
@@ -52,12 +52,9 @@ function pickField(
     return undefined;
 }
 
-async function modemDetails(
-    index: number,
-    label: string,
-): Promise<ModemInfo> {
+async function modemDetails(index: number, label: string): Promise<ModemInfo> {
     // `--output-keyvalue` emits the stable ModemManager D-Bus property keys
-    // (modem.generic.state, modem.3gpp.imei, …) across MM versions — far more
+    // (modem.generic.state, modem.3gpp.imei, …) across MM versions - far more
     // reliable than the human table, whose layout changed in MM 1.16+.
     const detail = parseKeyvalue(
         await mmcli("-m", String(index), "--output-keyvalue"),
@@ -84,10 +81,14 @@ async function modemDetails(
     info.simPath = pickField(detail, "modem.generic.sim");
     info.operatorName = pickField(detail, "modem.3gpp.operator-name");
     info.registrationState = pickField(detail, "modem.3gpp.registration-state");
-    info.accessTech = pickField(detail, "modem.generic.access-technologies.value[1]");
-    const signal = pickField(detail, "modem.generic.signal-quality.value")?.match(
-        /(\d+)/,
+    info.accessTech = pickField(
+        detail,
+        "modem.generic.access-technologies.value[1]",
     );
+    const signal = pickField(
+        detail,
+        "modem.generic.signal-quality.value",
+    )?.match(/(\d+)/);
     if (signal) info.signalQuality = Number(signal[1]);
     return info;
 }
@@ -213,10 +214,8 @@ async function simFields(
 ): Promise<{ iccid?: string; operatorId?: string }> {
     const m = simPath.match(/Sim\/(\d+)\s*$/);
     if (!m) return {};
-    // `-i` is `--with-sim` (`-s` is `--with-sms` — don't mix them up).
-    const kv = parseKeyvalue(
-        await mmcli("-i", m[1], "--output-keyvalue"),
-    );
+    // `-i` is `--with-sim` (`-s` is `--with-sms` - don't mix them up).
+    const kv = parseKeyvalue(await mmcli("-i", m[1], "--output-keyvalue"));
     return {
         iccid: pickField(kv, "sim.properties.iccid"),
         operatorId: pickField(
@@ -279,14 +278,21 @@ async function ensureGsmConn(modem: ModemInfo): Promise<string | null> {
 
 /** Bring a gsm connection up; true when NetworkManager reports it active. */
 async function activateGsmConn(uuid: string): Promise<boolean> {
-    const out = await nmcli("-w", String(ACTIVATE_TIMEOUT_S), "conn", "up", uuid);
+    const out = await nmcli(
+        "-w",
+        String(ACTIVATE_TIMEOUT_S),
+        "conn",
+        "up",
+        uuid,
+    );
     return out.includes("successfully activated");
 }
 
 /** Is a gsm connection currently active? */
 async function gsmConnActive(uuid: string): Promise<boolean> {
-    const state = (await nmcli("-t", "-f", "state", "connection", "show", uuid))
-        .split("\n")[0];
+    const state = (
+        await nmcli("-t", "-f", "state", "connection", "show", uuid)
+    ).split("\n")[0];
     return state === "activated";
 }
 
@@ -294,7 +300,10 @@ async function gsmConnActive(uuid: string): Promise<boolean> {
 // Control actions
 // ------------------------------------------------------------------------
 
-async function setModemEnabled(index: number, enabled: boolean): Promise<boolean> {
+async function setModemEnabled(
+    index: number,
+    enabled: boolean,
+): Promise<boolean> {
     await mmcli("-m", String(index), enabled ? "-e" : "-d");
     return true;
 }

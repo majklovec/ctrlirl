@@ -1,4 +1,4 @@
-/* OBS Studio panel — live preview (polled GetSourceScreenshot), stream/record and
+/* OBS Studio panel - live preview (polled GetSourceScreenshot), stream/record and
  * input actions, scene deck and a VU meter. All calls go through the obs.request
  * passthrough (the browser is never a direct OBS client); state arrives via
  * `obs.event` pushes (InputVolumeMeters feeds the VU meter, scene/stream/record
@@ -66,7 +66,7 @@ const SWITCHER_SCENE_FIELDS = [
 ] as const;
 
 // ----------------------------------------------------------------------
-// Panel factory — one instance per render surface, own state and timers
+// Panel factory - one instance per render surface, own state and timers
 // ----------------------------------------------------------------------
 /** Successful obs-websocket v5 envelope (the shape `obs.request` answers with). */
 export interface ObsRequestResult<T> {
@@ -101,7 +101,7 @@ export interface ObsPanelDeps {
 	onEvent: (handler: (ev: ObsEvent) => void) => () => void;
 	/** Mirror state to the module-owned view model. */
 	mirror?: (s: ObsPanelState) => void;
-	/** The surface already knows OBS is up (dashboard warm start) — skip the first ping. */
+	/** The surface already knows OBS is up (dashboard warm start) - skip the first ping. */
 	startConnected?: () => boolean;
 	/** Runs when the last render unmounts (dropped timers, unsubscribed pushes). */
 	onDestroy?: () => void;
@@ -157,9 +157,9 @@ export function createObsPanel({
 	const ui = {
 		/** GetSceneList names; the active one is ui.scene. */
 		scenes: [] as string[],
-		/** All OBS inputs (GetInputList) — the options of the switcher source select. */
+		/** All OBS inputs (GetInputList) - the options of the switcher source select. */
 		inputs: [] as string[],
-		/** Metering input names (seeded from GetInputList, then follows InputVolumeMeters) — one row per source. */
+		/** Metering input names (seeded from GetInputList, then follows InputVolumeMeters) - one row per source. */
 		vuInputs: [] as string[],
 		/** Per-input mute state, for each row's mic toggle icon. */
 		vuMuted: new Map<string, boolean>(),
@@ -225,7 +225,7 @@ export function createObsPanel({
 		try {
 			res = await send<T>(type, data);
 		} catch {
-			return undefined; // the socket is down — the next tick will re-probe
+			return undefined; // the socket is down - the next tick will re-probe
 		}
 		return res?.requestStatus?.result ? res.responseData : undefined;
 	};
@@ -272,7 +272,7 @@ export function createObsPanel({
 
 	/** Scenes, inputs, the active scene, studio mode, stream/record state and the
 	 * selected input's mute state. Stream/record are seeded from the status
-	 * requests — the StateChanged events only fire on a *change*, so a page load
+	 * requests - the StateChanged events only fire on a *change*, so a page load
 	 * would otherwise show both outputs as stopped until the next toggle. */
 	async function loadAll(): Promise<void> {
 		if (ui.loading) return;
@@ -282,7 +282,7 @@ export function createObsPanel({
 			obsCall<{ scenes: { sceneName: string }[] }>("GetSceneList"),
 			obsCall<{ inputs: { inputName: string }[] }>("GetInputList"),
 			obsCall<{ studioModeEnabled: boolean }>("GetStudioModeEnabled"),
-			// GetCurrentProgramScene answers { currentProgramSceneName } — not { sceneName }.
+			// GetCurrentProgramScene answers { currentProgramSceneName } - not { sceneName }.
 			obsCall<{ currentProgramSceneName: string }>("GetCurrentProgramScene"),
 			// obs-websocket v5 answers both with a boolean `outputActive`.
 			obsCall<{ outputActive: boolean }>("GetStreamStatus"),
@@ -496,7 +496,7 @@ export function createObsPanel({
 			return;
 		}
 		const d = ev.eventData ?? {};
-		let dirty = false; // the rAF loop feeds the VU meter itself — no redraw needed per meter event
+		let dirty = false; // the rAF loop feeds the VU meter itself - no redraw needed per meter event
 		switch (ev.eventType) {
 			case "CurrentProgramSceneChanged":
 				ui.scene = (d.sceneName as string) ?? null;
@@ -510,7 +510,7 @@ export function createObsPanel({
 				ui.recording = d.outputActive === true;
 				dirty = true;
 				break;
-			// OBS 31+ renamed InputMute to InputMuteStateChanged — handle both.
+			// OBS 31+ renamed InputMute to InputMuteStateChanged - handle both.
 			case "InputMute":
 			case "InputMuteStateChanged":
 				if (typeof d.inputName === "string") {
@@ -522,7 +522,7 @@ export function createObsPanel({
 				}
 				break;
 			case "InputVolumeMeters": {
-				// obs-websocket v5 delivers a per-bus `inputLevelsMul` array — typically
+				// obs-websocket v5 delivers a per-bus `inputLevelsMul` array - typically
 				// 2D `[[L,R,M],[L,R,M]]` for the two buses; flatten to per-channel levels.
 				const inputs = d.inputs as
 					| Array<{
@@ -532,7 +532,7 @@ export function createObsPanel({
 					| undefined;
 				if (inputs?.length) {
 					// The row list follows the sources that are actually metering: a scene
-					// change swaps them, so adopt the incoming set — keep current order for
+					// change swaps them, so adopt the incoming set - keep current order for
 					// sources still present, append new ones in arrival order, drop the rest.
 					const incoming = inputs.map((i) => i.inputName);
 					const dropped = ui.vuInputs.filter((n) => !incoming.includes(n));
@@ -544,7 +544,7 @@ export function createObsPanel({
 						];
 						for (const n of dropped) vuLevels.delete(n);
 						for (const n of fresh) ensureMute(n);
-						dirty = true; // the row set changed — re-render the list
+						dirty = true; // the row set changed - re-render the list
 					}
 					for (const inp of inputs) {
 						// Each channel is [magnitude, peak, input-peak] (or a bare magnitude). While
@@ -754,7 +754,7 @@ export function createObsPanel({
 								</div>
 							</div>
 						</div>,
-						/* Audio — one meter row per input, each with its own mic mute toggle. */
+						/* Audio - one meter row per input, each with its own mic mute toggle. */
 						<div class="obs-deck">
 							<h3 class="obs-section">{t("obs.audio")}</h3>
 							<div class="obs-audio">
@@ -950,7 +950,7 @@ export function createObsPanel({
 }
 
 // ----------------------------------------------------------------------
-// Device page binding — the module registry renders this one instance
+// Device page binding - the module registry renders this one instance
 // ----------------------------------------------------------------------
 interface DashboardPanel {
 	panel: ObsPanel;

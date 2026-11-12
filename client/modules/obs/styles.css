@@ -1,4 +1,4 @@
-/* OBS Studio card (modules/obs) — everything scoped under the card's class. */
+/* OBS Studio card (modules/obs) - everything scoped under the card's class. */
 .mod-obs .obs-preview-stage {
     /* video backing: black regardless of theme */
     --video-bg: #000;
@@ -99,7 +99,7 @@
     box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-/* Audio / VU meters — one row per input: mic mute toggle, source name, meter */
+/* Audio / VU meters - one row per input: mic mute toggle, source name, meter */
 .mod-obs .obs-audio {
     display: grid;
     gap: 0.4rem;

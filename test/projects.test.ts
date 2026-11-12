@@ -1,10 +1,11 @@
 /*
  * Projects (TODO/01-projects.md): the /api/projects endpoints over a live
- * control server — CRUD, membership with roles, the invite links and the
+ * control server - CRUD, membership with roles, the invite links and the
  * permission matrix (owner / editor / viewer).
  */
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
 import { Database } from "bun:sqlite";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -86,9 +87,16 @@ async function register(username: string, invite?: string): Promise<void> {
     const response = await fetch(`${baseUrl}/api/register`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username, password, ...(invite ? { invite } : {}) }),
+        body: JSON.stringify({
+            username,
+            password,
+            ...(invite ? { invite } : {}),
+        }),
     });
-    expect(response.status, `register ${username}: ${await response.text()}`).toBe(201);
+    expect(
+        response.status,
+        `register ${username}: ${await response.text()}`,
+    ).toBe(201);
 }
 
 async function login(username: string): Promise<string> {
@@ -169,11 +177,7 @@ beforeAll(async () => {
     expect(link.status).toBe(201);
     const url = ((await link.json())["invite"] as { url: string }).url;
     const token = url.split("/").pop()!;
-    const joined = await api(
-        "POST",
-        `/api/projects/join/${token}`,
-        bobCookie,
-    );
+    const joined = await api("POST", `/api/projects/join/${token}`, bobCookie);
     expect(joined.status).toBe(200);
     expect(await joined.json()).toMatchObject({
         project: { id: projectId, role: "editor" },
@@ -184,7 +188,10 @@ beforeAll(async () => {
         aliceCookie,
     );
     bobId = (
-        (await members1.json())["members"] as { userId: number; login: string }[]
+        (await members1.json())["members"] as {
+            userId: number;
+            login: string;
+        }[]
     ).find((m) => m.login === bob)!.userId;
 });
 
@@ -209,9 +216,9 @@ describe("projects", () => {
         }[];
         // No project is auto-created: the only entry is the fixture alice
         // created (there is no longer a per-user Personal project).
-        expect(
-            list.filter((p) => p.id.startsWith("personal-")),
-        ).toHaveLength(0);
+        expect(list.filter((p) => p.id.startsWith("personal-"))).toHaveLength(
+            0,
+        );
         expect(list).toHaveLength(1);
         expect(list.find((p) => p.id === projectId)).toMatchObject({
             id: projectId,
@@ -230,12 +237,9 @@ describe("projects", () => {
     });
 
     test("creates a project with the creator as owner", async () => {
-        const created = await api(
-            "POST",
-            "/api/projects",
-            bobCookie,
-            { name: "Bob's project" },
-        );
+        const created = await api("POST", "/api/projects", bobCookie, {
+            name: "Bob's project",
+        });
         expect(created.status).toBe(201);
         const project = (await created.json())["project"] as {
             role: string;
@@ -244,12 +248,9 @@ describe("projects", () => {
     });
 
     test("rejects a blank project name", async () => {
-        const created = await api(
-            "POST",
-            "/api/projects",
-            aliceCookie,
-            { name: "   " },
-        );
+        const created = await api("POST", "/api/projects", aliceCookie, {
+            name: "   ",
+        });
         expect(created.status).toBe(400);
     });
 
@@ -368,9 +369,7 @@ describe("projects", () => {
             aliceCookie,
         );
         const remaining = (await after.json())["invites"] as { id: string }[];
-        expect(
-            remaining.some((i) => i.id === invites[0].id),
-        ).toBe(false);
+        expect(remaining.some((i) => i.id === invites[0].id)).toBe(false);
     });
 
     test("the owner cannot be removed", async () => {
@@ -439,7 +438,9 @@ describe("projects", () => {
         expect(await again.json()).toEqual({
             project: { name: "Renamed preview project" },
         });
-        expect((await api("GET", `${path}/extra`, carolCookie)).status).toBe(404);
+        expect((await api("GET", `${path}/extra`, carolCookie)).status).toBe(
+            404,
+        );
 
         const joined = await api("POST", path, carolCookie);
         expect(joined.status).toBe(200);
@@ -462,11 +463,14 @@ describe("projects", () => {
         );
         const expiredToken = (
             (await expiredLink.json())["invite"] as { url: string }
-        ).url.split("/").pop()!;
+        ).url
+            .split("/")
+            .pop()!;
         const db = new Database(databasePath);
         try {
-            db.query("UPDATE project_invites SET expires_at = ? WHERE token = ?")
-                .run("2000-01-01T00:00:00.000Z", expiredToken);
+            db.query(
+                "UPDATE project_invites SET expires_at = ? WHERE token = ?",
+            ).run("2000-01-01T00:00:00.000Z", expiredToken);
         } finally {
             db.close();
         }
@@ -495,8 +499,13 @@ describe("projects", () => {
         ).toBe(200);
         const revokedToken = revoked.url.split("/").pop()!;
         expect(
-            (await api("GET", `/api/projects/join/${revokedToken}`, carolCookie))
-                .status,
+            (
+                await api(
+                    "GET",
+                    `/api/projects/join/${revokedToken}`,
+                    carolCookie,
+                )
+            ).status,
         ).toBe(404);
     });
 
@@ -545,11 +554,12 @@ describe("projects", () => {
     test("deletion cascades (owner only)", async () => {
         // Bob's own project (he is its owner): alice cannot reach it at all.
         const bobProjects = await api("GET", "/api/projects", bobCookie);
-        const bobProject = ((
-            await bobProjects.json()
-        )["projects"] as { id: string; name: string }[]).find(
-            (p) => p.name === "Bob's project",
-        )!;
+        const bobProject = (
+            (await bobProjects.json())["projects"] as {
+                id: string;
+                name: string;
+            }[]
+        ).find((p) => p.name === "Bob's project")!;
         const asAlice = await api(
             "DELETE",
             `/api/projects/${bobProject.id}`,
@@ -589,7 +599,7 @@ describe("projects", () => {
         expect(createdToken.id).toBeGreaterThan(0);
 
         // The list shows the value (so it can be copied) and is visible to any
-        // member — bob (editor) sees the one alice created.
+        // member - bob (editor) sees the one alice created.
         const bobList = await api(
             "GET",
             `/api/projects/${projectId}/tokens`,
@@ -600,9 +610,9 @@ describe("projects", () => {
             id: number;
             token: string;
         }[];
-        expect(
-            bobTokens.find((t) => t.id === createdToken.id),
-        ).toMatchObject({ token: createdToken.token });
+        expect(bobTokens.find((t) => t.id === createdToken.id)).toMatchObject({
+            token: createdToken.token,
+        });
 
         // An editor can create, and can revoke any token in the project
         // (project admins manage device access, not just their own).
@@ -628,18 +638,22 @@ describe("projects", () => {
                 .status,
         ).toBe(200);
         expect(
-            (await api(
-                "POST",
-                `/api/projects/${projectId}/tokens`,
-                carolCookie,
-            )).status,
+            (
+                await api(
+                    "POST",
+                    `/api/projects/${projectId}/tokens`,
+                    carolCookie,
+                )
+            ).status,
         ).toBe(403);
         expect(
-            (await api(
-                "DELETE",
-                `/api/projects/${projectId}/tokens/${bobToken.id}`,
-                carolCookie,
-            )).status,
+            (
+                await api(
+                    "DELETE",
+                    `/api/projects/${projectId}/tokens/${bobToken.id}`,
+                    carolCookie,
+                )
+            ).status,
         ).toBe(403);
 
         // A non-member has no reach at all: a uniform 404.
@@ -652,11 +666,8 @@ describe("projects", () => {
                 .status,
         ).toBe(404);
         expect(
-            (await api(
-                "POST",
-                `/api/projects/${projectId}/tokens`,
-                daveCookie,
-            )).status,
+            (await api("POST", `/api/projects/${projectId}/tokens`, daveCookie))
+                .status,
         ).toBe(404);
     });
 });

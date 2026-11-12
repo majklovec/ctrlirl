@@ -31,7 +31,7 @@ export const DEFAULT_RECTANGLE_PROPS: Required<RectangleProps> = {
 };
 
 function draw(element: OverlayElement, ctx: ElementContext): Vnode {
-	// `element` is already resolved by the renderer — props carry binding values.
+	// `element` is already resolved by the renderer - props carry binding values.
 	const p = element.props;
 	const fill = strProp(p, "fill", DEFAULT_RECTANGLE_PROPS.fill);
 	const stroke = strProp(p, "stroke", DEFAULT_RECTANGLE_PROPS.stroke);
@@ -46,7 +46,12 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	});
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	return bindableForm({
 		element: e,
 		mutate,

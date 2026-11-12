@@ -8,7 +8,7 @@ import { rename, unlink, writeFile } from "node:fs/promises";
  * Replace `path` atomically: write a fresh sibling file, then rename it over the target.
  *
  * Opening an existing file for writing in a sticky world-writable directory such as /tmp fails
- * with EACCES when it belongs to another user (fs.protected_regular), even for root — e.g. files
+ * with EACCES when it belongs to another user (fs.protected_regular), even for root - e.g. files
  * left by an earlier non-root run. Replacing via rename avoids that, and readers reloading on
  * SIGHUP never see a half-written file.
  */

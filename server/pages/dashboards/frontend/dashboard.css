@@ -2,7 +2,7 @@
 
 /* ---------------------------------------------------------------- dashboards */
 /* The grid is a GridStack container; the item + item-content are owned by
- * GridStack (imported below) — this only skins the widget body inside it. */
+ * GridStack (imported below) - this only skins the widget body inside it. */
 .dash-grid {
     --dash-row-h: 60px;
     /* margin: 16px 0; */
@@ -27,7 +27,7 @@
     overflow: hidden;
     min-width: 0;
     /* Size container: widget contents use `@container dash-widget` queries to
-     * adapt to the resized cell. Safe here — the width is fully determined by
+     * adapt to the resized cell. Safe here - the width is fully determined by
      * the absolutely-positioned .grid-stack-item-content, never by content. */
     container-type: inline-size;
     container-name: dash-widget;
@@ -163,7 +163,7 @@
 .dash-name-menu button.danger {
     color: var(--danger);
 }
-/* "Add widget" bar — above the grid, edit mode only */
+/* "Add widget" bar - above the grid, edit mode only */
 .dash-add-bar {
     margin: 1rem 0 0 10px;
 }
@@ -402,7 +402,7 @@ p.message {
     }
     /* A 12-column board is unusable on phones: stack the widgets full width
 	 * in DOM (add-widget scan) order. The .dash-widget container queries
-	 * keep handling the inner layout work. Drag/resize stays desktop-only —
+	 * keep handling the inner layout work. Drag/resize stays desktop-only -
 	 * the placeholder has no place in a stacked list. */
     .dash-grid {
         height: auto !important;

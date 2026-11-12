@@ -2,7 +2,7 @@
 /*
  * Shared live-chat connector for the chat-driven overlay widgets (emote wall,
  * emote combo, featured, viewer chat). It opens the overlay's token-scoped
- * chat WebSocket (`/api/overlay/chat/:id/ws?token=…` — the same feed the
+ * chat WebSocket (`/api/overlay/chat/:id/ws?token=…` - the same feed the
  * `chat` element uses), keeps a rolling buffer of the messages for the
  * element's channels, and notifies on every new message.
  *
@@ -58,7 +58,7 @@ export interface ChatMessage {
 
 /** A buffered line: the message plus the channel it came from. */
 export interface ChatLine {
-	/** `<platform>:<channel>` — the hub spec key. */
+	/** `<platform>:<channel>` - the hub spec key. */
 	spec: string;
 	platform: ChatPlatform;
 	channel: string;
@@ -67,7 +67,7 @@ export interface ChatLine {
 	 * Uniqueness-stamped vnode key, minted once when the line enters the
 	 * buffer. Providers can emit duplicate/missing message ids (stale Kick
 	 * re-rejoins re-send history, YouTube gaps), so rendering must never key
-	 * off `msg.id` alone — duplicate keys desync Mithril's keyed diff and the
+	 * off `msg.id` alone - duplicate keys desync Mithril's keyed diff and the
 	 * feed dies with `removeChild` NotFoundErrors.
 	 */
 	key: string;
@@ -89,8 +89,7 @@ export function normalizeChannels(raw: unknown): ChatChannel[] {
 		if (typeof item !== "object" || item === null) continue;
 		const platform = (item as { platform?: unknown }).platform;
 		if (typeof platform !== "string") continue;
-		if (!(CHAT_PLATFORMS as readonly string[]).includes(platform))
-			continue;
+		if (!(CHAT_PLATFORMS as readonly string[]).includes(platform)) continue;
 		const channel = channelPart(
 			(item as { channel?: unknown }).channel as string | undefined,
 		);
@@ -152,10 +151,7 @@ interface LiveChatFeedState {
  * specs. On close, 1008 is fatal (token gone); anything else retries with
  * exponential backoff.
  */
-export const LiveChatFeed: m.Component<
-	LiveChatFeedAttrs,
-	LiveChatFeedState
-> = {
+export const LiveChatFeed: m.Component<LiveChatFeedAttrs, LiveChatFeedState> = {
 	oninit(vnode) {
 		// `state` is pre-initialized by mithril; mutate it, never reassign.
 		vnode.state.stopped = false;
@@ -253,7 +249,7 @@ function connect(vnode: m.Vnode<LiveChatFeedAttrs, LiveChatFeedState>): void {
 						platform,
 						channel,
 						msg,
-						// Stamp every line — id-less ones included — with a
+						// Stamp every line - id-less ones included - with a
 						// unique vnode key.
 						key: `${spec}:${String(msg.id)}#${s.seq}`,
 					};
@@ -268,21 +264,17 @@ function connect(vnode: m.Vnode<LiveChatFeedAttrs, LiveChatFeedState>): void {
 			m.redraw();
 			return;
 		}
-		// The hub stream carries every channel — keep only this element's.
+		// The hub stream carries every channel - keep only this element's.
 		if (!frame.event.endsWith(".chat")) return;
-		const data = frame.data as
-			| {
-					channel?: unknown;
-					message?: ChatMessage;
-					reconnect?: boolean;
-					messages?: ChatMessage[];
-			  }
-			| null;
+		const data = frame.data as {
+			channel?: unknown;
+			message?: ChatMessage;
+			reconnect?: boolean;
+			messages?: ChatMessage[];
+		} | null;
 		if (!data) return;
 		const channel =
-			typeof data.channel === "string"
-				? data.channel.toLowerCase()
-				: "";
+			typeof data.channel === "string" ? data.channel.toLowerCase() : "";
 		if (!channel) return;
 		const dot = frame.event.indexOf(".");
 		const platform = frame.event.slice(0, dot).toLowerCase() as ChatPlatform;
@@ -291,17 +283,16 @@ function connect(vnode: m.Vnode<LiveChatFeedAttrs, LiveChatFeedState>): void {
 		// `reconnect` re-sends rolling history (newest first); a plain frame
 		// carries one new `message`.
 		const batch: ChatMessage[] = data.reconnect
-			? data.messages ?? []
+			? (data.messages ?? [])
 			: data.message
 				? [data.message]
 				: [];
 		if (!batch.length) return;
-		if (batch.length > 1)
-			batch.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
+		if (batch.length > 1) batch.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
 		let added = 0;
 		for (const msg of batch) {
 			const dedupeKey = lineKey(spec, msg);
-			// The re-sent history overlaps what the buffer already holds —
+			// The re-sent history overlaps what the buffer already holds -
 			// skip identifiable lines we've buffered before. Id-less lines
 			// (dedupeKey is null) cannot be identified; keep them.
 			if (dedupeKey != null && s.seen.has(dedupeKey)) continue;
@@ -325,8 +316,7 @@ function connect(vnode: m.Vnode<LiveChatFeedAttrs, LiveChatFeedState>): void {
 			if (stale == undefined) break;
 			s.seen.delete(stale);
 		}
-		for (const line of s.lines.slice(-added))
-			vnode.attrs.onMessage?.(line);
+		for (const line of s.lines.slice(-added)) vnode.attrs.onMessage?.(line);
 		m.redraw();
 	};
 
@@ -335,7 +325,7 @@ function connect(vnode: m.Vnode<LiveChatFeedAttrs, LiveChatFeedState>): void {
 		s.socket = undefined;
 		if (s.stopped) return;
 		if (event.code === 1008) {
-			// The scene token was rotated/removed — reconnecting can't succeed.
+			// The scene token was rotated/removed - reconnecting can't succeed.
 			s.stopped = true;
 			s.ready = false;
 			m.redraw();

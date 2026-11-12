@@ -11,7 +11,7 @@
  *
  * Why NOT `Bun.file(fd).stream()`: it performs a blocking `pread` on the fd.
  * A TUN has no data most of the time, so that read blocks the entire Bun
- * event loop — the web server, all timers, and signal handling freeze whenever
+ * event loop - the web server, all timers, and signal handling freeze whenever
  * the TUN drains (verified with `strace`: main thread parked in `pread64` on
  * the TUN fd). `createReadStream` keeps the loop responsive and delivers
  * packets the instant they arrive (verified: 24 live ping frames through the
@@ -22,6 +22,8 @@
  * `virtual_interface.ts` and is fully testable against `makeMockTunDevice()`.
  */
 // @bun-only
+
+import { dlopen, FFIType, ptr } from "bun:ffi";
 import {
     accessSync,
     closeSync,
@@ -31,7 +33,6 @@ import {
     writeSync,
 } from "node:fs";
 import type { Readable } from "node:stream";
-import { dlopen, FFIType, ptr } from "bun:ffi";
 
 /** IFF_TUN (2): use a TUN device (layer 3, no link header). */
 export const IFF_TUN = 0x0001;
@@ -78,9 +79,19 @@ export async function configureTun(
     assertIfaceName(name);
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(localIp))
         throw new Error(`localIp ${JSON.stringify(localIp)} is not IPv4`);
-    if (!Number.isInteger(prefixLength) || prefixLength < 8 || prefixLength > 32)
+    if (
+        !Number.isInteger(prefixLength) ||
+        prefixLength < 8 ||
+        prefixLength > 32
+    )
         throw new Error(`prefixLength ${prefixLength} out of [8,32]`);
-    await runCmd("ip", ["addr", "add", `${localIp}/${prefixLength}`, "dev", name]);
+    await runCmd("ip", [
+        "addr",
+        "add",
+        `${localIp}/${prefixLength}`,
+        "dev",
+        name,
+    ]);
     await runCmd("ip", ["link", "set", "dev", name, "mtu", String(mtu), "up"]);
 }
 
@@ -97,14 +108,14 @@ export async function deleteTun(name: string): Promise<void> {
     try {
         await runCmd("ip", ["link", "del", "dev", name]);
     } catch {
-        // best-effort cleanup — never throws
+        // best-effort cleanup - never throws
     }
 }
 
 /**
  * Resolve a command binary to an absolute path. `spawn` only searches `PATH`,
  * and a restricted `sudo` `secure_path` can drop the directory where `ip`
- * lives (`/usr/sbin`) — so we walk `PATH` ourselves and, failing that, probe
+ * lives (`/usr/sbin`) - so we walk `PATH` ourselves and, failing that, probe
  * the usual sbin/bin locations directly. Returns the first executable match,
  * or the bare name (which then surfaces as a clear spawn error).
  */
@@ -129,7 +140,7 @@ export function resolveBinary(name: string): string {
 
 /**
  * Run a command with an argv array (never a shell string). Resolves with stdout
- * on exit 0; rejects on a non-zero exit OR a spawn failure (`error` event —
+ * on exit 0; rejects on a non-zero exit OR a spawn failure (`error` event -
  * e.g. the binary is not on `PATH`, such as under a restricted `sudo`
  * secure_path).
  *
@@ -144,7 +155,9 @@ export async function runCmd(binary: string, args: string[]): Promise<string> {
         let settled = false;
         let out = "";
         let err = "";
-        const child = spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn(binPath, args, {
+            stdio: ["ignore", "pipe", "pipe"],
+        });
         child.stdout?.on("data", (d: Buffer) => {
             out += String(d);
         });
@@ -208,7 +221,9 @@ export function buildTunsetName(name: string): Uint8Array {
  */
 export function readTunsetName(ifr: Uint8Array): string {
     const end = ifr.indexOf(0);
-    return new TextDecoder().decode(ifr.subarray(0, end === -1 ? IF_NAME_LEN : end));
+    return new TextDecoder().decode(
+        ifr.subarray(0, end === -1 ? IF_NAME_LEN : end),
+    );
 }
 
 /**
@@ -217,7 +232,7 @@ export function readTunsetName(ifr: Uint8Array): string {
  * The reader is callback-based and never allocates per packet: the caller
  * supplies a reusable buffer and is invoked with the byte length of each full
  * IPv4 datagram (IFF_NO_PI) landed at `buf[0..len)`. Pass a subarray (e.g.
- * `big.subarray(8)`) to land packets at an offset — the relay uses this to
+ * `big.subarray(8)`) to land packets at an offset - the relay uses this to
  * frame TUN packets without a copy.
  */
 export interface TunDevice {
@@ -225,7 +240,7 @@ export interface TunDevice {
     readonly name: string;
     /**
      * Read packets into `buf` (at `buf[0..len)`). `onPacket` fires per packet
-     * and may be synchronous with other relay work — keep it allocation-free.
+     * and may be synchronous with other relay work - keep it allocation-free.
      * Returns a one-shot stop/teardown function.
      */
     onPacket(buf: Uint8Array, onPacket: (len: number) => void): () => void;
@@ -261,7 +276,12 @@ function loadLibcIoctl(): LibcIoctl | null {
             "libc.so.6",
             // `int ioctl(int fd, unsigned long request, ...)`. TUNSETIFF fits u32
             // (0x4008741a) and is zero-extended to 64 bits on x86-64.
-            { ioctl: { args: [FFIType.i32, FFIType.u32, FFIType.ptr], returns: FFIType.i32 } },
+            {
+                ioctl: {
+                    args: [FFIType.i32, FFIType.u32, FFIType.ptr],
+                    returns: FFIType.i32,
+                },
+            },
         ) as unknown as LibcHandle;
         // `dlopen` wraps the bound functions under `.symbols`. `ptr(buf)` views the
         // caller's Uint8Array in place, so the kernel's TUNSETIFF write-back (the
@@ -278,7 +298,7 @@ function loadLibcIoctl(): LibcIoctl | null {
 /**
  * Open a Linux TUN device with IFF_TUN | IFF_NO_PI and a padded name. Returns
  * the `TunDevice` with the kernel-assigned name. Throws on any failure (the
- * caller — `createVirtualInterface` — surfaces this from `start()`).
+ * caller - `createVirtualInterface` - surfaces this from `start()`).
  */
 export async function openTun(name: string): Promise<TunDevice> {
     if (process.platform !== "linux")
@@ -292,18 +312,22 @@ export async function openTun(name: string): Promise<TunDevice> {
     const ioctl = loadLibcIoctl();
     if (!ioctl)
         throw new Error(
-            "cannot open TUN: this Bun build exposes no working `bun:ffi` — " +
+            "cannot open TUN: this Bun build exposes no working `bun:ffi` - " +
                 "run under a standard Bun build that includes FFI",
         );
     const fd = openTunFd();
     // `struct ifreq` for TUNSETIFF: `ifr_name` at 0, `ifr_flags` (IFF_TUN|
-    // IFF_NO_PI) at offset 16. Build a full 64-byte buffer — the kernel copies
+    // IFF_NO_PI) at offset 16. Build a full 64-byte buffer - the kernel copies
     // a real `struct ifreq` (40 bytes on x86-64) in, so the flags must sit in
     // bounds, which a bare 16-byte name buffer cannot provide.
     const nameBuf = buildTunsetName(name);
     const ifr = new Uint8Array(IFREQ_LEN);
     ifr.set(nameBuf, 0);
-    new DataView(ifr.buffer).setUint16(IFREQ_FLAGS_OFFSET, TUN_OPEN_FLAGS, true);
+    new DataView(ifr.buffer).setUint16(
+        IFREQ_FLAGS_OFFSET,
+        TUN_OPEN_FLAGS,
+        true,
+    );
     const ret = ioctl(fd, TUNSETIFF, ifr);
     if (ret < 0) {
         closeSync(fd);
@@ -316,7 +340,7 @@ export async function openTun(name: string): Promise<TunDevice> {
 }
 
 /**
- * The TUN fd is opened `O_NONBLOCK` — see {@link openTunFd}. A blocking TUN fd read hangs the thread
+ * The TUN fd is opened `O_NONBLOCK` - see {@link openTunFd}. A blocking TUN fd read hangs the thread
  * forever when no packet is queued; the read stream relies on the event loop
  * noticing the fd become readable. `r+` maps to `O_RDWR`; combined with
  * `O_NONBLOCK` the fd is read/write and non-blocking.
@@ -335,7 +359,7 @@ class FdTunDevice implements TunDevice {
         // Non-blocking read through the libuv poller. The TUN fd is `O_RDWR |
         // O_NONBLOCK` (see openTunFd), so this stream yields to the event loop
         // when idle and emits exactly one IPv4 packet per chunk (IFF_NO_PI).
-        // `autoClose: false` — close() closes the fd itself (the kernel tears
+        // `autoClose: false` - close() closes the fd itself (the kernel tears
         // the interface down on the last close), not the stream.
         // `null` path + `fd` option selects the fd-reading overload (there is
         // no file to open); the cast only satisfies the PathLike parameter type.
@@ -347,7 +371,7 @@ class FdTunDevice implements TunDevice {
         source.on("readable", () => {
             // Drain fully (loop until `read()` returns null) so backlogged
             // packets are never dropped between events. Each chunk is copied
-            // into the caller's reusable buffer — the single allocation the
+            // into the caller's reusable buffer - the single allocation the
             // poller reader makes; the worker-reader alternative is recorded
             // in DECISIONS.md.
             let chunk: Buffer | null;
@@ -398,7 +422,7 @@ export function makeMockTunDevice(opts?: { name?: string }): {
     const written: Uint8Array[] = [];
     let listener: ((len: number) => void) | null = null;
     let readerBuf: Uint8Array | null = null;
-    let preRead: Uint8Array[] = [];
+    const preRead: Uint8Array[] = [];
     let closed = false;
     const device: TunDevice = {
         fd: -1,

@@ -170,14 +170,13 @@ function attachReceiver(
 		pc.onicecandidate = (e) => {
 			// Only the primary's candidates reach the sender (server relay).
 			if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
-				ws.send(JSON.stringify({ type: "ice", candidate: e.candidate.toJSON() }));
+				ws.send(
+					JSON.stringify({ type: "ice", candidate: e.candidate.toJSON() }),
+				);
 			}
 		};
 		pc.onconnectionstatechange = () => {
-			if (
-				pc.connectionState === "failed" ||
-				pc.connectionState === "closed"
-			) {
+			if (pc.connectionState === "failed" || pc.connectionState === "closed") {
 				if (!state.shadow) {
 					// Active peer dropped; the sender re-offers on room-state.
 					video.srcObject = null;
@@ -251,16 +250,13 @@ function attachReceiver(
 			return;
 		}
 		switch (msg.type) {
-			case "room-state":
+			case "room-state": {
 				// Adopt the room's ICE servers (STUN + the server's minted TURN,
 				// when configured). A changed set that a live peer was already
-				// negotiating with forces a fresh peer — the sender re-offers
+				// negotiating with forces a fresh peer - the sender re-offers
 				// once this receiver drops and re-arms.
 				const servers = msg.state?.iceServers;
-				if (
-					servers &&
-					JSON.stringify(servers) !== JSON.stringify(iceServers)
-				) {
+				if (servers && JSON.stringify(servers) !== JSON.stringify(iceServers)) {
 					iceServers = servers;
 					if (state.pc) dropPeer();
 				}
@@ -268,6 +264,7 @@ function attachReceiver(
 				// receiver carries the live media now.
 				applyLayout(!!msg.state?.active, !!msg.state?.sender);
 				break;
+			}
 			case "offer": {
 				// Only the primary ever receives offers; a shadow ignores any.
 				const sdp = msg.sdp;
@@ -295,7 +292,7 @@ function attachReceiver(
 								await pc.addIceCandidate(candidate);
 								applied = true;
 							} catch {
-								/* stale — requeue */
+								/* stale - requeue */
 							}
 						}
 						// A candidate that beat the offer (no peer yet, or a
@@ -345,8 +342,8 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	const props = element.props;
 	const streamId = typeof props.streamId === "string" ? props.streamId : "";
 	// Connect in both the editor (live preview) and the runtime page. The OBS
-	// runtime page — identified by its `activeTriggers` context, which only the
-	// runtime builds — is `priority` and claims the live-media receiver slot;
+	// runtime page - identified by its `activeTriggers` context, which only the
+	// runtime builds - is `priority` and claims the live-media receiver slot;
 	// the editor (and any other concurrent receiver) runs as a shadow that
 	// keeps its last frame plus a note that the overlay has the feed.
 	const priority = ctx.activeTriggers !== undefined;
@@ -436,7 +433,12 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const streamId = typeof e.props.streamId === "string" ? e.props.streamId : "";
 	const senderUrl = `${location.origin}/webrtc/send?streamId=${encodeURIComponent(streamId)}`;
 	// The sender URL + QR are fixed per instance (the stream id is generated on

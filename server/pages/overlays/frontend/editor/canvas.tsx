@@ -1,10 +1,5 @@
-import { elementDef } from "../registry";
 import m from "mithril";
-import type {
-	Overlay,
-	OverlayElement,
-	Transform,
-} from "../../overlay";
+import type { Overlay, OverlayElement, Transform } from "../../overlay";
 import {
 	elementStyle,
 	resolveElement,
@@ -26,6 +21,7 @@ import {
 	stopInlineEdit,
 	undo,
 } from "../overlay_store";
+import { elementDef } from "../registry";
 
 export function toScenePoint(ev: MouseEvent): { x: number; y: number } {
 	const el = document.querySelector(
@@ -173,7 +169,7 @@ export function onDrag(ev: MouseEvent): void {
 		y = snapped.y;
 		let nw = snapped.width;
 		let nh = snapped.height;
-		// Snapping can shrink the box (two edges landing on one target) —
+		// Snapping can shrink the box (two edges landing on one target) -
 		// re-clamp the size, keeping the same anchored edge.
 		if (nw < MIN) {
 			nw = MIN;
@@ -197,7 +193,7 @@ export function onDrag(ev: MouseEvent): void {
 	// Line: drag one endpoint, the other stays fixed. All math happens in the
 	// box's unrotated frame (the rotation is constant during the drag). The
 	// server rejects negative width/height, so the box is kept in min/abs
-	// form — the line runs along one of the box diagonals; which one is
+	// form - the line runs along one of the box diagonals; which one is
 	// recorded in props.flip (the drag delta's X sign decides).
 	const th = (st.rotation * Math.PI) / 180;
 	const cos = Math.cos(th),
@@ -266,7 +262,7 @@ export function canvasArea(): m.Vnode {
 						// A transform promotes the canvas (and any <iframe> inside it,
 						// e.g. an embedded page) to a GPU-composited layer, which on
 						// real-GPU Chromium/CEF paints an opaque white backing behind the
-						// iframe — a solid white box. `zoom` scales layout without creating
+						// iframe - a solid white box. `zoom` scales layout without creating
 						// a composited layer, so iframe elements stay transparent. The
 						// (clientX/Y - rect) / state.zoom math below is unaffected because
 						// getBoundingClientRect() already reflects `zoom`.
@@ -342,7 +338,7 @@ export function canvasArea(): m.Vnode {
 								{elementDef(el.type)?.handles === "endpoints"
 									? // endpoint elements (lines) get two endpoint
 										// handles (A = top-left corner, B =
-										// bottom-right corner of the box) — they can
+										// bottom-right corner of the box) - they can
 										// never present the box's 8 resize handles
 										(["a", "b"] as const).map((h) => (
 											<span

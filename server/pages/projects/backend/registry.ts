@@ -5,7 +5,7 @@
  *
  * The store is the single authority on authorization: every method takes
  * the acting user and re-checks the role in the database, so a handler
- * cannot forget a guard. All mutations run in one SQLite transaction —
+ * cannot forget a guard. All mutations run in one SQLite transaction -
  * the (project_id, user_id) primary key plus the owner invariants make a
  * project always have exactly one owner.
  */
@@ -31,10 +31,10 @@ export interface ProjectMember {
     role: ProjectRole;
 }
 
-/** A device token bound to a project — authenticates one device. */
+/** A device token bound to a project - authenticates one device. */
 export interface DeviceToken {
     id: number;
-    /** The full token value — the only place it is ever returned. */
+    /** The full token value - the only place it is ever returned. */
     token: string;
     createdAt: string;
 }
@@ -124,7 +124,7 @@ export interface Projects {
      * The default project id for a user's project-scoped request when no
      * `?project=` override is given: the user's earliest project as a member
      * (for pre-existing accounts, migration 0012's seeded `personal-<user id>`
-     * is the earliest and wins the tie-break). Not auto-created — it throws a
+     * is the earliest and wins the tie-break). Not auto-created - it throws a
      * 404 `ApiError` when the user has no projects, so such requests 404 (the
      * UI then prompts them to create a project) instead of materialising one.
      */
@@ -157,11 +157,7 @@ export interface Projects {
         role: InviteRole,
     ): void;
     /** Remove a member (owner; the owner row is protected). */
-    removeMember(
-        actor: string,
-        projectId: string,
-        targetUserId: number,
-    ): void;
+    removeMember(actor: string, projectId: string, targetUserId: number): void;
     /** Mint an invite link (owner / editor; at most the creator's role). */
     createInvite(
         actor: string,
@@ -176,11 +172,7 @@ export interface Projects {
         origin: string,
     ): ProjectInvite[];
     /** Revoke an invite link (owner). */
-    revokeInvite(
-        actor: string,
-        projectId: string,
-        inviteId: string,
-    ): void;
+    revokeInvite(actor: string, projectId: string, inviteId: string): void;
     /** Preview the current project name without consuming a valid invite. */
     previewInvite(user: string, token: string): { name: string };
     /**
@@ -188,7 +180,10 @@ export interface Projects {
      * Fails for a missing, used or expired link and when the user is
      * already a member.
      */
-    join(user: string, token: string): {
+    join(
+        user: string,
+        token: string,
+    ): {
         id: string;
         name: string;
         role: InviteRole;
@@ -208,10 +203,7 @@ export function createProjects(db: Database | null): Projects {
         return row.id;
     };
 
-    const roleRow = (
-        userId: number,
-        projectId: string,
-    ): ProjectRole | null => {
+    const roleRow = (userId: number, projectId: string): ProjectRole | null => {
         const d = useDb();
         const row = d
             .prepare(
@@ -252,10 +244,12 @@ export function createProjects(db: Database | null): Projects {
         allowed: readonly ProjectRole[],
     ): ProjectRole {
         const role = roleRow(userIdOf(actor), projectId);
-        if (!role)
-            throw new ApiError(`Project ${projectId} not found`, 404);
+        if (!role) throw new ApiError(`Project ${projectId} not found`, 404);
         if (!allowed.includes(role))
-            throw new ApiError(`Requires the ${allowed.join(" or ")} role`, 403);
+            throw new ApiError(
+                `Requires the ${allowed.join(" or ")} role`,
+                403,
+            );
         return role;
     }
 
@@ -278,7 +272,8 @@ export function createProjects(db: Database | null): Projects {
             return roleRow(userIdOf(user), projectId);
         },
 
-        requireRole: (actor, projectId, allowed) => requireRole(actor, projectId, allowed),
+        requireRole: (actor, projectId, allowed) =>
+            requireRole(actor, projectId, allowed),
 
         personalProjectId: (user) => {
             // `--no-auth` has no user rows: the synthetic local project stands in.
@@ -286,7 +281,7 @@ export function createProjects(db: Database | null): Projects {
             const d = useDb();
             const uid = userIdOf(user);
             // Default project for a request without `?project=`: the user's
-            // earliest project as a member. Not auto-created — a user without
+            // earliest project as a member. Not auto-created - a user without
             // any project 404s (the UI offers to create one).
             const row = d
                 .prepare(
@@ -296,8 +291,7 @@ export function createProjects(db: Database | null): Projects {
                         "ORDER BY p.created_at ASC, p.id ASC LIMIT 1",
                 )
                 .get(uid) as { id: string } | undefined;
-            if (!row)
-                throw new ApiError(`User ${user} has no projects`, 404);
+            if (!row) throw new ApiError(`User ${user} has no projects`, 404);
             return row.id;
         },
 
@@ -343,10 +337,10 @@ export function createProjects(db: Database | null): Projects {
                         "WHERE project_id = ? ORDER BY id ASC",
                 )
                 .all(projectId) as {
-                    id: number;
-                    token: string;
-                    created_at: string;
-                }[];
+                id: number;
+                token: string;
+                created_at: string;
+            }[];
             return rows.map((r) => ({
                 id: r.id,
                 token: r.token,
@@ -385,9 +379,7 @@ export function createProjects(db: Database | null): Projects {
             requireRole(actor, projectId, ["owner", "editor"]);
             // Scope the delete to the project: a missing or foreign id 404s.
             const result = d
-                .prepare(
-                    "DELETE FROM tokens WHERE id = ? AND project_id = ?",
-                )
+                .prepare("DELETE FROM tokens WHERE id = ? AND project_id = ?")
                 .run(tokenId, projectId);
             if (Number(result.changes) === 0)
                 throw new ApiError(`Token ${tokenId} not found`, 404);
@@ -451,7 +443,7 @@ export function createProjects(db: Database | null): Projects {
             if (!target) throw new ApiError("Member not found", 404);
             if (target.role === "owner")
                 throw new ApiError(
-                    "The owner cannot be removed — transfer it first or delete the project",
+                    "The owner cannot be removed - transfer it first or delete the project",
                     403,
                 );
             d.prepare(
@@ -470,10 +462,7 @@ export function createProjects(db: Database | null): Projects {
             // The invite role must not exceed the creator's: an editor can
             // only mint viewer links.
             if (actorRole === "editor" && role !== "viewer")
-                throw new ApiError(
-                    "Editors can create viewer links only",
-                    403,
-                );
+                throw new ApiError("Editors can create viewer links only", 403);
             const id = randomUUID();
             const token = randomBytes(24).toString("hex");
             const createdAt = new Date();

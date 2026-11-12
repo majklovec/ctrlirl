@@ -16,10 +16,7 @@
 import type { Vnode, VnodeDOM } from "mithril";
 import m from "mithril";
 import type { Variable } from "../../../server/pages/overlays/overlay";
-import type {
-	ControlOption,
-	FieldType,
-} from "../components/dynamic_form";
+import type { ControlOption, FieldType } from "../components/dynamic_form";
 import { makeControl } from "../components/dynamic_form";
 import { Icon } from "../components/icons";
 import { t } from "../i18n";
@@ -29,7 +26,7 @@ import type { ElementProps, OverlayElement } from "./element";
  * purpose: Mithril re-creates per-render closures, so a `view()`-local
  * "open" flag would reset on every redraw and the picker would never
  * stay open. `varCopied` tracks the same way, briefly, which bound fields
- * just copied their variable URL — the copied button flashes green. */
+ * just copied their variable URL - the copied button flashes green. */
 const pickOpen = new Set<string>();
 const varCopied = new Set<string>();
 
@@ -38,7 +35,7 @@ export function lbl(label: string): Vnode {
 }
 
 /** Selects and checkboxes offer a fixed choice set, so a variable binding
- * has no meaning for them — no toggle is shown and any stored binding is
+ * has no meaning for them - no toggle is shown and any stored binding is
  * ignored. */
 function isBindable(control: Vnode): boolean {
 	const dom = control as VnodeDOM;
@@ -52,8 +49,8 @@ function isBindable(control: Vnode): boolean {
 /** One inspector field with the chain-icon binding toggle. `title` is the
  * label shown above the control, `path` the full binding key the schema
  * accepts (`props.<name>`, `transform.<field>`, or `visible`) and `input`
- * the field's normal control. While the picker is open — or the field is
- * bound — the control is replaced by a `select` of the project's variables
+ * the field's normal control. While the picker is open - or the field is
+ * bound - the control is replaced by a `select` of the project's variables
  * and the chain stays yellow. A binding to a since-deleted variable
  * renders as unbound (the stale reference is replaced on the next bind).
  * When the field is bound and `props.variableUrl` is provided, a copy-icon
@@ -99,7 +96,7 @@ export function bindField(
 				}, 1500);
 			})
 			.catch(() => {
-				/* clipboard unavailable — the URL is also available in the variables dialog */
+				/* clipboard unavailable - the URL is also available in the variables dialog */
 			});
 	};
 
@@ -162,7 +159,9 @@ export function bindField(
 					<button
 						class={copied ? "ov-bind-copy ov-copied" : "ov-bind-copy"}
 						type="button"
-						title={copied ? t("overlay.copied") : t("overlay.copy_variable_url")}
+						title={
+							copied ? t("overlay.copied") : t("overlay.copy_variable_url")
+						}
 						aria-label={t("overlay.copy_variable_url")}
 						onclick={copyUrl}
 					>
@@ -196,7 +195,7 @@ export function bindField(
 // descriptors renders in an `ov-grid<N>`; a raw Vnode row is the escape
 // hatch for custom widgets (rendered verbatim, no binding).
 
-/** Control types `bindableForm` knows how to build — the full `makeControl`
+/** Control types `bindableForm` knows how to build - the full `makeControl`
  * vocabulary (text/textarea/number/range/select/checkbox/color/asset/
  * iso-datetime), so every DynamicForm control type is directly usable. */
 export type FormFieldType = FieldType;
@@ -212,13 +211,13 @@ export interface FormFieldOption {
  * `path` is the full binding key the schema accepts (`props.<name>`); the
  * written prop is `path` with the `props.` prefix stripped (the convention
  * every per-element `editForm` uses). `value` is the *already-resolved*
- * current value — the caller reads it with `strProp`/`numProp`. */
+ * current value - the caller reads it with `strProp`/`numProp`. */
 export interface FormField {
 	path: string;
 	/** i18n label key, resolved through `t` at render time. Mutually
 	 * exclusive with `label` (supply one or the other, `label` wins). */
 	labelKey?: string;
-	/** Pre-resolved label text — use when there is no i18n key (e.g. the
+	/** Pre-resolved label text - use when there is no i18n key (e.g. the
 	 * html_template's bespoke text slots, labelled from the slot name). */
 	label?: string;
 	type: FormFieldType;
@@ -233,7 +232,7 @@ export interface FormField {
 }
 
 /** One form row: a group of fields (laid out in a grid) or a raw Vnode
- * rendered verbatim (custom widget — never bound). */
+ * rendered verbatim (custom widget - never bound). */
 export type FormRow = FormField[] | Vnode;
 
 /** The raw control for one field, wired to write its prop on change.
@@ -272,7 +271,9 @@ function rowFields(
 		bindField(e, f.path, fieldLabel(f), controlFor(f, sp.mutate), sp),
 	);
 	if (bound.length === 1) return bound[0];
-	return <div class={bound.length === 2 ? "ov-grid2" : "ov-grid3"}>{bound}</div>;
+	return (
+		<div class={bound.length === 2 ? "ov-grid2" : "ov-grid3"}>{bound}</div>
+	);
 }
 
 /** Render a form-shaped descriptor as an inspector form. See `FormRow` for

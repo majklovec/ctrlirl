@@ -1,4 +1,4 @@
-/* Device page — a Mithril view over the device store (device/store.ts): header, one card per
+/* Device page - a Mithril view over the device store (device/store.ts): header, one card per
  * role-specific function, and the event log. The WebSocket client mutates state and redraws. */
 
 import { Badge, IconLink, Page, TitleWithBack } from "@ui/components/";

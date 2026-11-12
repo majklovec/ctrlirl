@@ -17,21 +17,17 @@
  */
 
 import { networkInterfaces } from "node:os";
+import { bytesToU32, isIpv4 } from "./ip";
 import {
+    DATA_HEADER_LEN,
     decodeFrame,
     encodeKeepaliveFrame,
     sniffFrameKind,
     writeDataHeader,
-    DATA_HEADER_LEN,
 } from "./protocol";
-import { bytesToU32, isIpv4 } from "./ip";
-import {
-    openTun,
-    type TunDevice,
-    type TunFactory,
-} from "./tun_linux";
-import type { CommandRunner, RelayStats } from "./types";
 import { newRelayStats, noteError } from "./stats";
+import { openTun, type TunDevice, type TunFactory } from "./tun_linux";
+import type { CommandRunner, RelayStats } from "./types";
 
 // --- Listener-level socket abstraction (tests inject a fake; Bun in prod) ---
 
@@ -55,7 +51,7 @@ export type RelaySocketFactory = (
 ) => Promise<RelaySocket>;
 
 /**
- * The production UDP listener. Binds `host:port` — `host: "0.0.0.0"`
+ * The production UDP listener. Binds `host:port` - `host: "0.0.0.0"`
  * receives on every local address, so the relay works no matter which NIC
  * the encoder reached through.
  */
@@ -112,7 +108,7 @@ export interface UdpRelayOptions {
      * matcher so the network module hides it from uplinks. */
     tunName?: string;
     /**
-     * Local address to bind the listener to. Default `"0.0.0.0"` — every
+     * Local address to bind the listener to. Default `"0.0.0.0"` - every
      * local address, which is what makes the relay NIC-agnostic. Set a
      * specific IP to restrict the leg (tests).
      */
@@ -180,7 +176,8 @@ export type EncoderDecision =
 /** What to do with a frame the ENCODER sent. Pure: no side effects. */
 export function decideEncoderFrame(buf: Uint8Array): EncoderDecision {
     const frame = decodeFrame(buf);
-    if (frame.type === "malformed") return { action: "drop", reason: frame.reason };
+    if (frame.type === "malformed")
+        return { action: "drop", reason: frame.reason };
     if (frame.type === "keepalive") return { action: "liveness" };
     return { action: "forward", vifIp: frame.vifIp, packet: frame.payload };
 }
@@ -198,9 +195,7 @@ const TX_MAX = DATA_HEADER_LEN + 65535;
  * Construct a transparent L3 relay. Validates input; sockets and the TUN
  * are created in `start()`.
  */
-export async function createUdpRelay(
-    opts: UdpRelayOptions,
-): Promise<UdpRelay> {
+export async function createUdpRelay(opts: UdpRelayOptions): Promise<UdpRelay> {
     const listenAddress = opts.listenAddress ?? "0.0.0.0";
     if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(listenAddress)) {
         throw new TypeError(
@@ -208,7 +203,9 @@ export async function createUdpRelay(
         );
     }
     if (!isIpv4(opts.vifIp)) {
-        throw new TypeError(`vifIp must be an IPv4 address (got \`${opts.vifIp}\`)`);
+        throw new TypeError(
+            `vifIp must be an IPv4 address (got \`${opts.vifIp}\`)`,
+        );
     }
     void InterfaceRe.test(opts.interfaceName);
     return new RelayImpl(opts, listenAddress);
@@ -233,7 +230,7 @@ class RelayImpl implements UdpRelay {
     private lastEncoderSeen = 0;
 
     // Two reusable buffers for the TUN→encoder path: the TUN delivers into
-    // `rxBuf`; the frame (header + packet) is assembled in `txBuf` — a
+    // `rxBuf`; the frame (header + packet) is assembled in `txBuf` - a
     // distinct buffer, so the `.set()` can never overlap.
     // Bun.udpSocket.send() copies synchronously, so reusing txBuf on the
     // next packet is safe.
@@ -263,8 +260,7 @@ class RelayImpl implements UdpRelay {
 
         // The relay TUN is a bare L3 pipe (no address of its own): the
         // backend provisions it (up, routing, conntrack) around start.
-        const tunFactory: TunFactory =
-            this.options.tunFactory ?? openTun;
+        const tunFactory: TunFactory = this.options.tunFactory ?? openTun;
         this.tun = await tunFactory(this.tunName, this.options.runCommand);
 
         const socketFactory: RelaySocketFactory =
@@ -277,14 +273,13 @@ class RelayImpl implements UdpRelay {
         );
 
         // TUN→listener direction: synchronous per packet.
-        this.tun.onPacket(this.rxBuf, (len) => this.onTunPacket(this.rxBuf, len));
+        this.tun.onPacket(this.rxBuf, (len) =>
+            this.onTunPacket(this.rxBuf, len),
+        );
 
         const interval = this.options.statsIntervalMs ?? 0;
         if (interval > 0) {
-            this.statsTimer = setInterval(
-                () => this.emitStats(),
-                interval,
-            );
+            this.statsTimer = setInterval(() => this.emitStats(), interval);
         }
         this.options.onVifLearned?.(this.options.vifIp);
     }
@@ -310,7 +305,9 @@ class RelayImpl implements UdpRelay {
             ...this.counters,
             lastEncoderSeen: this.lastEncoderSeen,
             lastEncoder: this.lastEncoder ?? undefined,
-            lastError: this.lastError ? { at: Date.now(), message: this.lastError } : undefined,
+            lastError: this.lastError
+                ? { at: Date.now(), message: this.lastError }
+                : undefined,
         };
     }
 
@@ -380,12 +377,12 @@ class RelayImpl implements UdpRelay {
     }
 
     /**
-     * IP packet the kernel handed out of our TUN — a reply destined for the
+     * IP packet the kernel handed out of our TUN - a reply destined for the
      * vif /32 (conntrack de-NATed it back). Frame it and send to the
      * encoder.
      */
     private onTunPacket(buf: Uint8Array, len: number): void {
-        if (len < 20 || (buf[0] >> 4) !== 4) {
+        if (len < 20 || buf[0] >> 4 !== 4) {
             this.counters.drops++;
             return;
         }

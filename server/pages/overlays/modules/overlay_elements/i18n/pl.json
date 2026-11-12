@@ -263,8 +263,8 @@
     "overlay.ambient_shift": "Przesunięcie",
     "overlay.ambient_swirl": "Wir",
     "overlay.ambient_speed": "Prędkość (×)",
-    "overlay.ambient_trail": "Ślad (×) — wyższy = wolniejsze zanikanie",
-    "overlay.ambient_trail_faster": "Trail fade speed (×) — higher fades faster",
-    "overlay.ambient_head_brightness": "Head brightness (×) — brightens the moving dot",
+    "overlay.ambient_trail": "Ślad (×) - wyższy = wolniejsze zanikanie",
+    "overlay.ambient_trail_faster": "Trail fade speed (×) - higher fades faster",
+    "overlay.ambient_head_brightness": "Head brightness (×) - brightens the moving dot",
     "overlay.ambient_background": "Kolor tła"
 }

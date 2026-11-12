@@ -1,3 +1,8 @@
+import type {
+    DeviceInfo,
+    DeviceSummary,
+    Status,
+} from "../../../../shared/contracts/wire";
 import { text } from "../../../../shared/http";
 import { isLanguage, type Language, translate } from "../../../../shared/i18n";
 import {
@@ -10,7 +15,6 @@ import {
     dashboardActionsFor,
     isRegisteredRole,
 } from "../../../../shared/registry";
-import type { DeviceInfo, DeviceSummary, Status } from "../../../../shared/contracts/wire";
 import { parseJsonObject, textOf } from "../../../../shared/util";
 import { COLOR_RE, type Role } from "../../../../shared/validate";
 import {
@@ -272,9 +276,11 @@ export function createDevices({
                 });
                 d.statusAt = Date.now();
                 const role = d.status?.role;
-                // A role change is structural — refresh the list at once for it
+                // A role change is structural - refresh the list at once for it
                 if (
-                    updateDevice(d, { role: isRegisteredRole(role) ? role : undefined })
+                    updateDevice(d, {
+                        role: isRegisteredRole(role) ? role : undefined,
+                    })
                 ) {
                     publishToDevice(d, deviceEvent(d));
                     publishDeviceList(true);
@@ -308,7 +314,7 @@ export function createDevices({
         if (msg.type === "hello") {
             if (msg.id !== d.id)
                 console.warn(
-                    `[device ${d.id}] hello announced a different id (${String(msg.id)}) — ignored`,
+                    `[device ${d.id}] hello announced a different id (${String(msg.id)}) - ignored`,
                 );
             // The per-uuid parameters the device reports about itself; a color change
             // re-themes the list dot, a hostname change the display name
@@ -323,7 +329,7 @@ export function createDevices({
                         ? msg.color
                         : undefined,
                 language: isLanguage(msg.language) ? msg.language : undefined,
-                // Absent on builds that predate version reporting — stays undefined, which the UI flags as "old app"
+                // Absent on builds that predate version reporting - stays undefined, which the UI flags as "old app"
                 version:
                     typeof msg.version === "string" && msg.version !== ""
                         ? msg.version
@@ -445,8 +451,8 @@ export function createDevices({
 
     // The per-device push cadence (2 s stats × N devices + 30 s status) would
     // flood the dashboard feed with a full-list re-broadcast even when nothing
-    // visible changed — so the list is throttled: at most once per tick (2 s),
-    // and only when a visible summary field changed (timestamps excluded —
+    // visible changed - so the list is throttled: at most once per tick (2 s),
+    // and only when a visible summary field changed (timestamps excluded -
     // they are refreshed by the slow pass below).
     const LIST_TICK_MS = 2_000;
     const LIST_SLOW_PASS_MS = 30_000;
@@ -489,7 +495,7 @@ export function createDevices({
 
     /** Re-broadcast the per-project lists to the live-feed subscribers; each
      * is identical to what the pages fetch from /api/devices. Throttled to at
-     * most one broadcast per tick and skipped when nothing visible changed —
+     * most one broadcast per tick and skipped when nothing visible changed -
      * except structural events (connect / disconnect / identity), which pass
      * immediate. */
     function publishDeviceList(immediate = false): void {

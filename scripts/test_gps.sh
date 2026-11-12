@@ -2,8 +2,8 @@
 # Test script: simulates a moving GPS route in repeating segments.
 #
 # Each segment sends SEGMENT positions (default 100) as ONE `pos` variable in
-# the overlay's `"lon,lat"` wire format (longitude first) — the value a
-# `centerPosition` binding expects — then fires a `path.end/<random name>`
+# the overlay's `"lon,lat"` wire format (longitude first) - the value a
+# `centerPosition` binding expects - then fires a `path.end/<random name>`
 # event, which renames + archives the live `default` route server-side (the
 # next position opens a fresh segment). The segments repeat forever
 # (Ctrl+C to stop).
@@ -22,7 +22,7 @@ LON="${LON:-14.4213}"
 INTERVAL="${INTERVAL:-5}" # seconds between updates
 SEGMENT="${SEGMENT:-100}" # positions per segment
 SEGMENTS="${SEGMENTS:-0}" # segments to send; 0 = forever
-SMER="${SMER:-0}" # initial heading (radians)
+SMER="${SMER:-0}"         # initial heading (radians)
 
 vars_url="$BASE_URL/overlay/$OVERLAY_ID/variables"
 event_url="$BASE_URL/overlay/$OVERLAY_ID/event"

@@ -2,7 +2,7 @@
  * The chat overlay element's server half: the endpoint + token-scoped
  * WebSocket that stream the overlay's chat channels to a scene. Moved from
  * the dashboards chat module so the element's frontend half (elements/chat.tsx)
- * and its backend routes live in one module — the chat module keeps only the
+ * and its backend routes live in one module - the chat module keeps only the
  * dashboard widget's hub.
  */
 import { Elysia } from "elysia";
@@ -25,7 +25,10 @@ export function chatOverlayRoutes(context: ControlRouteContext) {
         new Response("Invalid chat token", { status: 401, headers });
 
     /** The overlay's chat channel specs, `null` when the token is unknown. */
-    function overlaySpecs(overlayId: string, request: Request): string[] | null {
+    function overlaySpecs(
+        overlayId: string,
+        request: Request,
+    ): string[] | null {
         return context.overlayChatOverlaySpecs(
             new URL(request.url).searchParams.get("token") ?? "",
             overlayId,
@@ -53,9 +56,8 @@ export function chatOverlayRoutes(context: ControlRouteContext) {
     // widget). The endpoint resolves the overlay's chat channels, keeps their
     // providers attached for the connection, and streams the hub frames
     // narrowed to those channels.
-    return new Elysia({ name: "chat-overlay" }).get(
-        "/api/overlay/chat/:id",
-        ({ request }) => {
+    return new Elysia({ name: "chat-overlay" })
+        .get("/api/overlay/chat/:id", ({ request }) => {
             const specs = overlaySpecs(
                 overlayIdFrom(new URL(request.url)),
                 request,

@@ -1,7 +1,7 @@
 /**
- * MobLink streamer device module (encoder side). All of the streamer's UI —
+ * MobLink streamer device module (encoder side). All of the streamer's UI -
  * the discovered relays' shared interfaces, the active TUNs, per-tunnel stats
- * and uplink state — is merged into the Network card (see
+ * and uplink state - is merged into the Network card (see
  * `../network/frontend.tsx`), so this module renders no card of its own: it
  * only keeps the device-cards registration and log wording. The module runs
  * permanently (no start/stop controls); TUN / base-IP / MTU settings stay on
@@ -19,7 +19,7 @@ const moblinkStreamerModule: FrontendModule = {
 	order: 52,
 	log,
 	available: (status) => status.role === "encoder",
-	// No card of its own — everything it used to show now lives in the
+	// No card of its own - everything it used to show now lives in the
 	// Network card's tunnel rows.
 	component: () => m(""),
 	defaultSize: { w: 4, h: 4 },

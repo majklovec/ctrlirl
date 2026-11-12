@@ -9,10 +9,10 @@
  *   2. a module never imports another module (cross-module services go
  *      through named capabilities on the bus).
  *   3. browser code (every .tsx, plus the listed browser roots) never imports
- *      backend code at runtime — `import type` is erased and allowed.
+ *      backend code at runtime - `import type` is erased and allowed.
  *   4. the client and server sides only meet through shared/ (and the
  *      generated manifests); listed exceptions are the deliberate doors.
- *   5. a module reaches the core only through shared/ at runtime — the
+ *   5. a module reaches the core only through shared/ at runtime - the
  *      contracts, the UI kit, the helpers; core process files are imported
  *      as types at most (`ModuleCore`, the settings-page `ModuleDef`).
  *
@@ -26,201 +26,206 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 const ROOT = resolve(import.meta.dir, "..");
 
 interface Side {
-	name: string;
-	dirs: string[];
-	/** Directories this side may import even though they belong to the other side. */
-	allow?: string[];
+    name: string;
+    dirs: string[];
+    /** Directories this side may import even though they belong to the other side. */
+    allow?: string[];
 }
 
 interface Layout {
-	/** Directories whose immediate children are modules. */
-	moduleRoots: string[];
-	/** Core code: must not import any module. */
-	coreRoots: string[];
-	/** Code that only ever runs in the browser (in addition to every .tsx file). */
-	browserRoots: string[];
-	/** Code that only ever runs in Bun. */
-	backendRoots: string[];
-	/** Generated manifests: the sanctioned door from core into the modules. */
-	generatedDir: string;
-	/** Process sides that must stay isolated from each other. */
-	sides: Side[];
-	/** The only directory a module may import from outside itself at runtime. */
-	moduleApi: string;
+    /** Directories whose immediate children are modules. */
+    moduleRoots: string[];
+    /** Core code: must not import any module. */
+    coreRoots: string[];
+    /** Code that only ever runs in the browser (in addition to every .tsx file). */
+    browserRoots: string[];
+    /** Code that only ever runs in Bun. */
+    backendRoots: string[];
+    /** Generated manifests: the sanctioned door from core into the modules. */
+    generatedDir: string;
+    /** Process sides that must stay isolated from each other. */
+    sides: Side[];
+    /** The only directory a module may import from outside itself at runtime. */
+    moduleApi: string;
 }
 
 const LAYOUT: Layout = {
-	// The control server's widget/overlay modules now live inside the page
-	// slices that consume them (01-refactor); the device modules stay in
-	// client/modules. Same list as shared/paths.ts MODULE_ROOTS.
-	moduleRoots: [
-		"client/modules",
-		"server/pages/dashboards/modules",
-		"server/pages/overlays/modules",
-	],
-	coreRoots: [
-		"client/backend",
-		"client/frontend",
-		"server/core",
-		"server/shell",
-		"server/pages",
-		"shared",
-	],
-	browserRoots: ["client/frontend", "server/shell", "shared/ui"],
-	backendRoots: ["client/backend", "server/core"],
-	generatedDir: "generated",
-	moduleApi: "shared",
-	sides: [
-		{ name: "client", dirs: ["client"] },
-		{ name: "server", dirs: ["server"] },
-	],
+    // The control server's widget/overlay modules now live inside the page
+    // slices that consume them (01-refactor); the device modules stay in
+    // client/modules. Same list as shared/paths.ts MODULE_ROOTS.
+    moduleRoots: [
+        "client/modules",
+        "server/pages/dashboards/modules",
+        "server/pages/overlays/modules",
+    ],
+    coreRoots: [
+        "client/backend",
+        "client/frontend",
+        "server/core",
+        "server/shell",
+        "server/pages",
+        "shared",
+    ],
+    browserRoots: ["client/frontend", "server/shell", "shared/ui"],
+    backendRoots: ["client/backend", "server/core"],
+    generatedDir: "generated",
+    moduleApi: "shared",
+    sides: [
+        { name: "client", dirs: ["client"] },
+        { name: "server", dirs: ["server"] },
+    ],
 };
 
 const SOURCE_RE = /\.(ts|tsx)$/;
 
 function walk(dir: string): string[] {
-	let entries: Dirent[];
-	try {
-		entries = readdirSync(dir, { withFileTypes: true });
-	} catch {
-		return [];
-	}
-	return entries.flatMap((entry) =>
-		entry.isDirectory()
-			? walk(join(dir, entry.name))
-			: SOURCE_RE.test(entry.name)
-				? [join(dir, entry.name)]
-				: [],
-	);
+    let entries: Dirent[];
+    try {
+        entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return [];
+    }
+    return entries.flatMap((entry) =>
+        entry.isDirectory()
+            ? walk(join(dir, entry.name))
+            : SOURCE_RE.test(entry.name)
+              ? [join(dir, entry.name)]
+              : [],
+    );
 }
 
 const sourcesUnder = (dirs: string[]): string[] =>
-	dirs.flatMap((dir) => walk(join(ROOT, dir)));
+    dirs.flatMap((dir) => walk(join(ROOT, dir)));
 
 const isUnder = (file: string, dir: string): boolean => {
-	const rel = relative(join(ROOT, dir), file);
-	return rel !== "" && !rel.startsWith("..") && !rel.startsWith(sep);
+    const rel = relative(join(ROOT, dir), file);
+    return rel !== "" && !rel.startsWith("..") && !rel.startsWith(sep);
 };
 
 /** `client/modules/encoder` for a file inside a module root, else undefined. */
 function moduleOf(file: string): string | undefined {
-	for (const root of LAYOUT.moduleRoots) {
-		if (!isUnder(file, root)) continue;
-		const [id] = relative(join(ROOT, root), file).split(sep);
-		return `${root}/${id}`;
-	}
-	return undefined;
+    for (const root of LAYOUT.moduleRoots) {
+        if (!isUnder(file, root)) continue;
+        const [id] = relative(join(ROOT, root), file).split(sep);
+        return `${root}/${id}`;
+    }
+    return undefined;
 }
 
 const stripComments = (src: string): string =>
-	src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 interface Import {
-	line: number;
-	spec: string;
-	target: string;
-	typeOnly: boolean;
+    line: number;
+    spec: string;
+    target: string;
+    typeOnly: boolean;
 }
 
 const IMPORT_RE =
-	/\bimport\s*\(\s*["']([^"']+)["']\s*\)|\bimport\s*["']([^"']+)["']|\bimport\s+type\b[^;]*?from\s*["']([^"']+)["']|\bimport\b[^;]*?from\s*["']([^"']+)["']|\bexport\s+type\b[^;]*?from\s*["']([^"']+)["']|\bexport\b[^;]*?from\s*["']([^"']+)["']/g;
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)|\bimport\s*["']([^"']+)["']|\bimport\s+type\b[^;]*?from\s*["']([^"']+)["']|\bimport\b[^;]*?from\s*["']([^"']+)["']|\bexport\s+type\b[^;]*?from\s*["']([^"']+)["']|\bexport\b[^;]*?from\s*["']([^"']+)["']/g;
 
 /** Relative imports of a file, resolved to absolute paths (bare specifiers skipped). */
 function importsOf(file: string): Import[] {
-	const src = stripComments(readFileSync(file, "utf8"));
-	const out: Import[] = [];
-	for (const m of src.matchAll(IMPORT_RE)) {
-		const spec = m[1] ?? m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6];
-		if (!spec?.startsWith(".")) continue;
-		out.push({
-			line: src.slice(0, m.index).split("\n").length,
-			spec,
-			target: resolve(dirname(file), spec),
-			typeOnly: m[3] !== undefined || m[5] !== undefined,
-		});
-	}
-	return out;
+    const src = stripComments(readFileSync(file, "utf8"));
+    const out: Import[] = [];
+    for (const m of src.matchAll(IMPORT_RE)) {
+        const spec = m[1] ?? m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6];
+        if (!spec?.startsWith(".")) continue;
+        out.push({
+            line: src.slice(0, m.index).split("\n").length,
+            spec,
+            target: resolve(dirname(file), spec),
+            typeOnly: m[3] !== undefined || m[5] !== undefined,
+        });
+    }
+    return out;
 }
 
 const describeOffender = (file: string, imp: Import): string =>
-	`${relative(ROOT, file)}:${imp.line} → ${imp.spec}`;
+    `${relative(ROOT, file)}:${imp.line} → ${imp.spec}`;
 
 describe("architectural boundaries", () => {
-	test("core never imports a module (only the generated manifests)", () => {
-		const offenders: string[] = [];
-		for (const file of sourcesUnder(LAYOUT.coreRoots)) {
-			if (moduleOf(file)) continue;
-			for (const imp of importsOf(file))
-				if (moduleOf(imp.target)) offenders.push(describeOffender(file, imp));
-		}
-		expect(offenders).toEqual([]);
-	});
+    test("core never imports a module (only the generated manifests)", () => {
+        const offenders: string[] = [];
+        for (const file of sourcesUnder(LAYOUT.coreRoots)) {
+            if (moduleOf(file)) continue;
+            for (const imp of importsOf(file))
+                if (moduleOf(imp.target))
+                    offenders.push(describeOffender(file, imp));
+        }
+        expect(offenders).toEqual([]);
+    });
 
-	test("a module never imports another module", () => {
-		const offenders: string[] = [];
-		for (const file of sourcesUnder(LAYOUT.moduleRoots)) {
-			const own = moduleOf(file);
-			for (const imp of importsOf(file)) {
-				const other = moduleOf(imp.target);
-				if (other && other !== own) offenders.push(describeOffender(file, imp));
-			}
-		}
-		expect(offenders).toEqual([]);
-	});
+    test("a module never imports another module", () => {
+        const offenders: string[] = [];
+        for (const file of sourcesUnder(LAYOUT.moduleRoots)) {
+            const own = moduleOf(file);
+            for (const imp of importsOf(file)) {
+                const other = moduleOf(imp.target);
+                if (other && other !== own)
+                    offenders.push(describeOffender(file, imp));
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
 
-	test("browser code never imports backend code at runtime", () => {
-		const browserFiles = new Set<string>([
-			...sourcesUnder(LAYOUT.browserRoots),
-			...sourcesUnder([...LAYOUT.moduleRoots, "shared"]).filter((f) =>
-				f.endsWith(".tsx"),
-			),
-		]);
-		const offenders: string[] = [];
-		for (const file of browserFiles)
-			for (const imp of importsOf(file))
-				if (
-					!imp.typeOnly &&
-					LAYOUT.backendRoots.some((dir) => isUnder(imp.target, dir))
-				)
-					offenders.push(describeOffender(file, imp));
-		expect(offenders).toEqual([]);
-	});
+    test("browser code never imports backend code at runtime", () => {
+        const browserFiles = new Set<string>([
+            ...sourcesUnder(LAYOUT.browserRoots),
+            ...sourcesUnder([...LAYOUT.moduleRoots, "shared"]).filter((f) =>
+                f.endsWith(".tsx"),
+            ),
+        ]);
+        const offenders: string[] = [];
+        for (const file of browserFiles)
+            for (const imp of importsOf(file))
+                if (
+                    !imp.typeOnly &&
+                    LAYOUT.backendRoots.some((dir) => isUnder(imp.target, dir))
+                )
+                    offenders.push(describeOffender(file, imp));
+        expect(offenders).toEqual([]);
+    });
 
-	test("the generated manifests are the only core→module door", () => {
-		const generated = sourcesUnder([LAYOUT.generatedDir]);
-		expect(generated.length).toBeGreaterThan(0);
-		for (const file of generated)
-			expect(readFileSync(file, "utf8")).toMatch(/AUTO-GENERATED/);
-	});
+    test("the generated manifests are the only core→module door", () => {
+        const generated = sourcesUnder([LAYOUT.generatedDir]);
+        expect(generated.length).toBeGreaterThan(0);
+        for (const file of generated)
+            expect(readFileSync(file, "utf8")).toMatch(/AUTO-GENERATED/);
+    });
 
-	test("a module reaches the core only through shared/ at runtime", () => {
-		const offenders: string[] = [];
-		for (const file of sourcesUnder(LAYOUT.moduleRoots)) {
-			const own = moduleOf(file) as string;
-			for (const imp of importsOf(file)) {
-				if (imp.typeOnly) continue;
-				if (moduleOf(imp.target) === own) continue;
-				if (isUnder(imp.target, LAYOUT.moduleApi)) continue;
-				offenders.push(describeOffender(file, imp));
-			}
-		}
-		expect(offenders).toEqual([]);
-	});
+    test("a module reaches the core only through shared/ at runtime", () => {
+        const offenders: string[] = [];
+        for (const file of sourcesUnder(LAYOUT.moduleRoots)) {
+            const own = moduleOf(file) as string;
+            for (const imp of importsOf(file)) {
+                if (imp.typeOnly) continue;
+                if (moduleOf(imp.target) === own) continue;
+                if (isUnder(imp.target, LAYOUT.moduleApi)) continue;
+                offenders.push(describeOffender(file, imp));
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
 
-	test("client and server sides only meet through shared/", () => {
-		const offenders: string[] = [];
-		for (const side of LAYOUT.sides) {
-			const foreign = LAYOUT.sides.filter((s) => s !== side);
-			for (const file of sourcesUnder(side.dirs))
-				for (const imp of importsOf(file)) {
-					if (imp.typeOnly) continue;
-					if (side.allow?.some((dir) => isUnder(imp.target, dir))) continue;
-					if (
-						foreign.some((s) => s.dirs.some((dir) => isUnder(imp.target, dir)))
-					)
-						offenders.push(describeOffender(file, imp));
-				}
-		}
-		expect(offenders).toEqual([]);
-	});
+    test("client and server sides only meet through shared/", () => {
+        const offenders: string[] = [];
+        for (const side of LAYOUT.sides) {
+            const foreign = LAYOUT.sides.filter((s) => s !== side);
+            for (const file of sourcesUnder(side.dirs))
+                for (const imp of importsOf(file)) {
+                    if (imp.typeOnly) continue;
+                    if (side.allow?.some((dir) => isUnder(imp.target, dir)))
+                        continue;
+                    if (
+                        foreign.some((s) =>
+                            s.dirs.some((dir) => isUnder(imp.target, dir)),
+                        )
+                    )
+                        offenders.push(describeOffender(file, imp));
+                }
+        }
+        expect(offenders).toEqual([]);
+    });
 });

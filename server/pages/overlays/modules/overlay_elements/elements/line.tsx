@@ -38,14 +38,14 @@ export const DEFAULT_LINE_PROPS: Required<LineProps> = {
  * form, so only the sign *combination* of the delta matters: same-sign
  * components (both forward, both backward) land on the same diagonal
  * (180° symmetry → flip = false); opposite signs land on the other one
- * (flip = true). A zero component is a box edge — no diagonal ambiguity.
+ * (flip = true). A zero component is a box edge - no diagonal ambiguity.
  */
 export const lineFlipFromDelta = (dx: number, dy: number): boolean =>
 	dx * dy < 0;
 
 function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	// `element` is already resolved by the renderer, so both props and
-	// transform carry any binding values — bound geometry works for free.
+	// transform carry any binding values - bound geometry works for free.
 	const p = element.props;
 	const t2 = element.transform;
 	// draw a line through the box, oriented along its w/h delta
@@ -66,7 +66,7 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 			transform: `rotate(${angle}deg)`,
 			left: "50%",
 			top: "50%",
-			// margin shorthand is top/right/bottom/left — the -length/2 must be on
+			// margin shorthand is top/right/bottom/left - the -length/2 must be on
 			// the LEFT side so the bar's center (and rotation axis) lands on the
 			// box center; the line then spans corner-to-corner of w/h
 			margin: `${-(thickness / 2).toFixed(1)}px 0 0 ${-(Math.max(1, length) / 2).toFixed(1)}px`,
@@ -75,9 +75,14 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	});
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	// A line is edited as two endpoints (see `handles`), so this form exposes
-	// ONLY line properties — never the rectangle/ellipse fill+radius editing.
+	// ONLY line properties - never the rectangle/ellipse fill+radius editing.
 	return bindableForm({
 		element: e,
 		mutate,

@@ -1,5 +1,5 @@
 -- OBS overlay editor: one row per OVERLAY (replaces `overlay_projects`, which
--- held one project per user). An overlay is self-contained — its own canvas,
+-- held one project per user). An overlay is self-contained - its own canvas,
 -- variables, assets, elements and, crucially, its own `token` (protecting its
 -- runtime pages, the chat-overlay pattern). A user may have many overlays.
 --

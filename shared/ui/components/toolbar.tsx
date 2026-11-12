@@ -1,5 +1,5 @@
 /** @jsx m */
-/* A row of controls with an optional leading label — the create bar under
+/* A row of controls with an optional leading label - the create bar under
  * entity lists, the editor's icon strip. */
 import m from "mithril";
 import type { MithrilJSXComponent } from "../jsx";

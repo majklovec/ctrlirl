@@ -1,5 +1,5 @@
 /*
- * Encoder module: belacoder / ceracoder management — the encoder process
+ * Encoder module: belacoder / ceracoder management - the encoder process
  * (./encoder), pipeline and audio-source discovery (./sources), pipeline files
  * and GitHub pipeline repositories (./pipelines, ./pipeline-repos), and SRTLA
  * streaming: a local srtla_send fed by the encoder, sending the SRTLA stream
@@ -10,34 +10,31 @@
  */
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ModuleCore } from "../../backend/module_core";
+import { argEnv, enumArgEnv, intArgEnv } from "../../../shared/args";
 import type {
     BackendModule,
     Emit,
     ModuleStartContext,
     Params,
 } from "../../../shared/contracts/backend_module";
+import type { Uplinks } from "../../../shared/contracts/module_capabilities";
+import { t } from "../../../shared/i18n";
 import {
     ApiError,
-    optionalInt,
     oneOf,
+    optionalInt,
     requireBoolean,
     requireHost,
     requireString,
 } from "../../../shared/params";
 import {
-    argEnv,
-    enumArgEnv,
-    intArgEnv,
-} from "../../../shared/args";
-import {
     SRTLA_MODES,
     SrtlaSend,
     srtlaStatsSummary,
 } from "../../../shared/srtla";
-import { t } from "../../../shared/i18n";
 import { errorMessage } from "../../../shared/util";
 import type { Role } from "../../../shared/validate";
+import type { ModuleCore } from "../../backend/module_core";
 import { PIPELINES_DIR } from "./config";
 import { bindCore, core, data } from "./core";
 import { ceracoder, ceracoderConfig, encoder } from "./encoder";
@@ -63,7 +60,6 @@ import type {
     SrtlaState,
     SrtlaTarget,
 } from "./types";
-import type { Uplinks } from "../../../shared/contracts/module_capabilities";
 
 /** Map a start failure to a status code: conflicts 409, bad pipeline / audio 400, else 500. */
 async function startChecked<T>(start: () => Promise<T>): Promise<T> {
@@ -92,7 +88,11 @@ function encoderDestination(p: Params): {
         typeof p.remoteHost === "string" ? p.remoteHost.trim() : "";
     const host =
         hostParam ||
-        argEnv("--encoder-destination-host", "ENCODER_DESTINATION_HOST", "relay");
+        argEnv(
+            "--encoder-destination-host",
+            "ENCODER_DESTINATION_HOST",
+            "relay",
+        );
     const remotePort = String(
         optionalInt(
             p,
@@ -132,7 +132,7 @@ const SRTLA_SOCKET = argEnv(
     join(tmpdir(), "srtla_send.sock"),
 );
 /**
- * The network module's bonded uplinks file + change hook. Resolved lazily —
+ * The network module's bonded uplinks file + change hook. Resolved lazily -
  * `stream.start` must work even when the module's `start` never ran (disabled
  * slice), so the capability is fetched on first use, not only at start.
  */
@@ -511,11 +511,15 @@ const encoderModule: BackendModule<ModuleCore> = {
         // One-shot legacy `streamTarget` adoption; options default like the relay.
         const section = data();
         if (section.streamTarget && !section.stream) {
-            core.logEvent("info", "SRTLA_SEND", t("log.legacy_target", {
-                listenPort: section.streamTarget.listenPort,
-                remoteHost: section.streamTarget.remoteHost,
-                remotePort: section.streamTarget.remotePort,
-            }));
+            core.logEvent(
+                "info",
+                "SRTLA_SEND",
+                t("log.legacy_target", {
+                    listenPort: section.streamTarget.listenPort,
+                    remoteHost: section.streamTarget.remoteHost,
+                    remotePort: section.streamTarget.remotePort,
+                }),
+            );
             section.stream = {
                 listenPort: section.streamTarget.listenPort,
                 mode: "enhanced",
@@ -525,18 +529,17 @@ const encoderModule: BackendModule<ModuleCore> = {
             };
         }
         // 1 Hz per-link stats → client; control-state changes invalidate status.
-        sendLeg().control.onStats(
-            (ev) =>
-                emit?.("stream.stats", ev, {
-                    throttle: true,
-                    retain: !!ev.stats,
-                    summary: srtlaStatsSummary(ev),
-                }),
+        sendLeg().control.onStats((ev) =>
+            emit?.("stream.stats", ev, {
+                throttle: true,
+                retain: !!ev.stats,
+                summary: srtlaStatsSummary(ev),
+            }),
         );
         sendLeg().control.onChange(() => core.notifyStateChange());
         // Reload srtla_send whenever the network module rewrites the uplinks file.
         uplinksUnsub = uplinksImpl().onChanged(async () => {
-            console.log("Uplinks changed — reloading srtla_send");
+            console.log("Uplinks changed - reloading srtla_send");
             await reloadSrtlaSend();
         });
     },

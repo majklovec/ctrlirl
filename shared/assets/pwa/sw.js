@@ -1,4 +1,4 @@
-// IRLCTRL service worker — served at the origin root (/sw.js, scope "/") by
+// IRLCTRL service worker - served at the origin root (/sw.js, scope "/") by
 // shared/pwa.ts so it can control the whole UI (control server and device).
 //
 // Strategy:
@@ -62,13 +62,15 @@ self.addEventListener("fetch", (e) => {
                 .then((res) => {
                     if (res.ok) {
                         const copy = res.clone();
-                        caches
-                            .open(CACHE)
-                            .then((c) => c.put(request, copy));
+                        caches.open(CACHE).then((c) => c.put(request, copy));
                     }
                     return res;
                 })
-                .catch(() => caches.match(request).then((hit) => hit || Response.error())),
+                .catch(() =>
+                    caches
+                        .match(request)
+                        .then((hit) => hit || Response.error()),
+                ),
         );
         return;
     }

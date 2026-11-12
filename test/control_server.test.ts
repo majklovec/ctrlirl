@@ -97,11 +97,13 @@ async function login(): Promise<string> {
 
 /** Create a device token for the session user and return the raw value.
  * Tokens are project-scoped (`/api/projects/:id/tokens`), so this resolves a
- * project to use first — creating one when the user has none (there is no
+ * project to use first - creating one when the user has none (there is no
  * auto-created Personal project). */
 async function personalProjectToken(cookie: string): Promise<string> {
-    const list = await fetch(`${baseUrl}/api/projects`, { headers: { cookie } });
-    let projects = (await list.json()) as {
+    const list = await fetch(`${baseUrl}/api/projects`, {
+        headers: { cookie },
+    });
+    const projects = (await list.json()) as {
         projects: { id: string; name: string }[];
     };
     let project = projects.projects[0];
@@ -112,9 +114,11 @@ async function personalProjectToken(cookie: string): Promise<string> {
             body: JSON.stringify({ name: "Test project" }),
         });
         expect(created.status).toBe(201);
-        project = ((await created.json()) as {
-            project: { id: string; name: string };
-        }).project;
+        project = (
+            (await created.json()) as {
+                project: { id: string; name: string };
+            }
+        ).project;
     }
     const res = await fetch(`${baseUrl}/api/projects/${project.id}/tokens`, {
         method: "POST",
@@ -196,7 +200,7 @@ describe("control server HTTP contracts", () => {
 
         // PWA: the service worker answers at the origin root (scope "/"), the
         // icons at their fixed manifest paths, and the manifest rides with the
-        // bundled pages — all without a session.
+        // bundled pages - all without a session.
         const serviceWorker = await fetch(`${baseUrl}/sw.js`);
         expect(serviceWorker.status).toBe(200);
         expect(serviceWorker.headers.get("content-type")).toContain(
@@ -411,7 +415,10 @@ describe("control server HTTP contracts", () => {
             },
         );
         expect(invalidColor.status).toBe(200);
-        expect(await invalidColor.json()).toMatchObject({ ok: false, code: 400 });
+        expect(await invalidColor.json()).toMatchObject({
+            ok: false,
+            code: 400,
+        });
 
         const recolorDashboard = await fetch(
             `${baseUrl}/api/dashboards/${created.dashboard.id}`,
@@ -478,13 +485,16 @@ describe("control server HTTP contracts", () => {
             dashboard: { version: 3 },
         });
         expect(
-            ((await (
-                await fetch(
-                    `${baseUrl}/api/dashboards/${created.dashboard.id}`,
-                    { headers: { cookie: restoredCookie } },
-                )
-            ).json()) as { dashboard: { color?: string } })
-                .dashboard.color,
+            (
+                (await (
+                    await fetch(
+                        `${baseUrl}/api/dashboards/${created.dashboard.id}`,
+                        {
+                            headers: { cookie: restoredCookie },
+                        },
+                    )
+                ).json()) as { dashboard: { color?: string } }
+            ).dashboard.color,
         ).toBeUndefined();
     }, 60_000);
 });

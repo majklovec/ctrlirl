@@ -56,7 +56,7 @@ export async function createAuth({
                   ).n === 0
               ) {
                   console.log(
-                      `[auth] the user database ${DB_FILE} has no users yet — create the first account at /register`,
+                      `[auth] the user database ${DB_FILE} has no users yet - create the first account at /register`,
                   );
               }
               return d;
@@ -87,9 +87,7 @@ export async function createAuth({
         if (NO_AUTH) return LOCAL_PROJECT_ID;
         if (!token || !db) return null;
         const row = db
-            .prepare(
-                "SELECT project_id FROM tokens WHERE token = ?",
-            )
+            .prepare("SELECT project_id FROM tokens WHERE token = ?")
             .get(token) as { project_id: string | null } | undefined;
         return row?.project_id ?? null;
     }
@@ -206,7 +204,7 @@ export async function createAuth({
         );
     }
 
-    /** POST /api/register — create a new profile. The first-ever account is
+    /** POST /api/register - create a new profile. The first-ever account is
      * bootstrapped as admin with no invite; every later account requires a valid,
      * single-use invitation code, which is consumed in the same transaction. The
      * new account has no device tokens yet; the user adds them on the profile
@@ -319,7 +317,7 @@ export async function createAuth({
         );
     }
 
-    /** GET /api/register/status — lets the register page know whether an invite
+    /** GET /api/register/status - lets the register page know whether an invite
      * code is required (i.e. whether any account already exists). */
     function hasUsers(): boolean {
         return (
@@ -353,12 +351,12 @@ export async function createAuth({
     // Profile API: the session user's password and device tokens
     // ----------------------------------------------------------------------
 
-    /** GET /api/whoami — the session user's login name (profile dropdown). */
+    /** GET /api/whoami - the session user's login name (profile dropdown). */
     function whoamiResponse(user: string): Response {
         return Response.json({ ok: true, user });
     }
 
-    /** GET /api/profile — just the identity: username + admin flag. Device
+    /** GET /api/profile - just the identity: username + admin flag. Device
      * tokens live on the project now (see the projects module's token routes). */
     function profileResponse(user: string): Response {
         if (!db)
@@ -378,7 +376,7 @@ export async function createAuth({
     // registration after the first (bootstrapped) account exists.
     // ----------------------------------------------------------------------
 
-    /** POST /api/invitations — mint a fresh single-use invite (admin only). */
+    /** POST /api/invitations - mint a fresh single-use invite (admin only). */
     function createInvitationResponse(req: Request): Response {
         const auth = requireAdmin(req);
         if (auth instanceof Response) return auth;
@@ -396,7 +394,7 @@ export async function createAuth({
         return Response.json({ ok: true, code, expiresAt }, { status: 201 });
     }
 
-    /** GET /api/invitations — the invite history, newest first (admin only). */
+    /** GET /api/invitations - the invite history, newest first (admin only). */
     function listInvitationsResponse(req: Request): Response {
         const auth = requireAdmin(req);
         if (auth instanceof Response) return auth;
@@ -423,7 +421,7 @@ export async function createAuth({
         return Response.json({ ok: true, invitations: rows });
     }
 
-    /** POST /api/profile/password — {current, new}; the new password is
+    /** POST /api/profile/password - {current, new}; the new password is
      * required to differ from the current one. */
     async function changePasswordResponse(
         req: Request,

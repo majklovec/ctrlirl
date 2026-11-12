@@ -5,7 +5,7 @@
  * A module contributes elements by default-exporting `OverlayElementDef[]`
  * from `<module>/overlay_elements.tsx`; scripts/gen_modules.ts collects them
  * into generated/overlay_elements.ts and ./registry.ts indexes them. The
- * editor and the runtime page only talk to the registry — they contain no
+ * editor and the runtime page only talk to the registry - they contain no
  * element-specific code. The environment-free half (type, default props,
  * validation) is the `OverlayElementSchema` in
  * server/core/overlay_element.ts, contributed from
@@ -15,26 +15,26 @@
 import type { Children, Vnode } from "mithril";
 import m from "mithril";
 import type {
-	OverlayElement,
-	OverlayElementType,
-	Transform,
-	Variable,
-	VariableValue,
+    OverlayElement,
+    OverlayElementType,
+    Transform,
+    Variable,
+    VariableValue,
 } from "../../../server/pages/overlays/overlay";
 import { t } from "../i18n";
 
 export type {
-	OverlayElement,
-	OverlayElementType,
+    OverlayElement,
+    OverlayElementType,
 } from "../../../server/pages/overlays/overlay";
 
 /** Runtime trigger state of one active trigger-driven element (alerts).
- * The payload is the last trigger that fired the element — template tokens
+ * The payload is the last trigger that fired the element - template tokens
  * fall back to its keys. */
 export interface TriggerState {
-	startedAt: number;
-	expiresAt: number;
-	payload: Record<string, unknown>;
+    startedAt: number;
+    expiresAt: number;
+    payload: Record<string, unknown>;
 }
 
 /** Intro window of a trigger-driven element: the first moments after a
@@ -50,44 +50,44 @@ export const TRIGGER_OUTRO_MS = 400;
 export type TriggerPhase = "design" | "in" | "show" | "out";
 
 export function triggerPhase(
-	active: TriggerState | undefined,
-	now: number,
+    active: TriggerState | undefined,
+    now: number,
 ): TriggerPhase {
-	if (!active) return "design";
-	if (now - active.startedAt < TRIGGER_INTRO_MS) return "in";
-	if (now >= active.expiresAt) return "design";
-	if (active.expiresAt - now < TRIGGER_OUTRO_MS) return "out";
-	return "show";
+    if (!active) return "design";
+    if (now - active.startedAt < TRIGGER_INTRO_MS) return "in";
+    if (now >= active.expiresAt) return "design";
+    if (active.expiresAt - now < TRIGGER_OUTRO_MS) return "out";
+    return "show";
 }
 
 export interface ElementContext {
-	/** asset-LIBRARY file id -> URL: the runtime page resolves them through
-	 * its token-scoped file endpoint, the editor into blob URLs. */
-	assetUrls: Map<string, string>;
-	/** variable id -> current value (for binding resolution) */
-	variables: Map<string, VariableValue>;
-	/** variable NAME -> current value (for `{token}` template resolution) */
-	variableNames: Map<string, VariableValue>;
-	/** element id -> live trigger state. Present on the runtime page only;
-	 * the editor has none, so trigger-driven elements always render their
-	 * design state there. Absent/missing = the element is not active. */
-	activeTriggers?: Map<string, TriggerState>;
-	/** The owner's user token that authenticates owner-scoped feeds (a
-	 * self-contained chat element). The editor uses this user's device token;
-	 * the runtime page the one its URL carries. Absent = not live. */
-	token?: string;
-	/** The id of the overlay being rendered. The runtime page's overlay is
-	 * fixed; the editor's is its selected overlay. */
-	overlayId?: string;
+    /** asset-LIBRARY file id -> URL: the runtime page resolves them through
+     * its token-scoped file endpoint, the editor into blob URLs. */
+    assetUrls: Map<string, string>;
+    /** variable id -> current value (for binding resolution) */
+    variables: Map<string, VariableValue>;
+    /** variable NAME -> current value (for `{token}` template resolution) */
+    variableNames: Map<string, VariableValue>;
+    /** element id -> live trigger state. Present on the runtime page only;
+     * the editor has none, so trigger-driven elements always render their
+     * design state there. Absent/missing = the element is not active. */
+    activeTriggers?: Map<string, TriggerState>;
+    /** The owner's user token that authenticates owner-scoped feeds (a
+     * self-contained chat element). The editor uses this user's device token;
+     * the runtime page the one its URL carries. Absent = not live. */
+    token?: string;
+    /** The id of the overlay being rendered. The runtime page's overlay is
+     * fixed; the editor's is its selected overlay. */
+    overlayId?: string;
 }
 
 /** A CSS style object (a subset of mithril's CSSObject). */
 export type CSS = Record<string, string | number | undefined>;
 
 export interface ResolvedElement {
-	props: Record<string, unknown>;
-	transform: Transform;
-	visible: boolean;
+    props: Record<string, unknown>;
+    transform: Transform;
+    visible: boolean;
 }
 
 /**
@@ -96,13 +96,13 @@ export interface ResolvedElement {
  * break the layout; returns `undefined` to skip the assignment.
  */
 function bindTransformValue(
-	raw: VariableValue,
-	key: string,
+    raw: VariableValue,
+    key: string,
 ): number | undefined {
-	const n = Number(raw);
-	if (!Number.isFinite(n)) return undefined;
-	if (key === "transform.opacity" && (n < 0 || n > 1)) return undefined;
-	return n;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return undefined;
+    if (key === "transform.opacity" && (n < 0 || n > 1)) return undefined;
+    return n;
 }
 
 /**
@@ -114,103 +114,103 @@ function bindTransformValue(
  * once per element and treat the result as the display state.
  */
 export function resolveElement(
-	element: OverlayElement,
-	variables: Map<string, VariableValue>,
+    element: OverlayElement,
+    variables: Map<string, VariableValue>,
 ): ResolvedElement {
-	const props: Record<string, unknown> = { ...element.props };
-	const transform: Transform = { ...element.transform };
-	let visible = element.visible;
+    const props: Record<string, unknown> = { ...element.props };
+    const transform: Transform = { ...element.transform };
+    let visible = element.visible;
 
-	for (const [key, binding] of Object.entries(element.bindings)) {
-		if (binding.kind !== "variable") continue;
-		const value = variables.get(binding.variableId);
-		if (value === undefined) continue;
+    for (const [key, binding] of Object.entries(element.bindings)) {
+        if (binding.kind !== "variable") continue;
+        const value = variables.get(binding.variableId);
+        if (value === undefined) continue;
 
-		if (key === "visible") {
-			visible = Boolean(value);
-		} else if (key.startsWith("transform.")) {
-			const field = key.slice("transform.".length);
-			const n = bindTransformValue(value, key);
-			if (field && n !== undefined) {
-				transform[field as keyof Transform] = n;
-			}
-		} else if (key.startsWith("props.")) {
-			const field = key.slice("props.".length);
-			if (field) props[field] = value;
-		}
-	}
-	return { props, transform, visible };
+        if (key === "visible") {
+            visible = Boolean(value);
+        } else if (key.startsWith("transform.")) {
+            const field = key.slice("transform.".length);
+            const n = bindTransformValue(value, key);
+            if (field && n !== undefined) {
+                transform[field as keyof Transform] = n;
+            }
+        } else if (key.startsWith("props.")) {
+            const field = key.slice("props.".length);
+            if (field) props[field] = value;
+        }
+    }
+    return { props, transform, visible };
 }
 
 /** Merge variable bindings over the element's props. Kept for callers/tests
  * that only need the prop half of `resolveElement`. */
 export function resolveElementProps(
-	element: OverlayElement,
-	variables: Map<string, VariableValue>,
+    element: OverlayElement,
+    variables: Map<string, VariableValue>,
 ): Record<string, unknown> {
-	return resolveElement(element, variables).props;
+    return resolveElement(element, variables).props;
 }
 
 /** Positioning + shared visual style for any element.
  * Pass the *resolved* element (output of `resolveElement`) so bound
  * transform/opacity/visible render identically in the editor and OBS.
  * NOTE: carries EVERYTHING the visual depends on inline (position, size,
- * rotation PIVOT, whitespace) — the page stylesheets (overlay.css for the
+ * rotation PIVOT, whitespace) - the page stylesheets (overlay.css for the
  * runtime, style.css for the editor) are NOT required to provide it. Both
  * pages must stay pixel-identical, so never move these back to CSS. */
 export function elementStyle(element: {
-	transform: Transform;
-	visible: boolean;
+    transform: Transform;
+    visible: boolean;
 }): CSS {
-	const t = element.transform;
-	// Rotated elements get `rotate(deg)` with the origin pinned to the
-	// element center. Unrotated elements must NOT carry a `transform` at
-	// all: Chromium (and CEF, used by OBS) promotes any transformed
-	// ancestor of an `<iframe>` to a composited layer and paints that
-	// layer opaque white — so even an identity `rotate(0deg)` turned
-	// iframe/chat elements into solid white boxes. Omitting `transform`
-	// keeps them transparent. See overlay_render.tsx + overlay.css note.
-	return {
-		position: "absolute",
-		left: `${t.x}px`,
-		top: `${t.y}px`,
-		width: `${t.width}px`,
-		height: `${t.height}px`,
-		// Explicit: keep the wrapper transparent — on Chromium/CEF a
-		// transformed ancestor promotes iframe descendants to a composited
-		// layer that can otherwise paint an opaque white backing.
-		background: "transparent",
-		...(t.rotation
-			? {
-					transform: `rotate(${t.rotation}deg)`,
-					transformOrigin: "50% 50%",
-				}
-			: {}),
-		whiteSpace: "pre",
-		opacity: `${t.opacity}`,
-		visibility: element.visible ? "visible" : "hidden",
-		boxSizing: "border-box",
-	};
+    const t = element.transform;
+    // Rotated elements get `rotate(deg)` with the origin pinned to the
+    // element center. Unrotated elements must NOT carry a `transform` at
+    // all: Chromium (and CEF, used by OBS) promotes any transformed
+    // ancestor of an `<iframe>` to a composited layer and paints that
+    // layer opaque white - so even an identity `rotate(0deg)` turned
+    // iframe/chat elements into solid white boxes. Omitting `transform`
+    // keeps them transparent. See overlay_render.tsx + overlay.css note.
+    return {
+        position: "absolute",
+        left: `${t.x}px`,
+        top: `${t.y}px`,
+        width: `${t.width}px`,
+        height: `${t.height}px`,
+        // Explicit: keep the wrapper transparent - on Chromium/CEF a
+        // transformed ancestor promotes iframe descendants to a composited
+        // layer that can otherwise paint an opaque white backing.
+        background: "transparent",
+        ...(t.rotation
+            ? {
+                  transform: `rotate(${t.rotation}deg)`,
+                  transformOrigin: "50% 50%",
+              }
+            : {}),
+        whiteSpace: "pre",
+        opacity: `${t.opacity}`,
+        visibility: element.visible ? "visible" : "hidden",
+        boxSizing: "border-box",
+    };
 }
 
 // ── prop access helpers (defensive reads of the resolved props record) ──
 
 export function strProp(
-	p: Record<string, unknown>,
-	key: string,
-	fallback: string,
+    p: Record<string, unknown>,
+    key: string,
+    fallback: string,
 ): string {
-	const v = p[key];
-	return typeof v === "string" ? v : fallback;
+    const v = p[key];
+    return typeof v === "string" ? v : fallback;
 }
 
 export function numProp(
-	p: Record<string, unknown>,
-	key: string,
-	fallback: number,
+    p: Record<string, unknown>,
+    key: string,
+    fallback: number,
 ): number {
-	const v = p[key];
-	return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+    const v = p[key];
+    return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
 /** Embedded-page render shared by the iframe and chat elements: a dashed
@@ -218,37 +218,37 @@ export function numProp(
  * Styles are fully inline so editor and runtime stay pixel-identical.
  * `pointerEvents: "none"` lets the editor's mouse fall through to the
  * `.overlay-element` wrapper (drag/select); embedded pages are display-only.
- * No `sandbox` — the page runs its own scripts and authenticated fetches. */
+ * No `sandbox` - the page runs its own scripts and authenticated fetches. */
 export function drawIframe(element: OverlayElement): Children {
-	// `element` is the resolved element from the renderer, so props are final.
-	const url = strProp(element.props, "url", "");
-	if (!url)
-		return m(
-			".overlay-shape",
-			{
-				style: {
-					border: "1px dashed rgba(255,255,255,0.4)",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					color: "rgba(255,255,255,0.5)",
-					fontSize: "14px",
-				},
-			},
-			t("overlay.missing_url"),
-		);
-	return m("iframe.overlay-iframe", {
-		src: url,
-		title: element.name,
-		style: {
-			width: "100%",
-			height: "100%",
-			border: "none",
-			display: "block",
-			background: "transparent",
-			pointerEvents: "none",
-		},
-	} as Record<string, unknown>);
+    // `element` is the resolved element from the renderer, so props are final.
+    const url = strProp(element.props, "url", "");
+    if (!url)
+        return m(
+            ".overlay-shape",
+            {
+                style: {
+                    border: "1px dashed rgba(255,255,255,0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "rgba(255,255,255,0.5)",
+                    fontSize: "14px",
+                },
+            },
+            t("overlay.missing_url"),
+        );
+    return m("iframe.overlay-iframe", {
+        src: url,
+        title: element.name,
+        style: {
+            width: "100%",
+            height: "100%",
+            border: "none",
+            display: "block",
+            background: "transparent",
+            pointerEvents: "none",
+        },
+    } as Record<string, unknown>);
 }
 
 // ── the element contract ────────────────────────────────────────────────
@@ -259,35 +259,35 @@ export function drawIframe(element: OverlayElement): Children {
  * that needs more (e.g. the asset library list) loads it itself inside its
  * form. */
 export interface ElementProps {
-	element: OverlayElement;
-	mutate: (fn: (e: OverlayElement) => void) => void;
-	variables: Variable[];
-	/** Builds the runtime event-trigger URL (owner-token auth) for the loaded
-	 * overlay. Optional: trigger-driven elements use it to offer a copyable
-	 * "fire this event" link; others ignore it. */
-	eventUrl?: (name: string) => string;
-	/** Builds the owner-token URL that revalues one variable of the loaded
-	 * overlay (complete the trailing `&<name>=` with a value). Optional:
-	 * `bindField` shows a copy button for a bound field when present. */
-	variableUrl?: (name: string) => string;
+    element: OverlayElement;
+    mutate: (fn: (e: OverlayElement) => void) => void;
+    variables: Variable[];
+    /** Builds the runtime event-trigger URL (owner-token auth) for the loaded
+     * overlay. Optional: trigger-driven elements use it to offer a copyable
+     * "fire this event" link; others ignore it. */
+    eventUrl?: (name: string) => string;
+    /** Builds the owner-token URL that revalues one variable of the loaded
+     * overlay (complete the trailing `&<name>=` with a value). Optional:
+     * `bindField` shows a copy button for a bound field when present. */
+    variableUrl?: (name: string) => string;
 }
 
 /** Which editing affordance an element shows when selected on the canvas.
  * A line is `endpoints` (2 handles) and can therefore never present the
- * rectangle's box editing — the mode is structural, not a prop check. */
+ * rectangle's box editing - the mode is structural, not a prop check. */
 export type HandleMode = "box" | "endpoints" | "none";
 
 /** One selectable variant of an element in the add-element catalog (e.g. a
  * ready-made template): a card that inserts the element with `props`
- * preselected over its defaults. The declaring module owns the vocabulary —
+ * preselected over its defaults. The declaring module owns the vocabulary -
  * the core catalog only renders the cards. */
 export interface ElementVariant {
-	/** i18n key of the variant card's title. */
-	labelKey: string;
-	/** The card's second line, rendered as-is (the variant id); omit for a title-only card. */
-	hint?: string;
-	/** Props merged over the element's defaults when the card is clicked. */
-	props: Record<string, unknown>;
+    /** i18n key of the variant card's title. */
+    labelKey: string;
+    /** The card's second line, rendered as-is (the variant id); omit for a title-only card. */
+    hint?: string;
+    /** Props merged over the element's defaults when the card is clicked. */
+    props: Record<string, unknown>;
 }
 
 /** The contract every overlay element fulfils:
@@ -299,83 +299,83 @@ export interface ElementVariant {
  *   - `validate`:    returns problems with the element (empty = editable)
  *   - `handles`:     drives the canvas selection handles (box / endpoints / none) */
 export interface OverlayElementDef {
-	readonly type: OverlayElementType;
-	/** i18n key of the "add <element>" action; omit to keep the type out of the toolbar. */
-	readonly labelKey?: string;
-	/** Toolbar icon (a vnode factory, so the module brings its own pictogram). */
-	readonly icon?: () => Vnode;
-	/** Toolbar position; lower first (defaults to 100). */
-	readonly order?: number;
-	/** Catalog section the element lives in (e.g. "basics", "media",
-	 * "widgets", "templates") — the add-element panel groups by this, so each
-	 * element declares its own placement. Omit to keep the type out of the
-	 * catalog (it must also lack `labelKey`). */
-	readonly category?: string;
-	readonly defaultProps: Record<string, unknown>;
-	/**
-	 * Produce a freshly-created element's props, merged OVER `defaultProps` in
-	 * `addElement`. For elements whose default must be UNIQUE PER INSTANCE
-	 * (a WebRTC `streamId` that seeds the sender URL) — a static
-	 * `defaultProps` value would be shared by every element of the type.
-	 * Omit for the common case; `addElement` falls back to `defaultProps`.
-	 */
-	readonly createProps?: () => Record<string, unknown>;
-	/** Prop names that exist on the type; the inspector offers a binding
-	 * toggle on each field the `editForm` wraps in `bindField` — bound as
-	 * `props.<key>`, e.g. text → "props.text". */
-	readonly propKeys: readonly string[];
-	readonly defaultSize: { width: number; height: number };
-	/** Optional per-variant catalog cards (e.g. ready-made templates): each
-	 * entry adds its own card under the element's entry and inserts the
-	 * element with that variant's `props` preselected. Omit for
-	 * single-variant elements. */
-	readonly listVariants?: () => ElementVariant[];
-	/** Renders the element's contents. `element` is the RESOLVED element —
-	 * its props/transform/visible already carry any binding values. Content
-	 * only; core wraps + positions it via elementStyle(). */
-	draw(element: OverlayElement, ctx: ElementContext): Children;
-	editForm(props: ElementProps): Children;
-	validate(element: OverlayElement): string[];
-	readonly handles: HandleMode;
-	/** For `handles: "endpoints"`: the editor reports the drag delta (box
-	 * frame, from the fixed endpoint) so the element can record which
-	 * diagonal it runs along. */
-	onEndpointDrag?(element: OverlayElement, dx: number, dy: number): void;
-	/** Trigger-driven elements render only while a runtime trigger has them
-	 * active (alert-style). Persistent ones are the exception: they stay on
-	 * screen at runtime all the time and only REACT to triggers (a spin
-	 * wheel, a live counter). Must be paired with `onTrigger`; the editor
-	 * renders their design state either way. */
-	readonly persistent?: boolean;
-	/** Offer in-place editing of one string prop on the canvas (double-click):
-	 * the editor overlays a textarea styled by `style(resolvedProps)` so the
-	 * edit is what-you-see. */
-	readonly inlineEdit?: {
-		prop: string;
-		style(props: Record<string, unknown>): Record<string, string>;
-	};
-	/** Present = the element is trigger-driven: it renders only while a
-	 * runtime trigger has it active (the editor always renders its design
-	 * state). The runtime page calls this for every event
-	 * (`GET /overlay/<overlay id>/event/<name>` → `overlays.event` frame) at the
-	 * moment the alert goes on air — immediately when the element is
-	 * free, at the previous claim's expiry when it is queued; it returns
-	 * the display duration in ms when this instance fires on the event
-	 * (evaluating any variation/condition props), `undefined` when the
-	 * event doesn't claim it (a queued claim that fails its condition
-	 * is dropped and the queue continues). The trigger's
-	 * `<name>=<value>` pairs ride in `payload` and are already written
-	 * into the project variables (and `ctx`) by the runtime page before
-	 * this runs — a queued alert's values only land at its play time, so
-	 * they never clobber the on-air ones early; the written values
-	 * persist (the runtime page sends them over the `overlays.applyEvent`
-	 * uplink) and are never emptied. Side effects (audio, TTS) belong in
-	 * here so they play when the alert goes on air, not when the trigger
-	 * arrives. `ctx` carries the live asset URLs and variable values. */
-	onTrigger?(
-		element: OverlayElement,
-		eventName: string,
-		payload: Record<string, unknown>,
-		ctx: ElementContext,
-	): number | undefined;
+    readonly type: OverlayElementType;
+    /** i18n key of the "add <element>" action; omit to keep the type out of the toolbar. */
+    readonly labelKey?: string;
+    /** Toolbar icon (a vnode factory, so the module brings its own pictogram). */
+    readonly icon?: () => Vnode;
+    /** Toolbar position; lower first (defaults to 100). */
+    readonly order?: number;
+    /** Catalog section the element lives in (e.g. "basics", "media",
+     * "widgets", "templates") - the add-element panel groups by this, so each
+     * element declares its own placement. Omit to keep the type out of the
+     * catalog (it must also lack `labelKey`). */
+    readonly category?: string;
+    readonly defaultProps: Record<string, unknown>;
+    /**
+     * Produce a freshly-created element's props, merged OVER `defaultProps` in
+     * `addElement`. For elements whose default must be UNIQUE PER INSTANCE
+     * (a WebRTC `streamId` that seeds the sender URL) - a static
+     * `defaultProps` value would be shared by every element of the type.
+     * Omit for the common case; `addElement` falls back to `defaultProps`.
+     */
+    readonly createProps?: () => Record<string, unknown>;
+    /** Prop names that exist on the type; the inspector offers a binding
+     * toggle on each field the `editForm` wraps in `bindField` - bound as
+     * `props.<key>`, e.g. text → "props.text". */
+    readonly propKeys: readonly string[];
+    readonly defaultSize: { width: number; height: number };
+    /** Optional per-variant catalog cards (e.g. ready-made templates): each
+     * entry adds its own card under the element's entry and inserts the
+     * element with that variant's `props` preselected. Omit for
+     * single-variant elements. */
+    readonly listVariants?: () => ElementVariant[];
+    /** Renders the element's contents. `element` is the RESOLVED element -
+     * its props/transform/visible already carry any binding values. Content
+     * only; core wraps + positions it via elementStyle(). */
+    draw(element: OverlayElement, ctx: ElementContext): Children;
+    editForm(props: ElementProps): Children;
+    validate(element: OverlayElement): string[];
+    readonly handles: HandleMode;
+    /** For `handles: "endpoints"`: the editor reports the drag delta (box
+     * frame, from the fixed endpoint) so the element can record which
+     * diagonal it runs along. */
+    onEndpointDrag?(element: OverlayElement, dx: number, dy: number): void;
+    /** Trigger-driven elements render only while a runtime trigger has them
+     * active (alert-style). Persistent ones are the exception: they stay on
+     * screen at runtime all the time and only REACT to triggers (a spin
+     * wheel, a live counter). Must be paired with `onTrigger`; the editor
+     * renders their design state either way. */
+    readonly persistent?: boolean;
+    /** Offer in-place editing of one string prop on the canvas (double-click):
+     * the editor overlays a textarea styled by `style(resolvedProps)` so the
+     * edit is what-you-see. */
+    readonly inlineEdit?: {
+        prop: string;
+        style(props: Record<string, unknown>): Record<string, string>;
+    };
+    /** Present = the element is trigger-driven: it renders only while a
+     * runtime trigger has it active (the editor always renders its design
+     * state). The runtime page calls this for every event
+     * (`GET /overlay/<overlay id>/event/<name>` → `overlays.event` frame) at the
+     * moment the alert goes on air - immediately when the element is
+     * free, at the previous claim's expiry when it is queued; it returns
+     * the display duration in ms when this instance fires on the event
+     * (evaluating any variation/condition props), `undefined` when the
+     * event doesn't claim it (a queued claim that fails its condition
+     * is dropped and the queue continues). The trigger's
+     * `<name>=<value>` pairs ride in `payload` and are already written
+     * into the project variables (and `ctx`) by the runtime page before
+     * this runs - a queued alert's values only land at its play time, so
+     * they never clobber the on-air ones early; the written values
+     * persist (the runtime page sends them over the `overlays.applyEvent`
+     * uplink) and are never emptied. Side effects (audio, TTS) belong in
+     * here so they play when the alert goes on air, not when the trigger
+     * arrives. `ctx` carries the live asset URLs and variable values. */
+    onTrigger?(
+        element: OverlayElement,
+        eventName: string,
+        payload: Record<string, unknown>,
+        ctx: ElementContext,
+    ): number | undefined;
 }

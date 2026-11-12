@@ -1,4 +1,4 @@
-# IRLCTRL — Uživatelská provozní příručka
+# IRLCTRL - Uživatelská provozní příručka
 
 Tato příručka vysvětluje, jak IRLCTRL **spustit**, **obsluhovat** a **nastavit**. IRLCTRL je nástroj postavený na Bun pro streamování ve stylu [BELABOX](https://belabox.net/) s agregací více síťových připojení. Jeden modulární klient zařízení spouští zvolenou roli a volitelný ovládací server umožňuje spravovat celou skupinu zařízení v prohlížeči.
 
@@ -13,8 +13,8 @@ Všechny snímky obrazovky v této příručce byly pořízeny ze skutečně bě
 3. [Požadavky](#3-požadavky)
 4. [Spuštění softwaru](#4-spuštění-softwaru)
 5. [Průvodce prvním spuštěním](#5-průvodce-prvním-spuštěním)
-6. [Uživatelské rozhraní zařízení — běžná obsluha](#6-uživatelské-rozhraní-zařízení--běžná-obsluha)
-7. [Stránka nastavení zařízení — všechny možnosti](#7-stránka-nastavení-zařízení--všechny-možnosti)
+6. [Uživatelské rozhraní zařízení - běžná obsluha](#6-uživatelské-rozhraní-zařízení--běžná-obsluha)
+7. [Stránka nastavení zařízení - všechny možnosti](#7-stránka-nastavení-zařízení--všechny-možnosti)
 8. [Vysvětlení voleb enkodéru](#8-vysvětlení-voleb-enkodéru)
 9. [Vysvětlení voleb relay / SRTLA](#9-vysvětlení-voleb-relay--srtla)
 10. [Modul OBS Studio & přepínač nízkého bitrate](#10-modul-obs-studio--přepínač-nízkého-bitrate)
@@ -54,7 +54,7 @@ flowchart LR
     C --- D
 ```
 
-Encodér odesílá SRTLA do relay (výchozí `relay:6000`); relay je kompletním SRTLA→SRTLA mostem — `srtla_rec` přijímá příchozí SRTLA stream a `srtla_send` jej redistribuuje přes všechna dostupná připojení.
+Encodér odesílá SRTLA do relay (výchozí `relay:6000`); relay je kompletním SRTLA→SRTLA mostem - `srtla_rec` přijímá příchozí SRTLA stream a `srtla_send` jej redistribuuje přes všechna dostupná připojení.
 
 Typická topologie:
 
@@ -77,7 +77,7 @@ encoder ──SRTLA──▶ relay ──SRTLA (bonded)──▶ SRTLA receiver
 
 ### Role zařízení
 
-Jeden klient zařízení, role dodávají moduly — vyberte ji přepínačem `--role` nebo v průvodci prvním spuštěním / na stránce nastavení. **UI zobrazuje pouze to, co se týká aktivní role.**
+Jeden klient zařízení, role dodávají moduly - vyberte ji přepínačem `--role` nebo v průvodci prvním spuštěním / na stránce nastavení. **UI zobrazuje pouze to, co se týká aktivní role.**
 
 | Role          | Výchozí? | Co dělá                                                                                                                                                                                                                                           | Vyžaduje root?                     |
 | ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
@@ -89,9 +89,10 @@ Jeden klient zařízení, role dodávají moduly — vyberte ji přepínačem `-
 ### Uživatelské role (ovládací server)
 
 Ovládací server ukládá profily uživatelů do místní databáze SQLite:
-- **Administrátor** — první účet vytvořený na adrese `/register` získá automaticky oprávnění administrátora. Na profilové stránce má panel **Invitations**, ve kterém může vytvářet jednorázové pozvánkové kódy, případně s datem vypršení platnosti.
-- **Uživatel** — každý další účet vyžaduje k registraci platný pozvánkový kód. Uživatel vidí a ovládá **pouze zařízení připojená pomocí jeho vlastních tokenů zařízení** a své dashboardy.
-- **Profil `local`** — při použití `--no-auth` (místní testování) se vše přiřadí ke společnému administrátorskému profilu `local`. Tokeny ani databáze nejsou potřeba a dashboardy se uchovávají pouze v paměti.
+
+-   **Administrátor** - první účet vytvořený na adrese `/register` získá automaticky oprávnění administrátora. Na profilové stránce má panel **Invitations**, ve kterém může vytvářet jednorázové pozvánkové kódy, případně s datem vypršení platnosti.
+-   **Uživatel** - každý další účet vyžaduje k registraci platný pozvánkový kód. Uživatel vidí a ovládá **pouze zařízení připojená pomocí jeho vlastních tokenů zařízení** a své dashboardy.
+-   **Profil `local`** - při použití `--no-auth` (místní testování) se vše přiřadí ke společnému administrátorskému profilu `local`. Tokeny ani databáze nejsou potřeba a dashboardy se uchovávají pouze v paměti.
 
 Zařízení _patří_ uživateli, jehož **device token** byl použit, když se zařízení přihlásilo (`Authorization: Bearer <token>` na spojení `ws://<server>/device`).
 
@@ -119,23 +120,23 @@ Pro lokální checkout s přibalovanými binárkami explicitně přepište jejic
 ### 4.1 Ovládací server (doporučený první krok)
 
 ```sh
-# ovládací server — první účet se vytvoří na /register
+# ovládací server - první účet se vytvoří na /register
 bun server/backend/server.ts --port 8090
 ```
 
-Poté v prohlížeči otevřete `http://<server>:8090/` — přesměruje na `/login`.
+Poté v prohlížeči otevřete `http://<server>:8090/` - přesměruje na `/login`.
 
 **První účet = admin.** Otevřete `/register`, vyplňte uživatelské jméno a heslo alespoň 8 znaků a účet vytvořte. Stránka vás informuje, že jde o první účet a že získává oprávnění administrátora:
 
 ![Přihlašovací stránka](screenshots/00-login-cs.png)
 
-_Přihlašovací stránka — použijte ji po vytvoření účtu._
+_Přihlašovací stránka - použijte ji po vytvoření účtu._
 
 ![Stránka pro vytvoření účtu](screenshots/02-register-cs.png)
 
 _Stránka pro vytvoření účtu. Pro úplně první účet pozvánkový kód není potřeba; každý další dostává od admina jednorázový kód._
 
-Poté na [profilové stránce](#113-profil--heslo-tokeny-pozvánky) vytvořte **tokeny zařízení** — každé zařízení by mělo mít vlastní token.
+Poté na [profilové stránce](#113-profil--heslo-tokeny-pozvánky) vytvořte **tokeny zařízení** - každé zařízení by mělo mít vlastní token.
 
 ### 4.2 Zařízení
 
@@ -151,15 +152,15 @@ bun client/backend/client.ts --role encoder --pipelines /usr/share/belacoder/pip
 sudo bun client/backend/client.ts --start-srtla 6000 rec.example.com 5000
 ```
 
-Otevřete `http://<device>:8085/`. **Čistě nové zařízení (ještě bez konfiguračního souboru) se otevře v průvodci nastavením** — projděte ho v [sekci 5](#5-průvodce-prvním-spuštěním). Připojení zařízení k ovládacímu serveru:
+Otevřete `http://<device>:8085/`. **Čistě nové zařízení (ještě bez konfiguračního souboru) se otevře v průvodci nastavením** - projděte ho v [sekci 5](#5-průvodce-prvním-spuštěním). Připojení zařízení k ovládacímu serveru:
 
 ```sh
-# na každém zařízení — token majitele tohoto zařízení
+# na každém zařízení - token majitele tohoto zařízení
 CONTROL_SERVER_TOKEN=tok-alice-1 bun client/backend/client.ts --role encoder --remote wss://ctl.example.com/device
 ```
 
 > [!NOTE]
-> Použijte proměnnou prostředí `CONTROL_SERVER_TOKEN`, nikoli `REMOTE_TOKEN` — klient čte právě tuto proměnnou. Při použití `sudo` přidejte přiřazení proměnné až za něj, aby se proměnná předala příkazu bez nutnosti nastavovat ji trvale v prostředí shellu.
+> Použijte proměnnou prostředí `CONTROL_SERVER_TOKEN`, nikoli `REMOTE_TOKEN` - klient čte právě tuto proměnnou. Při použití `sudo` přidejte přiřazení proměnné až za něj, aby se proměnná předala příkazu bez nutnosti nastavovat ji trvale v prostředí shellu.
 
 ### 4.3 Provozní (produkční) nasazení
 
@@ -182,7 +183,7 @@ User=root
 WantedBy=multi-user.target
 ```
 
-Ovládací server používá tentýž vzorec s `server` (root není potřeba). Role, URL/token ovládacího serveru a přepisy cest k binárkám dejte do konfiguračního souboru (`--config`) nebo do `EnvironmentFile` — zařízení si stav uchovává v cestě `--config`, která musí zůstat stálá, aby přežilo restart (a tedy autostart).
+Ovládací server používá tentýž vzorec s `server` (root není potřeba). Role, URL/token ovládacího serveru a přepisy cest k binárkám dejte do konfiguračního souboru (`--config`) nebo do `EnvironmentFile` - zařízení si stav uchovává v cestě `--config`, která musí zůstat stálá, aby přežilo restart (a tedy autostart).
 
 #### Docker
 
@@ -192,11 +193,11 @@ Ovládací server používá tentýž vzorec s `server` (root není potřeba). R
 docker compose up -d --build
 ```
 
-- **server** — ovládací server (`Dockerfile`, image `majkl/irlctrl-control`), UI na `:8090`.
-- **obs-client** — `client.ts --role obs`, modul `obs` se připojuje k OBS na hostiteli (`ws://host.docker.internal:4455`).
-- **relay** — `client.ts --role relay`, bonduje SRT ven přes `srtla_send` (`Dockerfile.device`, image `majkl/irlctrl-device`).
-- **encoder** — `client.ts --role encoder`, běží `ceracoder`/GStreamer a posílá SRT do relay; stejný device image, jiná role + `ENCODER_BIN`.
-- **broadcaster** — `client.ts --role broadcaster` spouští přijímač a publikační modul `client/modules/broadcaster`; cíle RTMP se konfigurují v nastavení zařízení a SRTLA přijímač naslouchá na UDP portu `5001`.
+-   **server** - ovládací server (`Dockerfile`, image `majkl/irlctrl-control`), UI na `:8090`.
+-   **obs-client** - `client.ts --role obs`, modul `obs` se připojuje k OBS na hostiteli (`ws://host.docker.internal:4455`).
+-   **relay** - `client.ts --role relay`, bonduje SRT ven přes `srtla_send` (`Dockerfile.device`, image `majkl/irlctrl-device`).
+-   **encoder** - `client.ts --role encoder`, běží `ceracoder`/GStreamer a posílá SRT do relay; stejný device image, jiná role + `ENCODER_BIN`.
+-   **broadcaster** - `client.ts --role broadcaster` spouští přijímač a publikační modul `client/modules/broadcaster`; cíle RTMP se konfigurují v nastavení zařízení a SRTLA přijímač naslouchá na UDP portu `5001`.
 
 Všechny role zařízení používají `Dockerfile.device`, který obsahuje běhové prostředí modulů a potřebné streamovací nástroje. Kontejner **relay** potřebuje oprávnění `NET_ADMIN`, protože při startu nastavuje směrování podle jednotlivých uplinků (`ip rule add` a tabulky tras) a sleduje rozhraní pomocí `ip monitor`. Bez tohoto oprávnění vypíše `ip rule add … Operation not permitted` a skončí. Encoder ani OBS je nepotřebují. Ve výchozí síti bridge se změny směrování relayu projeví pouze v síťovém prostoru kontejneru. Má-li relay používat skutečná síťová rozhraní hostitele pro agregaci připojení, spusťte jej s `network_mode: host`.
 
@@ -212,87 +213,92 @@ Nové zařízení místo běžného rozhraní otevře **průvodce nastavením**.
 
 **Tlačítko Uložit ověří nastavení, zapíše počáteční konfigurační soubor, připojí zařízení k ovládacímu serveru a spustí zvolenou roli.** Poté se zobrazí běžné rozhraní a průvodce se znovu nespustí.
 
-### Krok 1 — Jazyk
+### Krok 1 - Jazyk
 
 Vyberte jazyk rozhraní (k dispozici je 12 jazyků). Lze ho kdykoli změnit v jazykovém výběru v hlavičce.
 
 ![Průvodce: jazyk](screenshots/01-wizard-language-cs.png)
 
-### Krok 2 — Role zařízení
+### Krok 2 - Role zařízení
 
 Zvolte jednu z rolí dodávaných nainstalovanými moduly:
-- **Relay** — přijímá streamy a odesílá je pomocí SRTLA.
-- **Encoder** — zachytává obraz přes GStreamer pipeline a odesílá jej přes SRT.
-- **OBS** — připojuje se k OBS Studio a aktivuje jeho řídicí modul.
-- **Broadcaster** — přijímá SRTLA a publikuje RTMP výstupy.
+
+-   **Relay** - přijímá streamy a odesílá je pomocí SRTLA.
+-   **Encoder** - zachytává obraz přes GStreamer pipeline a odesílá jej přes SRT.
+-   **OBS** - připojuje se k OBS Studio a aktivuje jeho řídicí modul.
+-   **Broadcaster** - přijímá SRTLA a publikuje RTMP výstupy.
 
 Výběrem možnosti _Encoder_ se do průvodce přidá krok Kodér (jak je vidět na snímku).
 
 ![Průvodce: role](screenshots/03-wizard-role-cs.png)
 
-### Krok 3 — Identita
+### Krok 3 - Identita
 
 Jak se zařízení představuje ovládacímu serveru:
-- **Jméno zařízení (hostname)** — malá písmena, číslice, tečky a pomlčky, max 64 znaků.
-- **Akcentová barva** — barva hlavičky UI zařízení.
+
+-   **Jméno zařízení (hostname)** - malá písmena, číslice, tečky a pomlčky, max 64 znaků.
+-   **Akcentová barva** - barva hlavičky UI zařízení.
 
 ![Průvodce: identita](screenshots/04-wizard-identity-cs.png)
 
-### Krok 4 — Ovládací server
+### Krok 4 - Ovládací server
 
 Volitelné připojení k centrálnímu serveru:
-- **URL ovládacího serveru** — např. `ws://192.168.1.10:8090/device` (nebo `wss://…` za TLS).
-- **Ovládací token** — jeden z tokenů zařízení vytvořených na profilové stránce vlastníka. Chcete-li zařízení používat samostatně (pouze s místním rozhraním), ponechte obě pole prázdná.
+
+-   **URL ovládacího serveru** - např. `ws://192.168.1.10:8090/device` (nebo `wss://…` za TLS).
+-   **Ovládací token** - jeden z tokenů zařízení vytvořených na profilové stránce vlastníka. Chcete-li zařízení používat samostatně (pouze s místním rozhraním), ponechte obě pole prázdná.
 
 ![Průvodce: ovládací server](screenshots/05-wizard-control-cs.png)
 
-### Krok 5 — Enkodér
+### Krok 5 - Enkodér
 
 Pole pro enkodér a snímací pipeline:
-- **Pipeline** — jeden ze souborů GStreamer pipeline v adresáři `--pipelines`, uspořádaných do podadresářů (např. `generic/h265_v4l_mjpeg_1080p`). Seznam se načte z disku; význam ostatních polí popisuje [Vysvětlení voleb enkodéru](#8-vysvětlení-voleb-enkodéru).
-- **Min. / max. bitrate (kb/s)** — rozsah datového toku videa (výchozí hodnoty 300 a 5000).
-- **Zdroj zvuku** — zvuková karta ALSA, ze které se bude snímat zvuk. Možnost „Pipeline default“ ponechá nastavení určené pipeline.
-- **Zvukový kodek** — AAC nebo Opus.
-- **Zpoždění zvuku (ms)** — posun zvukové stopy pro její synchronizaci s videem.
-- **Zpoždění SRT (ms)** — přenosová latence SRT (výchozí hodnota 2000).
-- **Stream ID** (volitelné) — SRT stream ID oznamovaný přijímači.
-- **Bitrate overlay** — zobrazuje aktuální datový tok přímo ve videu.
+
+-   **Pipeline** - jeden ze souborů GStreamer pipeline v adresáři `--pipelines`, uspořádaných do podadresářů (např. `generic/h265_v4l_mjpeg_1080p`). Seznam se načte z disku; význam ostatních polí popisuje [Vysvětlení voleb enkodéru](#8-vysvětlení-voleb-enkodéru).
+-   **Min. / max. bitrate (kb/s)** - rozsah datového toku videa (výchozí hodnoty 300 a 5000).
+-   **Zdroj zvuku** - zvuková karta ALSA, ze které se bude snímat zvuk. Možnost „Pipeline default“ ponechá nastavení určené pipeline.
+-   **Zvukový kodek** - AAC nebo Opus.
+-   **Zpoždění zvuku (ms)** - posun zvukové stopy pro její synchronizaci s videem.
+-   **Zpoždění SRT (ms)** - přenosová latence SRT (výchozí hodnota 2000).
+-   **Stream ID** (volitelné) - SRT stream ID oznamovaný přijímači.
+-   **Bitrate overlay** - zobrazuje aktuální datový tok přímo ve videu.
 
 ![Průvodce: enkodér](screenshots/06-wizard-encoder-cs.png)
 
-### Krok 6 — Relay
+### Krok 6 - Relay
 
 Pole SRTLA relay (jen pro roli relay):
-- **SRT port naslouchání** — port, na který enkodér posílá SRT (výchozí 6000).
-- **SRTLA vzdálený host / port** — cíl bondovaných uplinků, např. `rec.example.com:5000`.
-- **Scheduler** — algoritmus plánování spojení `Enhanced` (výchozí) nebo `Classic`.
-- **Hodnocení kvality** — SRTLA hodnocení používané pro výběr nejlepšího spojení.
+
+-   **SRT port naslouchání** - port, na který enkodér posílá SRT (výchozí 6000).
+-   **SRTLA vzdálený host / port** - cíl bondovaných uplinků, např. `rec.example.com:5000`.
+-   **Scheduler** - algoritmus plánování spojení `Enhanced` (výchozí) nebo `Classic`.
+-   **Hodnocení kvality** - SRTLA hodnocení používané pro výběr nejlepšího spojení.
 
 ![Průvodce: relay](screenshots/07-wizard-relay-cs.png)
 
-### Krok 7 — Přehled a uložení
+### Krok 7 - Přehled a uložení
 
 Zkontrolujte všechna nastavení. Pomocí tlačítka Zpět se můžete kdykoli vrátit a něco změnit. Poté:
-- **Autostart** — „Start the saved stream automatically after restart.“
-- **Uložit konfiguraci** — uloží nastavení, připojí zařízení k ovládacímu serveru a spustí zvolenou roli.
+
+-   **Autostart** - „Start the saved stream automatically after restart.“
+-   **Uložit konfiguraci** - uloží nastavení, připojí zařízení k ovládacímu serveru a spustí zvolenou roli.
 
 Potvrzení zní: _„Configuration saved. Restart the service to apply the selected role, hostname and control server.“_
 
 ![Průvodce: přehled](screenshots/08-wizard-review-cs.png)
 
-Po uložení se objeví běžné UI zařízení — [další sekce](#6-uživatelské-rozhraní-zařízení--běžná-obsluha).
+Po uložení se objeví běžné UI zařízení - [další sekce](#6-uživatelské-rozhraní-zařízení--běžná-obsluha).
 
 ---
 
-## 6. Uživatelské rozhraní zařízení — běžná obsluha
+## 6. Uživatelské rozhraní zařízení - běžná obsluha
 
 Hlavní stránka (`http://<device>:8085/`) zobrazuje kartu pro každou funkci aktivní role. V hlavičce najdete **výběr jazyka**, **zaškrtávací políčko Autostart** („Set startup to autostart or manual“), **odznak role**, **stav připojení** k ovládacímu serveru a ozubené kolo **Device settings** (nastavení zařízení).
-
 
 ### 6.2 Role encoder
 
 ![Hlavní stránka zařízení encoder](screenshots/12-device-main-encoder-cs.png)
-_Role encoder: karta Encoder se seznamem pipeline — bez karet Relay a Interfaces._
+_Role encoder: karta Encoder se seznamem pipeline - bez karet Relay a Interfaces._
 
 ### 6.3 Role relay
 
@@ -304,14 +310,14 @@ _Role relay: karty Relay (spojení a hodnocení kvality), Interfaces, Modems a L
 | Pole / skupina                | Význam                                                                                                                                                                                                                                                                       |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **State**                     | `stopped`, `running`, `restarting`.                                                                                                                                                                                                                                          |
-| **Encoder**                   | Používaný program — `belacoder` nebo `ceracoder` (rozpoznává se automaticky podle názvu).                                                                                                                                                                                    |
+| **Encoder**                   | Používaný program - `belacoder` nebo `ceracoder` (rozpoznává se automaticky podle názvu).                                                                                                                                                                                    |
 | **Pipeline**                  | Aktuálně vybraná pipeline, např. `generic/h265_v4l_mjpeg_1080p`. Změní se v seznamu níže.                                                                                                                                                                                    |
 | **Target**                    | (pouze samostatný encoder) Cílový SRT endpoint streamu: `host:port / stream ID`.                                                                                                                                                                                             |
-| **Bitrate**                   | `min 300 / max 5000 kbps` — hodnoty lze upravit; **Apply bitrate** předá změnu běžícímu enkodéru (belacoder při signálu SIGHUP znovu načte soubor s nastavením datového toku).                                                                                               |
-| **Latency**                   | `2000 ms (audio delay 0 ms)` — latence SRT a zpoždění zvuku.                                                                                                                                                                                                                 |
+| **Bitrate**                   | `min 300 / max 5000 kbps` - hodnoty lze upravit; **Apply bitrate** předá změnu běžícímu enkodéru (belacoder při signálu SIGHUP znovu načte soubor s nastavením datového toku).                                                                                               |
+| **Latency**                   | `2000 ms (audio delay 0 ms)` - latence SRT a zpoždění zvuku.                                                                                                                                                                                                                 |
 | **Audio**                     | Zdroj zvuku + kodek (`AAC`/`Opus`).                                                                                                                                                                                                                                          |
 | **Started / Restarts**        | Doba běhu streamu a počet automatických restartů.                                                                                                                                                                                                                            |
-| **Ceracoder bitrate control** | _pouze ceracoder_ — regulátor datového toku: **Adaptive (RTT + buffer)**, **AIMD (TCP-style)** nebo **Fixed bitrate**, s nastavitelným krokem a intervalem zvyšování i snižování (kb/s, ms) a násobitelem při zahlcení (0–1). **Apply settings** změny použije bez restartu. |
+| **Ceracoder bitrate control** | _pouze ceracoder_ - regulátor datového toku: **Adaptive (RTT + buffer)**, **AIMD (TCP-style)** nebo **Fixed bitrate**, s nastavitelným krokem a intervalem zvyšování i snižování (kb/s, ms) a násobitelem při zahlcení (0–1). **Apply settings** změny použije bez restartu. |
 | **Start / Stop**              | Spustí/zastaví proces enkodéru.                                                                                                                                                                                                                                              |
 
 ### 6.5 Karta Relay
@@ -320,14 +326,14 @@ _Role relay: karty Relay (spojení a hodnocení kvality), Interfaces, Modems a L
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **State**                 | `stopped` / `running`; odznak `srtla_send down`, pokud proces zemřel.                                                                                               |
 | **Started**               | Kdy relay běží.                                                                                                                                                     |
-| **Reloads**               | `N (last <when>, mode <signal\|restart>)` — kolikrát se `srtla_send` reloadoval.                                                                                    |
-| **Monitor**               | `watching` — monitor rozhraní je aktivní.                                                                                                                           |
-| **Quality scoring**       | **Scheduler** `Enhanced`/`Classic` + zaškrtávací políčko **Quality scoring** — SRTLA hodnocení pro výběr nejlepšího spojení.                                        |
+| **Reloads**               | `N (last <when>, mode <signal\|restart>)` - kolikrát se `srtla_send` reloadoval.                                                                                    |
+| **Monitor**               | `watching` - monitor rozhraní je aktivní.                                                                                                                           |
+| **Quality scoring**       | **Scheduler** `Enhanced`/`Classic` + zaškrtávací políčko **Quality scoring** - SRTLA hodnocení pro výběr nejlepšího spojení.                                        |
 | **Start / Stop / Reload** | Spuštění, zastavení nebo opětovné načtení procesu `srtla_send`; **Reload** znovu načte seznam uplinků (pomocí SIGHUP nebo úplným restartem podle `--srtla-reload`). |
 
 ### 6.6 Karta Interfaces
 
-U každého síťového rozhraní se zobrazuje **zaškrtávací políčko Bond** („Include in bond“ — určuje, zda `srtla_send` bude rozhraní používat), **název rozhraní**, jeho rychlost (např. `eth0 · 10 Gb/s`) a adresa CIDR, **Signal** (u modemových rozhraní) a **Network** (tabulka směrování, do které je rozhraní přiřazeno). Tlačítko **Reconfigure** znovu použije změněné nastavení směrování.
+U každého síťového rozhraní se zobrazuje **zaškrtávací políčko Bond** („Include in bond“ - určuje, zda `srtla_send` bude rozhraní používat), **název rozhraní**, jeho rychlost (např. `eth0 · 10 Gb/s`) a adresa CIDR, **Signal** (u modemových rozhraní) a **Network** (tabulka směrování, do které je rozhraní přiřazeno). Tlačítko **Reconfigure** znovu použije změněné nastavení směrování.
 
 ### 6.7 Karta Modems
 
@@ -343,7 +349,7 @@ Zaškrtnutím **Autostart** v hlavičce (nebo zavoláním `autostart.set`) nasta
 
 ---
 
-## 7. Stránka nastavení zařízení — všechny možnosti
+## 7. Stránka nastavení zařízení - všechny možnosti
 
 Otevřete ozubené kolo v hlavičce zařízení a vyberte **Device settings**. Upozornění nahoře vysvětluje, jak se projeví uložení nastavení a změna role:
 
@@ -354,7 +360,7 @@ Otevřete ozubené kolo v hlavičce zařízení a vyberte **Device settings**. U
 
 | Možnost                | Význam                                                                                                                                                                                                                 |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Hostname**           | Zobrazené jméno zařízení (malá písmena, číslice, tečky a pomlčky, max 64 znaků). UUID — pevná identita na ovládacím serveru — zůstává nezměněna a přežívá změny hostname.                                              |
+| **Hostname**           | Zobrazené jméno zařízení (malá písmena, číslice, tečky a pomlčky, max 64 znaků). UUID - pevná identita na ovládacím serveru - zůstává nezměněna a přežívá změny hostname.                                              |
 | **Device role**        | `relay` / `encoder` / `obs` / `broadcaster`. Změna role se projeví po restartu služby.                                                                                                                                 |
 | **Accent color**       | Barva hlavičky UI zařízení.                                                                                                                                                                                            |
 | **Control server URL** | Adresa ovládacího serveru ve tvaru `ws://…` nebo `wss://…` (`…/device`). Po uložení se zařízení znovu připojí a zaregistruje s novou adresou, tokenem, názvem hostitele a rolí, aniž by bylo nutné restartovat službu. |
@@ -368,35 +374,39 @@ Na zařízení jsou uloženy soubory GStreamer pipeline. **Podadresáře určuj�
 **Editor pipeline** (na adrese `/pipelines/new/` nebo po výběru _Edit_ u existující pipeline):
 
 ![Editor pipeline](screenshots/11-pipeline-editor-cs.png)
-- **Cesta k pipeline** — cesta ve tvaru `group/name` (např. `test/x264_test_pattern`). Nový soubor se uloží na toto místo pod adresářem `--pipelines`.
-- **Obsah pipeline** — příkazový řetězec GStreamer se zvýrazněnou syntaxí. Legenda **Element colours** označuje typy prvků: source, sink, parser, demuxer, muxer, decoder, encoder, converter, filter, other, caps, key-pad a value.
-- **Save (Ctrl+S)** — soubor lze uložit pouze tehdy, obsahuje-li neprázdný příkazový řetězec GStreamer (alespoň jeden znak `!` mezi prvky).
 
-> Každá pipeline musí odpovídat hardwaru a GStreamer pluginům dostupným na zařízení — např. Rockchip pipeline používají `mpph265enc`, který na běžném x86 hostu není k dispozici. Pokud UI oznámí _Pipeline is empty_, vyberte jinou pipeline nebo soubor obnovte.
+-   **Cesta k pipeline** - cesta ve tvaru `group/name` (např. `test/x264_test_pattern`). Nový soubor se uloží na toto místo pod adresářem `--pipelines`.
+-   **Obsah pipeline** - příkazový řetězec GStreamer se zvýrazněnou syntaxí. Legenda **Element colours** označuje typy prvků: source, sink, parser, demuxer, muxer, decoder, encoder, converter, filter, other, caps, key-pad a value.
+-   **Save (Ctrl+S)** - soubor lze uložit pouze tehdy, obsahuje-li neprázdný příkazový řetězec GStreamer (alespoň jeden znak `!` mezi prvky).
+
+> Každá pipeline musí odpovídat hardwaru a GStreamer pluginům dostupným na zařízení - např. Rockchip pipeline používají `mpph265enc`, který na běžném x86 hostu není k dispozici. Pokud UI oznámí _Pipeline is empty_, vyberte jinou pipeline nebo soubor obnovte.
 
 ### 7.2 Repozitáře pipeline
 
 Pipeline lze importovat z GitHubu:
-- **Add repository** — zadejte repozitář ve formátu `author/repository`. Soubory z jeho adresáře `pipeline/` se **rekurzivně importují** do `PIPELINES_DIR/author/repository/` a znovu se importují po každém stažení změn z Gitu.
-- U každého repozitáře se zobrazuje odznak **počet pipeline** s akcemi:
-  - **Update** — aktualizuje tento repozitář.
-  - **Update all** — aktualizuje všechny nakonfigurované repozitáře a nahradí místní soubory; odstraní se tak i pipeline, které byly smazány v původním repozitáři.
-  - **Remove** — odebere repozitář _i_ jeho importované pipeline soubory.
+
+-   **Add repository** - zadejte repozitář ve formátu `author/repository`. Soubory z jeho adresáře `pipeline/` se **rekurzivně importují** do `PIPELINES_DIR/author/repository/` a znovu se importují po každém stažení změn z Gitu.
+-   U každého repozitáře se zobrazuje odznak **počet pipeline** s akcemi:
+    -   **Update** - aktualizuje tento repozitář.
+    -   **Update all** - aktualizuje všechny nakonfigurované repozitáře a nahradí místní soubory; odstraní se tak i pipeline, které byly smazány v původním repozitáři.
+    -   **Remove** - odebere repozitář _i_ jeho importované pipeline soubory.
 
 ### 7.3 OBS spojení
 
 _Spojení s OBS Studio používané modulem obs. Modul se po uložení restartuje._
-- **OBS WebSocket URL** — např. `ws://127.0.0.1:4455`.
-- **OBS heslo** — heslo nastavené v OBS Studio (Settings → General/Stream). Ponechte prázdné pro zachování současného.
+
+-   **OBS WebSocket URL** - např. `ws://127.0.0.1:4455`.
+-   **OBS heslo** - heslo nastavené v OBS Studio (Settings → General/Stream). Ponechte prázdné pro zachování současného.
 
 ### 7.4 SSH
 
 _Spravuje SSH server zařízení: umožňuje jej spustit či zastavit, vybrat přihlašovací účet a nastavit nebo změnit jeho heslo._
-- **User** — přihlašovací účet (výchozí `root`).
-- **Password** — heslo účtu, vždy viditelné (zařízení ho hlásí v čistém tvaru). Upravuje se pouze při zastaveném SSH; uložené hodnoty se na účet projeví spuštěním SSH.
-- **Start / Stop** — SSH server.
-- **New password** — vygeneruje nové heslo. _Vygenerovat lze pouze při zastaveném SSH — nejdřív SSH zastavte._
-- **Save** — uloží zadané heslo; na účet se projeví spuštěním SSH.
+
+-   **User** - přihlašovací účet (výchozí `root`).
+-   **Password** - heslo účtu, vždy viditelné (zařízení ho hlásí v čistém tvaru). Upravuje se pouze při zastaveném SSH; uložené hodnoty se na účet projeví spuštěním SSH.
+-   **Start / Stop** - SSH server.
+-   **New password** - vygeneruje nové heslo. _Vygenerovat lze pouze při zastaveném SSH - nejdřív SSH zastavte._
+-   **Save** - uloží zadané heslo; na účet se projeví spuštěním SSH.
 
 ---
 
@@ -410,7 +420,7 @@ Každá volba, kterou enkodér nabízí (krok průvodce, karta encoder, nastaven
 | **Min bitrate (kbps)**                                          | Dolní mez rozsahu datového toku videa.                                                                                                                                                                                                                                       |
 | **Max bitrate (kbps)**                                          | Horní mez rozsahu datového toku videa. U **belacoder** se změna zapíše do souboru a po signálu SIGHUP se znovu načte, takže není nutné program restartovat.                                                                                                                  |
 | **Zdroj zvuku**                                                 | Zvuková karta ALSA, ze které se snímá zvuk. `Pipeline default` ponechá nastavení určené pipeline; výběr konkrétní karty změní příslušný prvek zvukového zdroje.                                                                                                              |
-| **Zvukový kodek**                                               | `AAC` nebo `Opus` — kodek zvukové stopy v odchozím streamu SRT.                                                                                                                                                                                                              |
+| **Zvukový kodek**                                               | `AAC` nebo `Opus` - kodek zvukové stopy v odchozím streamu SRT.                                                                                                                                                                                                              |
 | **Zpoždění zvuku (ms)**                                         | Časový posun zvukové stopy pro její synchronizaci s videem.                                                                                                                                                                                                                  |
 | **SRT zpoždění (ms)**                                           | Latence přenosu SRT mezi enkodérem a relay (výchozí hodnota 2000 ms).                                                                                                                                                                                                        |
 | **Stream ID** (volitelné)                                       | Identifikátor streamu SRT předávaný přijímači. Pro stream bez identifikátoru pole ponechte prázdné.                                                                                                                                                                          |
@@ -460,8 +470,8 @@ Stavový automat sleduje metriky SRT a OBS a při zhoršení připojení automat
 
 | Skupina   | Volba                                             | Význam                                                                                                                                                         |
 | --------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| —         | **Low-bitrate switcher** (zaškrtávací políčko)    | Zapíná nebo vypíná přepínač. _No engine running yet. Set the OBS SRT source above, pick the scenes, and save — the switcher starts once its config is stored._ |
-| —         | **OBS SRT source**                                | Název SRT zdroje v OBS, jehož statistiky přepínač sleduje. Pokud statistiky nejsou dostupné, zobrazí se upozornění _No SRT stats from OBS…_                    |
+| -         | **Low-bitrate switcher** (zaškrtávací políčko)    | Zapíná nebo vypíná přepínač. _No engine running yet. Set the OBS SRT source above, pick the scenes, and save - the switcher starts once its config is stored._ |
+| -         | **OBS SRT source**                                | Název SRT zdroje v OBS, jehož statistiky přepínač sleduje. Pokud statistiky nejsou dostupné, zobrazí se upozornění _No SRT stats from OBS…_                    |
 | Spouštěče | **Low bitrate (kbps)**                            | Při poklesu datového toku SRT pod tuto hodnotu se přepne na scénu s nízkým datovým tokem.                                                                      |
 | Spouštěče | **Offline bitrate (kbps)**                        | Při poklesu pod tuto hodnotu se spojení považuje za přerušené a zobrazí se offline scéna.                                                                      |
 | Spouštěče | **RTT (ms)**                                      | Hodnota RTT vyšší než nastavený limit se považuje za zhoršení spojení.                                                                                         |
@@ -508,32 +518,35 @@ Kliknutím na zařízení se otevře jeho **stránka zařízení**.
 
 ![Stránka zařízení na ovládacím serveru](screenshots/15-control-device-page-cs.png)
 
-Stránka zařízení zobrazuje **stejné karty** jako místní rozhraní zařízení (Encoder, Relay, Interfaces, Modems a Log). Je poskytována ovládacím serverem, který příkazy předává zařízení přes jeho odchozí spojení — můžete tak ovládat i zařízení za NAT nebo v mobilní síti. V hlavičce je navíc zaškrtávací políčko **Autostart** a odkaz **Device settings**. Akce Start, Stop, Reload a nastavení fungují stejně jako v [sekci 6](#6-uživatelské-rozhraní-zařízení--běžná-obsluha).
+Stránka zařízení zobrazuje **stejné karty** jako místní rozhraní zařízení (Encoder, Relay, Interfaces, Modems a Log). Je poskytována ovládacím serverem, který příkazy předává zařízení přes jeho odchozí spojení - můžete tak ovládat i zařízení za NAT nebo v mobilní síti. V hlavičce je navíc zaškrtávací políčko **Autostart** a odkaz **Device settings**. Akce Start, Stop, Reload a nastavení fungují stejně jako v [sekci 6](#6-uživatelské-rozhraní-zařízení--běžná-obsluha).
 
-### 11.3 Profil — heslo, tokeny, pozvánky
+### 11.3 Profil - heslo, tokeny, pozvánky
 
 Dostanete se k ní z menu uživatelského jména v hlavičce.
 
 ![Profilová stránka](screenshots/16-control-profile-cs.png)
-- **Change password** — aktuální heslo, nové heslo (alespoň 8 znaků) a jeho potvrzení.
-- **Device tokens** — **Add token** vydá nový token; **kliknutím zkopírujete** hodnotu; **Remove** jej odvolá. _„No tokens yet. Add one so your devices can connect.“_ Každé zařízení, které chcete spravovat, by se mělo připojit s jedním z vašich tokenů (`--remote-token` / `CONTROL_SERVER_TOKEN`).
-- **Invitations** (pouze pro administrátory) — **Create invitation** vytvoří jednorázový kód, případně s nastavenou platností. Nový uživatel jej zadá na [registrační stránce](screenshots/02-register-cs.png). _„No invitations yet. Create one so someone can join.“_
+
+-   **Change password** - aktuální heslo, nové heslo (alespoň 8 znaků) a jeho potvrzení.
+-   **Device tokens** - **Add token** vydá nový token; **kliknutím zkopírujete** hodnotu; **Remove** jej odvolá. _„No tokens yet. Add one so your devices can connect.“_ Každé zařízení, které chcete spravovat, by se mělo připojit s jedním z vašich tokenů (`--remote-token` / `CONTROL_SERVER_TOKEN`).
+-   **Invitations** (pouze pro administrátory) - **Create invitation** vytvoří jednorázový kód, případně s nastavenou platností. Nový uživatel jej zadá na [registrační stránce](screenshots/02-register-cs.png). _„No invitations yet. Create one so someone can join.“_
 
 ### 11.4 Dashboardy
 
 Dashboardy jsou pro každého uživatele uloženy v databázi SQLite a průběžně se aktualizují. Společný datový proud odesílá data widgetů do všech právě otevřených zobrazení.
 
 ![Seznam dashboardů](screenshots/17-control-dashboards-cs.png)
-- **Vytvořit nový dashboard** — zadejte název (např. _Streaming_) a stiskněte **Create**.
-- Každý řádek obsahuje **Name** (odkaz na stránku dashboardu), počet **Widgets** a akce **View / Edit / Delete**.
 
-**Přidat widget** — vyberte typ:
+-   **Vytvořit nový dashboard** - zadejte název (např. _Streaming_) a stiskněte **Create**.
+-   Každý řádek obsahuje **Name** (odkaz na stránku dashboardu), počet **Widgets** a akce **View / Edit / Delete**.
+
+**Přidat widget** - vyberte typ:
 
 ![Stránka přidat widget](screenshots/18-dashboard-add-cs.png)
 
 Widgety jsou dvou druhů:
-- **Widgety zařízení** — živá stavová karta pro zařízení s rolí `relay`, `encoder`, `obs` nebo `broadcaster`, podle jeho role a aktivních modulů. Seznam typů obsahuje jednu položku pro každé připojené zařízení.
-- **Kanálové widgety** — nejsou vázané na konkrétní zařízení: **Stats** (počet diváků na YouTube, Twitchi nebo Kicku) a **Chat** (sloučené chatové kanály).
+
+-   **Widgety zařízení** - živá stavová karta pro zařízení s rolí `relay`, `encoder`, `obs` nebo `broadcaster`, podle jeho role a aktivních modulů. Seznam typů obsahuje jednu položku pro každé připojené zařízení.
+-   **Kanálové widgety** - nejsou vázané na konkrétní zařízení: **Stats** (počet diváků na YouTube, Twitchi nebo Kicku) a **Chat** (sloučené chatové kanály).
 
 **Pohledová stránka dashboardu:**
 
@@ -541,19 +554,19 @@ Widgety jsou dvou druhů:
 
 **Možnosti v režimu úprav a zobrazení:**
 
-| Možnost                                              | Význam                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Rename**                                           | Pole pro úpravu názvu v hlavičce editačního režimu.                                                                                                                                                                                                                                                                                                                                                    |
-| **+ Add widget / Remove (×)**                        | Přidat nebo odebrat widgety.                                                                                                                                                                                                                                                                                                                                                                           |
-| **⠿ drag handle**                                    | Přesunutí widgetů v mřížce a změna jejich pořadí.                                                                                                                                                                                                                                                                                                                                                      |
-| **Width: third / half / full**                       | Šířka widgetu v mřížce (4 / 6 / 12 sloupců).                                                                                                                                                                                                                                                                                                                                                           |
-| **Move up / Move down**                              | Přesunout widget svisle nahoru/dolů.                                                                                                                                                                                                                                                                                                                                                                   |
-| **New messages: On top / At the bottom**             | Určuje, zda se nové zprávy chatu zobrazují nahoře, nebo dole.                                                                                                                                                                                                                                                                                                                                          |
-| **History lines**                                    | Počet řádků historie chatu, které se uchovávají.                                                                                                                                                                                                                                                                                                                                                       |
-| **Channel settings** (chatové a statistické widgety) | **YouTube channel** (ID nebo uživatelský název kanálu), **Twitch channel** a **Kick channel** se nastavují samostatně. Statistiky se každých 30 s načítají z jednotlivých zdrojů a zobrazují počet diváků i součet za poslední hodinu. Do vyplnění názvu se zobrazuje _„Not configured – set a channel name“_. K dispozici jsou také **TikTok channel** a samostatná varianta **Kick (independent)**.  |
-| **Enter fullscreen / Exit fullscreen**               | Přepnutí celého dashboardu do režimu celé obrazovky nebo zpět.                                                                                                                                                                                                                                                                                                                                         |
-| **Done**                                             | Ukončí úpravy a vrátí dashboard do běžného zobrazení.                                                                                                                                                                                                                                                                                                                                                  |
-| **Hide**                                             | Skryje obsah widgetu.                                                                                                                                                                                                                                                                                                                                                                                  |
+| Možnost                                              | Význam                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rename**                                           | Pole pro úpravu názvu v hlavičce editačního režimu.                                                                                                                                                                                                                                                                                                                                                   |
+| **+ Add widget / Remove (×)**                        | Přidat nebo odebrat widgety.                                                                                                                                                                                                                                                                                                                                                                          |
+| **⠿ drag handle**                                    | Přesunutí widgetů v mřížce a změna jejich pořadí.                                                                                                                                                                                                                                                                                                                                                     |
+| **Width: third / half / full**                       | Šířka widgetu v mřížce (4 / 6 / 12 sloupců).                                                                                                                                                                                                                                                                                                                                                          |
+| **Move up / Move down**                              | Přesunout widget svisle nahoru/dolů.                                                                                                                                                                                                                                                                                                                                                                  |
+| **New messages: On top / At the bottom**             | Určuje, zda se nové zprávy chatu zobrazují nahoře, nebo dole.                                                                                                                                                                                                                                                                                                                                         |
+| **History lines**                                    | Počet řádků historie chatu, které se uchovávají.                                                                                                                                                                                                                                                                                                                                                      |
+| **Channel settings** (chatové a statistické widgety) | **YouTube channel** (ID nebo uživatelský název kanálu), **Twitch channel** a **Kick channel** se nastavují samostatně. Statistiky se každých 30 s načítají z jednotlivých zdrojů a zobrazují počet diváků i součet za poslední hodinu. Do vyplnění názvu se zobrazuje _„Not configured – set a channel name“_. K dispozici jsou také **TikTok channel** a samostatná varianta **Kick (independent)**. |
+| **Enter fullscreen / Exit fullscreen**               | Přepnutí celého dashboardu do režimu celé obrazovky nebo zpět.                                                                                                                                                                                                                                                                                                                                        |
+| **Done**                                             | Ukončí úpravy a vrátí dashboard do běžného zobrazení.                                                                                                                                                                                                                                                                                                                                                 |
+| **Hide**                                             | Skryje obsah widgetu.                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Widget zařízení, na kterém je modul vypnutý, zobrazuje _Module disabled on device_. Pokud zařízení již není dostupné, widget zobrazí _No device_.
 
@@ -569,25 +582,25 @@ Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI 
 | ------------------------- | ------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--role`                  | `ROLE`                          | `relay`                          | Role dodaná registrovaným modulem zařízení (`relay`, `encoder`, `obs`, `broadcaster`).                                                                                           |
 | `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Lokální web UI a WebSocket API (`/ws`), vždy zapnuto.                                                                                                                            |
-| `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Další povolené zdroje požadavků prohlížeče pro `/ws` (oddělené čárkami, `*` = libovolný zdroj).                                                                                  |
+| `--allow-origin`          | `ALLOWED_ORIGINS`               | -                                | Další povolené zdroje požadavků prohlížeče pro `/ws` (oddělené čárkami, `*` = libovolný zdroj).                                                                                  |
 | `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Konfigurační soubor zařízení: základní nastavení a konfigurace vlastněné moduly. **V produkci použijte trvalou cestu**, protože ji automatické spuštění potřebuje i po restartu. |
 | `--uplinks`               | `UPLINKS_FILE`                  | `$TMPDIR/srtla_ips.txt`          | Soubor se seznamem uplinků pro `srtla_send`.                                                                                                                                     |
-| `--start-srtla`           | —                               | —                                | Pro roli relay spustí při startu SRTLA→SRTLA most s parametry `<srtlaPort> <remoteHost> <remotePort>`.                                                                           |
+| `--start-srtla`           | -                               | -                                | Pro roli relay spustí při startu SRTLA→SRTLA most s parametry `<srtlaPort> <remoteHost> <remotePort>`.                                                                           |
 | `--srtla-reload`          | `SRTLA_RELOAD_MODE`             | `signal`                         | Určuje, jak znovu načíst `srtla_send`: pomocí signálu `SIGHUP` (`signal`) nebo restartováním procesu (`restart`).                                                                |
 | `--srtla-socket`          | `SRTLA_CONTROL_SOCKET`          | `$TMPDIR/srtla_send.sock`        | Řídicí socket `srtla_send` (statistiky spojení, režim a kvalita); hodnotou `""` jej vypnete.                                                                                     |
 | `--debounce-ms`           | `DEBOUNCE_MS`                   | `1500`                           | Doba odložení zpracování událostí síťového rozhraní v milisekundách.                                                                                                             |
 | `--pipelines`             | `PIPELINES_DIR`                 | `/usr/share/belacoder/pipelines` | Adresář se soubory pipeline včetně podadresářů.                                                                                                                                  |
 | `--encoder`               | `ENCODER_BIN`                   | `belacoder`                      | Cesta k programu enkodéru. `ceracoder` se rozpozná podle názvu a modul enkodéru se přepne do režimu konfigurace INI.                                                             |
-| —                         | `SRTLA_SEND_BIN`                | `srtla_send`                     | Cesta k binárce `srtla_send`.                                                                                                                                                    |
-| `--srtla-rec-bin`         | `SRTLA_REC_BIN`                 | `srtla_rec`                      | Cesta k binárce `srtla_rec` (pouze role relay).                                                                                                                                           |
+| -                         | `SRTLA_SEND_BIN`                | `srtla_send`                     | Cesta k binárce `srtla_send`.                                                                                                                                                    |
+| `--srtla-rec-bin`         | `SRTLA_REC_BIN`                 | `srtla_rec`                      | Cesta k binárce `srtla_rec` (pouze role relay).                                                                                                                                  |
 | `--bitrate-file`          | `BITRATE_FILE`                  | `$TMPDIR/belacoder_br`           | Soubor bitrate pro belacoder (při SIGHUP se znovu načte).                                                                                                                        |
 | `--ceracoder-conf`        | `CERACODER_CONF`                | `$TMPDIR/ceracoder.conf`         | Konfigurační soubor INI pro ceracoder (regulátor datového toku a další nastavení); změny modul enkodéru použije za běhu.                                                         |
 | `--log-file`              | `LOG_FILE`                      | `$TMPDIR/srtla_log.json`         | Soubor pro trvalý protokol událostí zobrazovaný ve webovém rozhraní.                                                                                                             |
-| `--remote`                | `CONTROL_SERVER_URL`            | —                                | Adresa ovládacího serveru, např. `wss://ctl.example.com/device`.                                                                                                                 |
-| `--remote-token`          | `CONTROL_SERVER_TOKEN`          | —                                | Token zařízení. **Přednostně použijte proměnnou prostředí**, aby se token neobjevil ve výpisu procesů (`ps`).                                                                    |
+| `--remote`                | `CONTROL_SERVER_URL`            | -                                | Adresa ovládacího serveru, např. `wss://ctl.example.com/device`.                                                                                                                 |
+| `--remote-token`          | `CONTROL_SERVER_TOKEN`          | -                                | Token zařízení. **Přednostně použijte proměnnou prostředí**, aby se token neobjevil ve výpisu procesů (`ps`).                                                                    |
 | `--remote-interval`       | `CONTROL_SERVER_INTERVAL`       | `30`                             | Interval odesílání stavu na server v sekundách (`0` = pouze při změně).                                                                                                          |
 | `--remote-stats-interval` | `CONTROL_SERVER_STATS_INTERVAL` | `2`                              | Interval odesílání statistik spojení `srtla_send` v sekundách.                                                                                                                   |
-| `--dry-run`               | `DRY_RUN`                       | —                                | Vypíše příkazy `ip` a akce s procesy, ale neprovede je (bezpečné testování).                                                                                                     |
+| `--dry-run`               | `DRY_RUN`                       | -                                | Vypíše příkazy `ip` a akce s procesy, ale neprovede je (bezpečné testování).                                                                                                     |
 
 ### 12.2 Ovládací server (`server/backend/server.ts`)
 
@@ -595,7 +608,7 @@ Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI 
 | ------------------ | ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--host`, `--port` | `SERVER_HOST`, `SERVER_PORT` | `0.0.0.0:8090` | Adresa, na které server naslouchá. V produkci jej provozujte za reverzní proxy s TLS (tokeny zařízení a relační cookie vyžadují `wss://` a `https://`). |
 | `--db`             | `DB_FILE`                    | `users.db`     | Databáze SQLite obsahující uživatele, tokeny zařízení a dashboardy.                                                                                     |
-| `--no-auth`        | `NO_AUTH`                    | —              | Pouze pro místní testování: používá se společný profil `local` bez tokenů a databáze; dashboardy se uchovávají pouze v paměti.                          |
+| `--no-auth`        | `NO_AUTH`                    | -              | Pouze pro místní testování: používá se společný profil `local` bez tokenů a databáze; dashboardy se uchovávají pouze v paměti.                          |
 
 ### 12.3 Nastavení specifická pro moduly
 
@@ -607,7 +620,7 @@ Připojení k OBS spravuje modul `obs`; hodnoty lze zadat přes `OBS_URL` / `OBS
 
 | Příznak                                                   | Co zkontrolovat                                                                                                                                                                                                                              |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Průvodce nepokračuje**                                  | Kontrola vstupů nehlásí chybu přímo — některé povinné pole může být prázdné nebo neplatné (formát názvu hostitele, chybějící pipeline či port). Vyplňte všechna pole; u výběrových polí nahraďte výchozí zástupnou možnost platnou hodnotou. |
+| **Průvodce nepokračuje**                                  | Kontrola vstupů nehlásí chybu přímo - některé povinné pole může být prázdné nebo neplatné (formát názvu hostitele, chybějící pipeline či port). Vyplňte všechna pole; u výběrových polí nahraďte výchozí zástupnou možnost platnou hodnotou. |
 | **„Pipeline is empty“**                                   | Vybraný soubor pipeline je prázdný nebo obsahuje pouze bílé znaky. Vyberte jinou pipeline na kartě Encoder nebo soubor obnovte či vytvořte v **Settings → Pipelines**.                                                                       |
 | **Pipeline se nespustí**                                  | Pipeline nemusí odpovídat hardwaru (např. `mpph265enc` na x86) nebo mohou chybět zásuvné moduly GStreamer. Vyberte pipeline ze skupiny určené pro váš hardware.                                                                              |
 | **Relay skončí: `ip rule add … Operation not permitted`** | Chybí oprávnění root nebo `NET_ADMIN`. Spusťte službu jako root (systemd) nebo přidejte příslušné oprávnění v Dockeru.                                                                                                                       |
@@ -616,7 +629,7 @@ Připojení k OBS spravuje modul `obs`; hodnoty lze zadat přes `OBS_URL` / `OBS
 | **Zařízení je na ovládacím serveru `offline`**            | Zařízení neběží nebo má nesprávnou adresu či token. U poslední stavové zprávy je uveden čas _last seen_. Zkontrolujte `--remote` a `--remote-token` (nebo **Settings → Control server URL / Remote token**).                                 |
 | **Stav „stale, …“**                                       | Zařízení je připojené, ale neodesílá stavové zprávy. Příčinou může být problém se sítí mezi zařízením a serverem nebo příliš dlouhý interval `--remote-interval` či `--remote-stats-interval`.                                               |
 | **V přepínači chybějí statistiky SRT**                    | V OBS není načten obs-websocket v5 nebo název zdroje _OBS SRT source_ neodpovídá názvu SRT vstupu v OBS.                                                                                                                                     |
-| **Nelze nastavit nové SSH heslo**                         | Nejdřív SSH zastavte — nové heslo lze vygenerovat pouze při zastaveném SSH.                                                                                                                                                                  |
+| **Nelze nastavit nové SSH heslo**                         | Nejdřív SSH zastavte - nové heslo lze vygenerovat pouze při zastaveném SSH.                                                                                                                                                                  |
 | **Registrace selhává kvůli pozvánce**                     | Chyby _inviteInvalid_, _inviteUsed_ nebo _inviteExpired_ znamenají, že je kód neplatný, použitý nebo vypršel. Požádejte administrátora o nový kód; pouze první účet lze vytvořit bez pozvánky.                                               |
 | **Nastavení zařízení je uloženo, ale role se nezměnila**  | Jde o očekávané chování: _„The new role takes effect after restarting the device service.“_ Pro použití nové role restartujte službu zařízení.                                                                                               |
 | **Relay v Dockeru neagreguje uplinky hostitele**          | V síti bridge se změny směrování projeví pouze v síťovém prostoru kontejneru. Spusťte relay s `network_mode: host`.                                                                                                                          |

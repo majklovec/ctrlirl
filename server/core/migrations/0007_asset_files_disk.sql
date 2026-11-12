@@ -3,7 +3,7 @@
 -- database no longer bloats with media BLOBs. The `data` column stays, now
 -- nullable, as a fallback for files uploaded before this change: rows with
 -- bytes and no disk file keep serving from the database. (SQLite cannot make
--- a NOT NULL column nullable in place, hence the table rebuild — every row is
+-- a NOT NULL column nullable in place, hence the table rebuild - every row is
 -- carried over.)
 CREATE TABLE asset_files_disk (
     id TEXT PRIMARY KEY,

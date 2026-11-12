@@ -113,22 +113,22 @@ async function createProject(cookie: string, name: string): Promise<string> {
 }
 
 interface Folder {
-	id: string;
-	parentId: string | null;
-	name: string;
-	createdAt: number;
-	hasChildren: boolean;
-	fileCount: number;
+    id: string;
+    parentId: string | null;
+    name: string;
+    createdAt: number;
+    hasChildren: boolean;
+    fileCount: number;
 }
 
 interface AssetFile {
-	id: string;
-	folderId: string;
-	name: string;
-	size: number;
-	mimeType: string;
-	createdAt: number;
-	updatedAt: number;
+    id: string;
+    folderId: string;
+    name: string;
+    size: number;
+    mimeType: string;
+    createdAt: number;
+    updatedAt: number;
 }
 
 let alice: string;
@@ -202,7 +202,11 @@ const createFolder = async (cookie: string, parentId: string, name: string) => {
         headers: { "content-type": "application/json", cookie },
         body: JSON.stringify({ parentId, name }),
     });
-    const body = (await res.json()) as { folder?: Folder; error?: string; code?: number };
+    const body = (await res.json()) as {
+        folder?: Folder;
+        error?: string;
+        code?: number;
+    };
     return { status: res.status, body };
 };
 
@@ -213,20 +217,27 @@ const upload = async (
     data: string | Uint8Array,
     mimeType = "text/plain",
 ) => {
-    // FormData's File type carries a `;charset=utf-8` suffix — the store
+    // FormData's File type carries a `;charset=utf-8` suffix - the store
     // compares the mime type as stored, so keep the bare type here.
     const bareType = (mimeType || "").split(";")[0];
     const form = new FormData();
     form.append("folderId", folderId);
     const bytes =
         typeof data === "string" ? new TextEncoder().encode(data) : data;
-    form.append("files", new File([bytes as BlobPart], name, { type: bareType }));
+    form.append(
+        "files",
+        new File([bytes as BlobPart], name, { type: bareType }),
+    );
     const res = await fetch(`${baseUrl}/api/assets/files`, {
         method: "POST",
         headers: { cookie },
         body: form,
     });
-    const body = (await res.json()) as { files?: AssetFile[]; error?: string; code?: number };
+    const body = (await res.json()) as {
+        files?: AssetFile[];
+        error?: string;
+        code?: number;
+    };
     return { status: res.status, body };
 };
 
@@ -241,7 +252,9 @@ describe("assets auth", () => {
     });
 
     test("serves the assets page to an authenticated user", async () => {
-        const res = await fetch(`${baseUrl}/assets/`, { headers: { cookie: alice } });
+        const res = await fetch(`${baseUrl}/assets/`, {
+            headers: { cookie: alice },
+        });
         expect(res.status).toBe(200);
         const html = await res.text();
         expect(html).toContain("assets_list");
@@ -310,14 +323,11 @@ describe("assets folders", () => {
         });
         expect(res.status).toBe(400);
         // Move B back to the root: a legal move succeeds.
-        res = await fetch(
-            `${baseUrl}/api/assets/folders/${b.folder!.id}`,
-            {
-                method: "PATCH",
-                headers: { "content-type": "application/json", cookie: alice },
-                body: JSON.stringify({ parentId: root.id }),
-            },
-        );
+        res = await fetch(`${baseUrl}/api/assets/folders/${b.folder!.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json", cookie: alice },
+            body: JSON.stringify({ parentId: root.id }),
+        });
         expect(res.status).toBe(200);
         const moved = (await res.json()) as { folder: Folder };
         expect(moved.folder.parentId).toBe(root.id);
@@ -326,11 +336,7 @@ describe("assets folders", () => {
     test("caps folder depth (the root counts as level 1)", async () => {
         let parent = root;
         for (let i = 1; i <= 15; i++) {
-            const { body } = await createFolder(
-                alice,
-                parent.id,
-                `depth-${i}`,
-            );
+            const { body } = await createFolder(alice, parent.id, `depth-${i}`);
             expect(body.folder, `depth ${i} must be creatable`).toBeTruthy();
             parent = body.folder!;
         }
@@ -396,15 +402,17 @@ describe("assets files", () => {
         expect(dup.body.files![0].name).toBe("a (1).txt");
 
         const listed = await files(alice, folder.id);
-        expect(listed.map((f) => f.name).sort()).toEqual(["a (1).txt", "a.txt"]);
+        expect(listed.map((f) => f.name).sort()).toEqual([
+            "a (1).txt",
+            "a.txt",
+        ]);
     });
 
     test("exposes file metadata and downloads the exact bytes", async () => {
         const [file] = await files(alice, folder.id);
-        const meta = await fetch(
-            `${baseUrl}/api/assets/file-meta/${file.id}`,
-            { headers: { cookie: alice } },
-        );
+        const meta = await fetch(`${baseUrl}/api/assets/file-meta/${file.id}`, {
+            headers: { cookie: alice },
+        });
         expect(meta.status).toBe(200);
         const metaBody = (await meta.json()) as { file: AssetFile };
         expect(metaBody.file.id).toBe(file.id);
@@ -461,10 +469,9 @@ describe("assets files", () => {
             headers: { cookie: alice },
         });
         expect(res.status).toBe(200);
-        const meta = await fetch(
-            `${baseUrl}/api/assets/file-meta/${file.id}`,
-            { headers: { cookie: alice } },
-        );
+        const meta = await fetch(`${baseUrl}/api/assets/file-meta/${file.id}`, {
+            headers: { cookie: alice },
+        });
         expect(meta.status).toBe(404);
     });
 
@@ -484,7 +491,13 @@ describe("assets files", () => {
 
 describe("assets storage directory", () => {
     test("saves uploaded bytes to the storage dir and removes them again", async () => {
-        const up = await upload(alice, root.id, "disk.txt", "on disk", "text/plain");
+        const up = await upload(
+            alice,
+            root.id,
+            "disk.txt",
+            "on disk",
+            "text/plain",
+        );
         expect(up.status).toBe(200);
         const fileId = up.body.files![0].id;
         const diskPath = join(storagePath, fileId);
@@ -523,7 +536,13 @@ describe("assets storage directory", () => {
     });
 
     test("downloads keep serving from the storage dir", async () => {
-        const up = await upload(alice, root.id, "serve.png", "png-bytes", "image/png");
+        const up = await upload(
+            alice,
+            root.id,
+            "serve.png",
+            "png-bytes",
+            "image/png",
+        );
         expect(up.status).toBe(200);
         const res = await fetch(
             `${baseUrl}/api/assets/files/${up.body.files![0].id}`,
@@ -531,7 +550,9 @@ describe("assets storage directory", () => {
         );
         expect(res.status).toBe(200);
         expect(res.headers.get("content-type")).toBe("image/png");
-        expect(new TextDecoder().decode(await res.arrayBuffer())).toBe("png-bytes");
+        expect(new TextDecoder().decode(await res.arrayBuffer())).toBe(
+            "png-bytes",
+        );
         // tidy up so the owner-isolation list stays predictable
         await fetch(`${baseUrl}/api/assets/files/${up.body.files![0].id}`, {
             method: "DELETE",
@@ -548,16 +569,37 @@ describe("assets storage directory", () => {
             "Pics",
         );
         expect(imgSub.folder).toBeTruthy();
-        const img = await upload(alice, imgSub.folder!.id, "one.png", "img", "image/png");
-        const vid = await upload(alice, imgDir.folder!.id, "clip.mp4", "vid", "video/mp4");
-        const doc = await upload(alice, imgDir.folder!.id, "notes.txt", "doc", "text/plain");
+        const img = await upload(
+            alice,
+            imgSub.folder!.id,
+            "one.png",
+            "img",
+            "image/png",
+        );
+        const vid = await upload(
+            alice,
+            imgDir.folder!.id,
+            "clip.mp4",
+            "vid",
+            "video/mp4",
+        );
+        const doc = await upload(
+            alice,
+            imgDir.folder!.id,
+            "notes.txt",
+            "doc",
+            "text/plain",
+        );
         expect(img.status).toBe(200);
         expect(vid.status).toBe(200);
         expect(doc.status).toBe(200);
 
-        const imagesRes = await fetch(`${baseUrl}/api/assets/browse?kind=image`, {
-            headers: { cookie: alice },
-        });
+        const imagesRes = await fetch(
+            `${baseUrl}/api/assets/browse?kind=image`,
+            {
+                headers: { cookie: alice },
+            },
+        );
         expect(imagesRes.status).toBe(200);
         const images = (await imagesRes.json()) as {
             files: (AssetFile & { path: string })[];
@@ -574,16 +616,12 @@ describe("assets storage directory", () => {
                 })
             ).json()) as { files: (AssetFile & { path: string })[] }
         ).files;
-        expect(
-            videos.some((f) => f.id === vid.body.files![0].id),
-        ).toBe(true);
+        expect(videos.some((f) => f.id === vid.body.files![0].id)).toBe(true);
         // text files are never in a media browse
-        expect(
-            images.files.some((f) => f.id === doc.body.files![0].id),
-        ).toBe(false);
-        expect(
-            videos.some((f) => f.id === doc.body.files![0].id),
-        ).toBe(false);
+        expect(images.files.some((f) => f.id === doc.body.files![0].id)).toBe(
+            false,
+        );
+        expect(videos.some((f) => f.id === doc.body.files![0].id)).toBe(false);
 
         const badKind = await fetch(`${baseUrl}/api/assets/browse?kind=pdf`, {
             headers: { cookie: alice },
@@ -600,10 +638,9 @@ describe("assets owner isolation", () => {
         expect(all[0].id).not.toBe(root.id);
 
         // Reading alice's file meta / bytes: 404 (no existence leak).
-        const res = await fetch(
-            `${baseUrl}/api/assets/files/${root.id}`,
-            { headers: { cookie: bob } },
-        );
+        const res = await fetch(`${baseUrl}/api/assets/files/${root.id}`, {
+            headers: { cookie: bob },
+        });
         expect([401, 404]).toContain(res.status);
 
         // Mutating alice's root folder: 404.

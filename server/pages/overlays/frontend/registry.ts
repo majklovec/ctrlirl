@@ -5,8 +5,9 @@
  * The editor's toolbar, inspector and canvas and the runtime page resolve
  * elements only through this module.
  */
-import MANIFEST from "../../../../generated/overlay_elements";
+
 import type { OverlayElementDef } from "@ui/overlay/element";
+import MANIFEST from "../../../../generated/overlay_elements";
 
 const byType = new Map<string, OverlayElementDef>();
 for (const contribution of MANIFEST as unknown[]) {
@@ -23,7 +24,7 @@ for (const contribution of MANIFEST as unknown[]) {
 export const elementRegistry: ReadonlyMap<string, OverlayElementDef> = byType;
 
 /** Resolve an element's definition. Unknown types (e.g. legacy data)
- * resolve to undefined — the renderer skips them, the inspector shows the
+ * resolve to undefined - the renderer skips them, the inspector shows the
  * common fields only. */
 export function elementDef(type: string): OverlayElementDef | undefined {
     return byType.get(type);

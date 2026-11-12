@@ -5,7 +5,7 @@
  * modules/<id>/settings.tsx that default-exports a ModuleDef owning its own
  * card body, visibility rules and configuration parameters. The framework
  * registers every def from the build-time manifest
- * (generated/modules.settings.ts, one import per settings.tsx) — the core
+ * (generated/modules.settings.ts, one import per settings.tsx) - the core
  * names no module by id. It provides shared per-module state (busy flag,
  * status message), an RPC runner that routes errors into the module's status
  * line, and the Card shell.
@@ -58,7 +58,7 @@ export function registerModule(def: ModuleDef): void {
 /**
  * Register every settings card found in the build-time manifest (one static
  * import per modules/<id>/settings.tsx, emitted by scripts/gen_modules.ts).
- * The core names no module by id — adding a module with a settings.tsx
+ * The core names no module by id - adding a module with a settings.tsx
  * registers it here automatically (regeneration happens before the bundle).
  */
 for (const def of SETTINGS_MANIFEST as unknown as ModuleDef[]) {
@@ -161,22 +161,21 @@ export function renderModuleCards(): Array<m.Vnode | null> {
 		}
 		if (def.selfCards) {
 			// The module renders its own titled Card elements. Bundle the cards
-			// and the optional status line into ONE keyed fragment — returning
+			// and the optional status line into ONE keyed fragment - returning
 			// [fragment, statusLine?] would put a `null` hole (when the message
 			// is empty) next to the keyed fragment, and a fragment mixing keyed
 			// vnodes with a `null` throws in Mithril 2.3 ("In fragments, vnodes
 			// must either all have keys or none have keys"). Nesting the status
 			// line inside the fragment keeps the page fragment uniformly keyed.
 			return [
-				m.fragment(
-					{ key: def.id },
-					[
-						def.render(ctx),
-						ctx.message === ""
-							? null
-							: <p class="muted" role="status">{ctx.message}</p>,
-					] as m.ChildArrayOrPrimitive,
-				),
+				m.fragment({ key: def.id }, [
+					def.render(ctx),
+					ctx.message === "" ? null : (
+						<p class="muted" role="status">
+							{ctx.message}
+						</p>
+					),
+				] as m.ChildArrayOrPrimitive),
 			] as unknown as (m.Vnode | null)[];
 		}
 		return [

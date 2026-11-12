@@ -10,7 +10,7 @@
 // first time it is requested and cached.
 //
 // The catalogs are resolved in two ways:
-//   * unbundled (bun server/main.ts, dev, tests): read from disk —
+//   * unbundled (bun server/main.ts, dev, tests): read from disk -
 //     the core file plus a scan of modules/*/i18n/;
 //   * compiled binaries (bun build --compile): the build-time manifest
 //     generated/i18n.ts (scripts/gen_modules.ts) inlines every catalog, as a
@@ -19,7 +19,7 @@
 // The browser loads the same merged catalogs on demand from /i18n/<lang>.json
 // (see shared/ui/i18n.tsx) using the i18next-http-backend plugin over HTTP.
 // This core deliberately does not: the plugin routes only http(s) URLs through
-// fetch, and it has nothing to fetch from before the HTTP server starts —
+// fetch, and it has nothing to fetch from before the HTTP server starts -
 // including the synchronous `--help` path.
 //
 // t()/translate() use i18next's options-object API with named interpolation
@@ -47,7 +47,6 @@ export {
 } from "./languages";
 
 const i18n = i18next.createInstance();
-
 
 type Catalog = Record<string, string>;
 

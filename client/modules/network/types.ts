@@ -1,10 +1,14 @@
 /* Types for the network module's interface-routing domain: bondable
  * interfaces, the bond selection, the uplinks file and the reconfigure
  * result. The cross-module capability contracts (modems.source,
- * network.uplinks) live in shared/ — re-exported so module-internal
+ * network.uplinks) live in shared/ - re-exported so module-internal
  * imports can stay on `./types`. */
 
-export type { Modem, ModemSource, Uplinks } from "../../../shared/contracts/module_capabilities";
+export type {
+    Modem,
+    ModemSource,
+    Uplinks,
+} from "../../../shared/contracts/module_capabilities";
 
 /** IPv4 interface usable for bonding (enriched with modem details when bonded to one). */
 export interface Iface {
@@ -44,49 +48,49 @@ export interface ReconfigureResult {
 
 /**
  * One srtla_send link of the SRTLA stats push (`relay.stats` / `stream.stats`)
- * — the fields the interfaces card renders (structural: the SRTLA modules
+ * - the fields the interfaces card renders (structural: the SRTLA modules
  * own the full event type).
  */
 export interface SrtlaLinkStats {
-	ip: string;
-	label?: string;
-	connected: boolean;
-	timed_out: boolean;
-	bitrate_bytes_per_sec: number;
-	rtt_ms: number;
-	rtt_min_ms: number;
-	window: number;
-	in_flight: number;
-	nak_count: number;
-	cc_loss_permille: number;
-	quality_multiplier?: number;
-	base_score?: number;
-	weak?: boolean;
-	weak_reason?: string;
-	stall_gated?: boolean;
-	sole_carrier?: boolean;
+    ip: string;
+    label?: string;
+    connected: boolean;
+    timed_out: boolean;
+    bitrate_bytes_per_sec: number;
+    rtt_ms: number;
+    rtt_min_ms: number;
+    window: number;
+    in_flight: number;
+    nak_count: number;
+    cc_loss_permille: number;
+    quality_multiplier?: number;
+    base_score?: number;
+    weak?: boolean;
+    weak_reason?: string;
+    stall_gated?: boolean;
+    sole_carrier?: boolean;
 }
 
 /** The network module's status fragment (deep-merged into the device status). */
 export interface NetworkStatus {
-	interfaces: Iface[];
-	selected: Iface[];
-	selection?: ModemConfig;
-	modems?: import("../../../shared/contracts/module_capabilities").Modem[];
-	/** MobLink relays this encoder has learned about (via UDP announce /
-	 * manual config), each with the tunnel interfaces the relay offers. The
-	 * interface list renders these as a grouped section per relay after the
-	 * device's own interfaces (encoder role only). */
-	registeredRelays?: import("../../../shared/contracts/module_capabilities").MoblinkDiscoveredRelay[];
-	uplinksFile?: string;
-	defaultRouteInterface?: string | null;
-	defaultRouteSourceIp?: string | null;
-	monitor?: { running: boolean };
+    interfaces: Iface[];
+    selected: Iface[];
+    selection?: ModemConfig;
+    modems?: import("../../../shared/contracts/module_capabilities").Modem[];
+    /** MobLink relays this encoder has learned about (via UDP announce /
+     * manual config), each with the tunnel interfaces the relay offers. The
+     * interface list renders these as a grouped section per relay after the
+     * device's own interfaces (encoder role only). */
+    registeredRelays?: import("../../../shared/contracts/module_capabilities").MoblinkDiscoveredRelay[];
+    uplinksFile?: string;
+    defaultRouteInterface?: string | null;
+    defaultRouteSourceIp?: string | null;
+    monitor?: { running: boolean };
 }
 
 /**
  * Capability note: the `network.uplinks` contract is the `Uplinks` type
- * (shared/contracts/module_capabilities.ts, re-exported above) — the bonded
+ * (shared/contracts/module_capabilities.ts, re-exported above) - the bonded
  * uplinks file plus a change hook; the consumers (relay, encoder) reload
  * their `srtla_send` (SIGHUP first, restart as fallback) when it fires.
  */

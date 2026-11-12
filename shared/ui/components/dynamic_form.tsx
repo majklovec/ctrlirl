@@ -6,20 +6,21 @@
 export type ControlOption =
 	| { value: string; label: string }
 	| { label: string; options: { value: string; label: string }[] };
+
 /*
- * DynamicForm — a schema-driven form generator.
+ * DynamicForm - a schema-driven form generator.
  *
  * A `FormSchema` is a plain data description of a form (one `FieldSchema` per
  * control, optionally grouped). `DynamicForm` is a *controlled* Mithril
  * component: it takes `value` and emits `onChange(next)`. Nothing in a schema
- * is a display string — every label, help line, placeholder and option label
+ * is a display string - every label, help line, placeholder and option label
  * is a translation KEY resolved through the shared `t` at render time, so a
  * language switch re-renders the form without rebuilding the schema.
  *
  * Placement: `shared/ui/` (not `server/ui/`) because both pages AND dashboard
  * widget modules consume it; `server/ui/` is scoped to pages only. Imports are
  * restricted to `shared/ui/components/form.tsx`, `shared/ui/i18n.tsx`,
- * `shared/ui/util.ts` and Mithril — never `server/` — which `pages_boundaries`
+ * `shared/ui/util.ts` and Mithril - never `server/` - which `pages_boundaries`
  * pins.
  */
 import m from "mithril";
@@ -148,7 +149,7 @@ const warned = new Set<string>();
 /**
  * Resolve a translation key through `t`. A missing key (i18next falls back to
  * the raw key) yields the raw key so the UI never shows an empty label, and it
- * is logged once. User data is NEVER routed through here — only label / help /
+ * is logged once. User data is NEVER routed through here - only label / help /
  * placeholder / option keys.
  */
 export function resolve(
@@ -240,7 +241,7 @@ export interface ControlValue {
 }
 
 /** Build the raw control for one field. The ONLY place the per-type
- * `<input>` / `<select>` markup lives — shared by `DynamicForm` and
+ * `<input>` / `<select>` markup lives - shared by `DynamicForm` and
  * `bindableForm` so the two never drift. */
 export function makeControl(c: ControlValue): m.Vnode {
 	const { type, name, value, write, min, max, step } = c;
@@ -260,8 +261,7 @@ export function makeControl(c: ControlValue): m.Vnode {
 				disabled: c.disabled,
 				placeholder: c.placeholder,
 				value: (value as string) ?? "",
-				oninput: (e: Event) =>
-					write((e.target as HTMLTextAreaElement).value),
+				oninput: (e: Event) => write((e.target as HTMLTextAreaElement).value),
 			});
 		case "number":
 			return m("input", {
@@ -298,8 +298,7 @@ export function makeControl(c: ControlValue): m.Vnode {
 					name,
 					disabled: c.disabled,
 					value: (value as string) ?? "",
-					onchange: (e: Event) =>
-						write((e.target as HTMLSelectElement).value),
+					onchange: (e: Event) => write((e.target as HTMLSelectElement).value),
 				},
 				(c.options ?? []).map((opt) =>
 					"options" in opt
@@ -307,11 +306,7 @@ export function makeControl(c: ControlValue): m.Vnode {
 								"optgroup",
 								{ key: "group:" + opt.label, label: opt.label },
 								opt.options.map((o) =>
-									m(
-										"option",
-										{ key: o.value, value: o.value },
-										o.label,
-									),
+									m("option", { key: o.value, value: o.value }, o.label),
 								),
 							)
 						: m("option", { key: opt.value, value: opt.value }, opt.label),
@@ -323,8 +318,7 @@ export function makeControl(c: ControlValue): m.Vnode {
 				name,
 				disabled: c.disabled,
 				checked: Boolean(value),
-				onchange: (e: Event) =>
-					write((e.target as HTMLInputElement).checked),
+				onchange: (e: Event) => write((e.target as HTMLInputElement).checked),
 			});
 		case "color":
 			return m("input", {
@@ -333,10 +327,9 @@ export function makeControl(c: ControlValue): m.Vnode {
 				disabled: c.disabled,
 				value: (value as string) ?? "#000000",
 				// `oninput`, not `onchange`: a color picker emits `input` while
-				// dragging — matching every element editor, so the preview
+				// dragging - matching every element editor, so the preview
 				// updates live instead of only on palette-commit.
-				oninput: (e: Event) =>
-					write((e.target as HTMLInputElement).value),
+				oninput: (e: Event) => write((e.target as HTMLInputElement).value),
 			});
 		case "iso-datetime":
 			return m("input", {
@@ -351,7 +344,7 @@ export function makeControl(c: ControlValue): m.Vnode {
 }
 
 /** Build the control for a `FieldSchema`, bound to `getState` /
- * `handleChange` — a thin adapter over the shared `makeControl`. */
+ * `handleChange` - a thin adapter over the shared `makeControl`. */
 function controlFor(
 	f: FieldSchema,
 	getState: () => Record<string, unknown>,

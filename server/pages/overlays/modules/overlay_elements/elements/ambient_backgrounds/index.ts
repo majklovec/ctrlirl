@@ -1,9 +1,9 @@
 /**
- * Ambient background catalog — the module's extensibility point.
+ * Ambient background catalog - the module's extensibility point.
  *
  * One class per background (an `AmbientVariant` subclass, see `engine.ts`);
  * registering a new one is a class file + one `new` entry in
- * `AMBIENT_VARIANTS` — the element def, the edit form (its select is built
+ * `AMBIENT_VARIANTS` - the element def, the edit form (its select is built
  * from this list) and the server-side normalization read the ids from here,
  * so nothing else changes.
  *
@@ -16,11 +16,11 @@
 
 import { Aurora } from "./aurora";
 import { Bubbles } from "./bubbles";
-import { Constellation } from "./constellation";
 import { Coalesce } from "./coalesce";
+import { Constellation } from "./constellation";
 import { Embers } from "./embers";
-import { Fireflies } from "./fireflies";
 import { AmbientVariant } from "./engine";
+import { Fireflies } from "./fireflies";
 import { Pipeline } from "./pipeline";
 import { Ripple } from "./ripple";
 import { Shift } from "./shift";
@@ -31,24 +31,24 @@ export { AmbientVariant };
 
 /** The registered backgrounds, in the order they appear in the edit form. */
 export const AMBIENT_VARIANTS: readonly AmbientVariant[] = [
-	new Aurora(),
-	new Bubbles(),
-	new Constellation(),
-	new Coalesce(),
-	new Embers(),
-	new Fireflies(),
-	new Pipeline(),
-	new Ripple(),
-	new Shift(),
-	new Swirl(),
+    new Aurora(),
+    new Bubbles(),
+    new Constellation(),
+    new Coalesce(),
+    new Embers(),
+    new Fireflies(),
+    new Pipeline(),
+    new Ripple(),
+    new Shift(),
+    new Swirl(),
 ];
 
-/** Variant ids, for `normalizeProps` (oneOf) — never duplicated by hand. */
+/** Variant ids, for `normalizeProps` (oneOf) - never duplicated by hand. */
 export const AMBIENT_VARIANT_IDS: readonly string[] = AMBIENT_VARIANTS.map(
-	(v) => v.id,
+    (v) => v.id,
 );
 
 /** Resolve a stored variant id to its definition (undefined when unknown). */
 export function ambientVariant(id: string): AmbientVariant | undefined {
-	return AMBIENT_VARIANTS.find((v) => v.id === id);
+    return AMBIENT_VARIANTS.find((v) => v.id === id);
 }

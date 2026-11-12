@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Frame widget — a decorative border around whatever it is placed over
+ * Frame widget - a decorative border around whatever it is placed over
  * (typically a camera): a colored edge with an optional corner label. The
  * element is transparent in the middle; the "background" prop only fills the
  * padding ring when set ("" = fully transparent centre).
@@ -67,7 +67,10 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 				border: `${borderWidth}px ${borderStyle} ${border}`,
 				borderRadius: `${cornerRadius}px`,
 				background: background || "transparent",
-				padding: Math.max(0, Math.round(Math.min(borderWidth * 2.5, 40)) - borderWidth),
+				padding: Math.max(
+					0,
+					Math.round(Math.min(borderWidth * 2.5, 40)) - borderWidth,
+				),
 			}}
 		>
 			{label ? (
@@ -93,7 +96,12 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	return bindableForm({
 		element: e,
 		mutate,
@@ -203,7 +211,7 @@ export const frameElement: OverlayElementDef & OverlayElementSchema = {
 				d.borderStyle,
 			),
 			cornerRadius: read.num("cornerRadius", d.cornerRadius, 0, 1000),
-			// background is "" (transparent) by design, not a stored hex —
+			// background is "" (transparent) by design, not a stored hex -
 			// normalize it as a string.
 			background:
 				typeof _p.background === "string" && _p.background !== ""

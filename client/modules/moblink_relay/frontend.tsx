@@ -46,7 +46,7 @@ const moblinkRelayIcon = () => (
 
 /**
  * The uplink mark (protocol.md §1: every relayed interface is an uplink,
- * marked in the UI). Colored by state — up = available path, down = path
+ * marked in the UI). Colored by state - up = available path, down = path
  * lost (the port mapping is kept).
  */
 const uplinkIcon = (state: "up" | "down") => (
@@ -125,7 +125,7 @@ function moblinkCardBody(host: DeviceCard): m.Children {
 				{s.availableInterfaces.map((i) => (
 					<tr key={i.name}>
 						<td>{i.name}</td>
-						<td>{i.address || "—"}</td>
+						<td>{i.address || "-"}</td>
 						<td>{i.listenPort}</td>
 						<td className="num">
 							{i.rxBytesPerSec !== undefined ||
@@ -133,17 +133,14 @@ function moblinkCardBody(host: DeviceCard): m.Children {
 								<span
 									title={`↑ ${formatBitrate(
 										i.txBytesPerSec ?? 0,
-									)} · ↓ ${formatBitrate(
-										i.rxBytesPerSec ?? 0,
-									)}`}
+									)} · ↓ ${formatBitrate(i.rxBytesPerSec ?? 0)}`}
 								>
 									{formatBitrate(
-										(i.rxBytesPerSec ?? 0) +
-											(i.txBytesPerSec ?? 0),
+										(i.rxBytesPerSec ?? 0) + (i.txBytesPerSec ?? 0),
 									)}
 								</span>
 							) : (
-								"—"
+								"-"
 							)}
 						</td>
 						<td>{uplinkIcon(i.state)}</td>
@@ -162,12 +159,12 @@ function moblinkCardBody(host: DeviceCard): m.Children {
 				</p>
 			))}
 			<p class="muted">{t("dev.moblink.help_hosts")}</p>
-			{/* The advertised IP is auto-detected by the relay — show it,
+			{/* The advertised IP is auto-detected by the relay - show it,
 			 * don't let the operator type into it (settings page still
 			 * overrides it for NATted / multi-homed relays). */}
 			<p class="announce-host">
 				<span class="muted">{t("dev.moblink.announce_host")}</span>{" "}
-				<strong>{s.announceHost || "—"}</strong>
+				<strong>{s.announceHost || "-"}</strong>
 			</p>
 			{/* How recently we announced ourselves on each path (mDNS / UDP /
 			 * WS control channel). A live path keeps a fresh timestamp. */}
@@ -187,7 +184,7 @@ function moblinkCardBody(host: DeviceCard): m.Children {
 			</p>
 			{/* The encoders this relay reached (discovery + live WS state). A
 			 * green dot = the control-channel WebSocket to that encoder is
-			 * open (protocol.md §3) — the relay is talking to the encoder. */}
+			 * open (protocol.md §3) - the relay is talking to the encoder. */}
 			{(() => {
 				const encs = s.encoders ?? [];
 				if (encs.length === 0) return null;

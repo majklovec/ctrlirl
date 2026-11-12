@@ -1,5 +1,5 @@
 /*
- * `aurora` — rays rising from the middle band through a noise field.
+ * `aurora` - rays rising from the middle band through a noise field.
  * Port of `aurora.js` from crnacura/AmbientCanvasBackgrounds (CC BY-SA).
  */
 

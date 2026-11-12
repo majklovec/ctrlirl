@@ -1,6 +1,6 @@
 /** @jsx m */
 /*
- * Credits widget — a scrolling end-credits list (name + role lines under a
+ * Credits widget - a scrolling end-credits list (name + role lines under a
  * title) for stream endings. The scroll is a CSS animation (smooth on the
  * OBS CEF capture, zero per-frame JS): the keyframe `ovCreditsScroll` is
  * declared in overlay.css (runtime) and overlay_editor.css (editor); the
@@ -20,8 +20,8 @@ import { numProp, strProp } from "@ui/overlay/element";
 import { bindableForm } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import { ListField } from "../lib/list_field";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
+import { ListField } from "../lib/list_field";
 import { textRows } from "./schema_utils";
 
 /* ── credits ──────────────────────────────────────────────────────────── */
@@ -50,10 +50,7 @@ export const DEFAULT_CREDITS_PROPS: Required<CreditsProps> = {
 	fontFamily: "Inter, system-ui, sans-serif",
 };
 
-function draw(
-	element: OverlayElement,
-	ctx: ElementContext,
-): Vnode {
+function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	const p = element.props;
 	const title = strProp(p, "title", "With special thanks to");
 	const speed = numProp(p, "speed", 1);
@@ -95,27 +92,39 @@ function draw(
 			},
 			title,
 		),
-		...entries.map(
-			(e, i) =>
-				m(
-					"div",
-					{
-						key: i,
-						style: {
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-							gap: `${Math.round(fontSize * 0.1)}px`,
-							padding: `${Math.round(fontSize * 0.4)}px 0`,
-						},
+		...entries.map((e, i) =>
+			m(
+				"div",
+				{
+					key: i,
+					style: {
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+						gap: `${Math.round(fontSize * 0.1)}px`,
+						padding: `${Math.round(fontSize * 0.4)}px 0`,
 					},
-					[
-						m("div", { style: { fontSize: `${fontSize}px`, fontWeight: "600" } }, e.name),
-						e.role
-							? m("div", { style: { fontSize: `${Math.round(fontSize * 0.6)}px`, opacity: "0.75" } }, e.role)
-							: null,
-					],
-				),
+				},
+				[
+					m(
+						"div",
+						{ style: { fontSize: `${fontSize}px`, fontWeight: "600" } },
+						e.name,
+					),
+					e.role
+						? m(
+								"div",
+								{
+									style: {
+										fontSize: `${Math.round(fontSize * 0.6)}px`,
+										opacity: "0.75",
+									},
+								},
+								e.role,
+							)
+						: null,
+				],
+			),
 		),
 	];
 
@@ -139,7 +148,7 @@ function draw(
 								animation: `ovCreditsScroll ${durationSec.toFixed(2)}s linear ${
 									loop ? "infinite" : "1 forwards"
 								}`,
-						  }
+							}
 						: undefined
 				}
 			>
@@ -149,7 +158,12 @@ function draw(
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	return bindableForm({
 		element: e,
 		mutate,

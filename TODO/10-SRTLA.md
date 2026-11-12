@@ -1,4 +1,4 @@
-# Handoff Document: `irlctrl` — SRTLA-Everywhere Migration
+# Handoff Document: `irlctrl` - SRTLA-Everywhere Migration
 
 **Repo:** `https://github.com/majklovec/irlctrl`
 **Scope:** Rewire encoder→relay transport from SRT to SRTLA, make relay a full SRTLA→SRTLA bridge, delete the `combined` role.
@@ -13,7 +13,7 @@
 | #   | Question                                          | Decision                                                          |
 | --- | ------------------------------------------------- | ----------------------------------------------------------------- |
 | 1   | Relay topology                                    | **Full bridge:** `srtla_rec → local SRT → srtla_send`             |
-| 2   | Backward compatibility (plain SRT input on relay) | **None.** Hard cutover — relay no longer accepts plain SRT input. |
+| 2   | Backward compatibility (plain SRT input on relay) | **None.** Hard cutover - relay no longer accepts plain SRT input. |
 | 3   | `combined` role                                   | **Hard delete.** No alias, no deprecation shim, no stub.          |
 | 4   | Encoder→relay SRTLA port                          | **UDP 6000** (default, configurable)                              |
 | 5   | Other roles ("and others")                        | **Untouched.** Only `encoder`, `relay`, and removing `combined`.  |
@@ -36,7 +36,7 @@ combined: encode ──SRT──► (built-in relay) ──SRTLA──►       
 ```
 encoder:  encode ──SRTLA (UDP 6000)──►  relay
 relay:    srtla_rec(6000) ──SRT loopback:5000──► srtla_send ──SRTLA──►  destination
-combined: (removed — its outbound SRTLA path lives inside encoder)
+combined: (removed - its outbound SRTLA path lives inside encoder)
 ```
 
 Key rules:
@@ -51,7 +51,7 @@ Key rules:
 
 ### 2.1 Encoder role
 
-1. **Port the SRTLA-send path from `combined`** into `encoder` — the helper function, the config parsing, the uplink/bond list handling, and the process spawning. Copy behavior exactly; do not rewrite.
+1. **Port the SRTLA-send path from `combined`** into `encoder` - the helper function, the config parsing, the uplink/bond list handling, and the process spawning. Copy behavior exactly; do not rewrite.
 2. **Destination config:** encoder's output must target either:
 
     - **the relay** (default: `<relay-host>:6000`), or
@@ -68,7 +68,7 @@ Key rules:
 1. **Input side:** replace the existing SRT listener with **`srtla_rec`**:
     - Listen on UDP **6000** by default (`SRTLA_LISTEN_PORT`, default `6000`).
     - `srtla_rec` outputs a single SRT stream to `127.0.0.1:<SRT_INTERNAL_PORT>` (default **5000**, configurable via `SRT_INTERNAL_PORT`).
-    - The internal SRT port binds to **loopback only** — do not expose it in Dockerfile `EXPOSE`, compose `ports:`, or any k8s/helm manifest.
+    - The internal SRT port binds to **loopback only** - do not expose it in Dockerfile `EXPOSE`, compose `ports:`, or any k8s/helm manifest.
 2. **Bridge:** feed that internal SRT stream directly into the existing `srtla_send` outbound path. **Do not modify the outbound code.**
 3. **Image:** add `srtla_rec` binary to the relay image. Verify multi-arch availability (see §3).
 4. **Remove** the plain SRT listener. **No dual-listener, no fallback** (decision #2).
@@ -79,7 +79,7 @@ Key rules:
     - New: `SRT_INTERNAL_PORT=9000`
     - Keep `srtla_send` destination keys unchanged.
 
-### 2.3 Combined role — delete
+### 2.3 Combined role - delete
 
 -   Delete the role directory / subcommand / CLI entry / Dockerfile / compose service / Makefile target / README section / CI matrix entry / tests.
 -   Grep the whole repo for `combined` (case-insensitive). Remove **every** reference.
@@ -95,17 +95,17 @@ Key rules:
 
 ### 2.5 Config, docs, ops
 
--   **`README.md`** — update the architecture diagram, the role table, and remove the `combined` section. Add a "Migrating from `combined`" note pointing users to `encoder`.
--   **`docker-compose.yml`** —
+-   **`README.md`** - update the architecture diagram, the role table, and remove the `combined` section. Add a "Migrating from `combined`" note pointing users to `encoder`.
+-   **`docker-compose.yml`** -
     -   Delete the `combined` service.
     -   Set encoder's default destination to `relay:6000`.
     -   Expose UDP 6000 on relay: `ports: ["6000:6000/udp"]`.
     -   Ensure the internal SRT port (5000) is **not** published.
     -   Update `depends_on` if any service depended on `combined`.
--   **`.env.example`** — replace SRT URL vars on encoder output / relay input with `srtla_send`'s `ip port` format. Document `SRTLA_LISTEN_PORT=6000` and `SRT_INTERNAL_PORT=9000`.
--   **`Makefile`** — update or delete any `combined` targets. Add encoder and relay builds that now include the new binaries.
--   **Helm / k8s / Terraform (if present)** — same treatment: remove `combined`, expose UDP 6000 on relay, do not expose internal SRT port.
--   **`CHANGELOG.md`** — new entry:
+-   **`.env.example`** - replace SRT URL vars on encoder output / relay input with `srtla_send`'s `ip port` format. Document `SRTLA_LISTEN_PORT=6000` and `SRT_INTERNAL_PORT=9000`.
+-   **`Makefile`** - update or delete any `combined` targets. Add encoder and relay builds that now include the new binaries.
+-   **Helm / k8s / Terraform (if present)** - same treatment: remove `combined`, expose UDP 6000 on relay, do not expose internal SRT port.
+-   **`CHANGELOG.md`** - new entry:
 
     ```
     ### Removed
@@ -133,7 +133,7 @@ Key rules:
 -   **SRTLA config format.** `srtla_send` does **not** take an `srt://` URL. It takes plain `ip port` lines. Confirm the exact format `combined` used and copy it.
 -   **Two SRTLA pairs.** After this change there are two SRTLA pairs in the pipeline (encoder→relay and relay→destination). Keep their **ports distinct**. Relay listens on 6000; its outbound destination port is user-configured and must not be 6000.
 -   **Internal SRT port exposure.** It must be loopback-only. Check Dockerfile `EXPOSE`, compose `ports:`, and any k8s Service. A leaked internal SRT port is a security and correctness problem (clients could accidentally connect to the bridge mid-hop).
--   **`srtla_rec` architecture.** Verify `srtla_rec` builds for the repo's target arch (arm64 is common for this project). If not, that's a blocker — raise it before proceeding.
+-   **`srtla_rec` architecture.** Verify `srtla_rec` builds for the repo's target arch (arm64 is common for this project). If not, that's a blocker - raise it before proceeding.
 -   **MTU / packet size.** SRTLA pads packets. Verify no fragmentation on the encoder→relay hop, especially on cellular. Test with a realistic MTU (e.g. 1500, and 1400 for mobile).
 -   **Added latency on relay.** `srtla_rec → SRT → srtla_send` adds a re-send hop. Measure. Target: no worse than old `combined` latency. If it regresses materially, report before merging.
 -   **Existing deployments.** Users on `combined` will break. The `CHANGELOG` migration note is mandatory. The equivalent of `combined` is: run `encoder` and point it at the relay (default) or at the destination.
@@ -147,7 +147,7 @@ Key rules:
 -   [ ] Relay: `srtla_rec` on UDP 6000 → SRT on loopback:5000 → `srtla_send` → destination.
 -   [ ] Relay internal SRT port not exposed in Dockerfile, compose, or k8s manifests.
 -   [ ] No plain-SRT listener remains on relay (no fallback).
--   [ ] `combined` fully deleted — single permitted grep hit is the `CHANGELOG` migration note.
+-   [ ] `combined` fully deleted - single permitted grep hit is the `CHANGELOG` migration note.
 -   [ ] No other role modified.
 -   [ ] README, `docker-compose.yml`, `.env.example`, `Makefile`, CI matrix updated.
 -   [ ] Encoder image includes `srtla_send`; relay image includes `srtla_rec`.
@@ -174,9 +174,9 @@ Do it in this order so **no commit loses the working `combined` reference** unti
 
 ## 6. Files likely to touch (verify against real repo)
 
--   `roles/encoder/**` — pipeline, entrypoint, Dockerfile
--   `roles/relay/**` — receiver, sender, entrypoint, Dockerfile
--   `roles/combined/**` — **delete**
+-   `roles/encoder/**` - pipeline, entrypoint, Dockerfile
+-   `roles/relay/**` - receiver, sender, entrypoint, Dockerfile
+-   `roles/combined/**` - **delete**
 -   `docker-compose.yml`
 -   `.env.example`
 -   `README.md`
@@ -203,12 +203,12 @@ To avoid the next agent needing to re-derive config, the following must be **fix
 | Var | Default | Meaning |
 | ------------------------ | ----------------- | ------------------------------------------------------------------------ |
 | `SRTLA_LISTEN_PORT` | `6000` | UDP port `srtla_rec` binds to |
-| `SRT_INTERNAL_PORT` | `9000` | Loopback SRT port between `srtla_rec` and `srtla_send` — **not exposed** |
+| `SRT_INTERNAL_PORT` | `9000` | Loopback SRT port between `srtla_rec` and `srtla_send` - **not exposed** |
 | `RELAY_DESTINATION_HOST` | (repo's existing) | Final SRTLA destination host |
 | `RELAY_DESTINATION_PORT` | (repo's existing) | Final SRTLA destination UDP port |
 | `RELAY_UPLINKS` | (repo's existing) | Bonded uplink list for `srtla_send` |
 
-If the repo already uses different var names, keep the existing names and update this table — do not rename config keys just because this doc suggests names.
+If the repo already uses different var names, keep the existing names and update this table - do not rename config keys just because this doc suggests names.
 
 ---
 
@@ -221,4 +221,4 @@ Stop and ping the maintainer **before** merging if any of the following is true:
 -   `combined` turns out to share code with another role in a way that makes deletion non-trivial (i.e. deleting `combined` would break a role that is not supposed to change).
 -   Any role other than `encoder`, `relay`, or `combined` would need a modification to keep CI green.
 
-Everything else is within the agent's discretion — prefer the simplest change that satisfies §4.
+Everything else is within the agent's discretion - prefer the simplest change that satisfies §4.

@@ -1,8 +1,8 @@
 /** @jsx m */
 /*
- * Counter widget — up to four big number tiles (wins/losses, streaks, money
+ * Counter widget - up to four big number tiles (wins/losses, streaks, money
  * counters…). The tiles' labels are a row table; their values live in ONE
- * bindable scalar, `values` — a comma-separated list, one entry per counter
+ * bindable scalar, `values` - a comma-separated list, one entry per counter
  * ("10,5,0,0"). Bind it to a project variable and every tile tracks it live.
  */
 
@@ -25,7 +25,7 @@ import { cleanNum, textRows } from "./schema_utils";
 /* ── counter ──────────────────────────────────────────────────────────── */
 export interface CounterProps {
 	title: string;
-	/** Up to four counters; each is a label — its value comes from `values`. */
+	/** Up to four counters; each is a label - its value comes from `values`. */
 	counters: Array<{ label: string }>;
 	/** The counters' values in order, comma-separated (one per counter). */
 	values: string;
@@ -61,7 +61,7 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 	const fontSize = numProp(p, "fontSize", 26);
 	const fontFamily = strProp(p, "fontFamily", "Inter, system-ui, sans-serif");
 	const rawCounters = Array.isArray(p.counters) ? p.counters : [];
-	// `values` is ONE comma-separated list — the i-th counter takes the
+	// `values` is ONE comma-separated list - the i-th counter takes the
 	// i-th entry (0 when the list is shorter); extras are ignored.
 	const values = strProp(p, "values", "")
 		.split(",")
@@ -160,7 +160,12 @@ function draw(element: OverlayElement, _ctx: ElementContext): Vnode {
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const p = e.props;
 	return bindableForm({
 		element: e,
@@ -176,7 +181,7 @@ function editForm({ element: e, mutate, variables, variableUrl }: ElementProps):
 					value: strProp(p, "title", ""),
 				},
 			],
-			// The counters row table is a bespoke composite control — kept verbatim.
+			// The counters row table is a bespoke composite control - kept verbatim.
 			<ListField
 				element={e}
 				mutate={mutate}

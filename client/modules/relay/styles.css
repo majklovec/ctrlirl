@@ -1,4 +1,4 @@
-/* Relay (SRTLA bridge) module — the card composes the shared core components
+/* Relay (SRTLA bridge) module - the card composes the shared core components
  * (Card, form, fieldGroup…) so its look comes from shared/css/style.css; the
  * .mod-relay class on the card root exists for future scoping.
  *
