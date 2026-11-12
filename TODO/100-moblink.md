@@ -103,9 +103,16 @@ Two primitives for tunnelling UDP across a network hop:
 | Primitive                  | Side      | What it does                                                                                                                                                                         |
 | -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `createVirtualInterface()` | Encoder   | Creates a Linux **TUN** device. Reads IP/UDP packets from the TUN, strips headers, sends the UDP payloads to the relay via a UDP socket. Rebuilds IP/UDP headers for return traffic. |
-| `createUdpRelay()`         | Relay box | Binds a UDP socket to a **specific interface IP**, forwards received UDP payloads to a configured destination, forwards responses back to the sender.                                |
+| `createUdpRelay()`         | Relay box | Binds **one** UDP socket to `0.0.0.0:port` **plus one TUN** per leg; strips the frame header and hands the raw IPv4 packet to the **kernel**, which does routing + NAT (conntrack MASQUERADE) out the uplink. See `NAT.md`.                              |
 
-Together: encoder's TUN ↔ encoder's UDP socket ↔ wire ↔ relay's UDP socket ↔ relay's physical interface.
+Together: encoder's TUN ↔ encoder's UDP socket ↔ wire ↔ relay's UDP socket ↔ relay's TUN ↔ kernel (routing + NAT) ↔ uplink NIC.
+
+> **Superseded:** the relay side shipped as **single-socket + kernel NAT**
+> (one UDP socket + one TUN per leg; NAT via conntrack keyed on the learned
+> encoder vif), not the "two sockets forwarding to a shared `srtla_rec`" the
+> original draft below describes. See `optimize-udp-relay.md` and the library
+> `NAT.md`/`DECISIONS.md`. The `srtla_rec` is the *destination address* on the
+> uplink, reached via the kernel — not a socket the library forwards to.
 
 The library is **protocol-agnostic** (moves payloads, no SRTLA), **auth-agnostic** (no handshake, no password - module handles auth separately), **discovery-agnostic** (caller supplies endpoints).
 
@@ -121,7 +128,8 @@ shared/lib/udp-relay/
 │   ├── protocol.ts              # wire framing (encode/decode)
 │   ├── ip.ts                    # IPv4/UDP header parse & build
 │   ├── tun-linux.ts             # TUN open/close/read/write
-│   ├── relay.ts                 # createUdpRelay
+│   ├── nat_rules.ts             # leg netplan (kernel routing + NAT) - see NAT.md
+│   ├── relay.ts                 # createUdpRelay (one socket + one TUN)
 │   ├── virtual-interface.ts     # createVirtualInterface
 │   └── stats.ts                 # counters
 └── test/
@@ -239,16 +247,24 @@ Only for the library's own tests; production callers use the `network` module's 
 
 UDP datagrams between the two sides. Big-endian. Two message types.
 
-**Data frame (type `0x01`):**
+**Data frame (type `0x01`)** — a transparent L3 carrier for the *full* IPv4
+packet, tagged with the encoder's vif /32:
 
 ```
-+------+-------+---------------+-----------------------------+
-| 0x01 | flags | reserved (2B) | udp_payload (variable)      |
-+------+-------+---------------+-----------------------------+
++-------+-------+------------+--------+--------------------------------+
+| 0x01  | flags | reserved   | vifIp  | ip_packet (variable)           |
+| 1B    | 1B    | 2B         | 4B     | N                             |
++-------+-------+------------+--------+--------------------------------+
 ```
+
+(`DATA_HEADER_LEN = 8`.)
 
 -   `flags`/`reserved` MUST be 0 on send, MUST be ignored on receive.
--   No IPs or ports in the frame - flow state is out-of-band (§4.6, §4.7).
+-   `vifIp` is the encoder's dedicated vif /32 (e.g. `10.{90+x}.{y}.1`) the packet
+    belongs to — the relay keys its egress and the backend's NAT on it.
+-   No *destination* IP/port in the frame — the address space is end-to-end
+    between the encoder's SRTLA bond and the destination; flow state is
+    out-of-band (§4.6, §4.7).
 
 **Keepalive frame (type `0x02`):**
 
@@ -290,24 +306,26 @@ Each `read(fd, buf)` returns one complete IPv4 packet.
 
 **Non-blocking read:** `read(2)` must not block Bun's event loop. Use a worker thread, `Bun.file(fd).stream()`, or `O_NONBLOCK` + poll. Document the chosen approach in `tun-linux.ts`.
 
-### 4.7 Relay side - two sockets, two directions
+### 4.7 Relay side - one socket + one TUN, kernel is the bridge
 
-The relay does **not** create a TUN. It forwards raw UDP payloads.
+**(Re-architected — this section's "two sockets, no TUN" draft is superseded.)**
+The relay **does** create a TUN: one UDP listener (`0.0.0.0:listenPort`) and one
+TUN per leg. It strips the frame header and writes the raw IPv4 packet to the
+TUN; the kernel does routing + NAT (see `shared/lib/udp_relay/NAT.md`).
 
-1. Resolve `interfaceName → IPv4` via `os.networkInterfaces()`. Allow explicit `interfaceAddress` override.
-2. **`encoderSocket`** = `Bun.udpSocket({ hostname: interfaceAddress, port: listenPort })` - receives from encoder, sends responses back.
-3. **`outboundSocket`** = `Bun.udpSocket({ hostname: interfaceAddress, port: 0 })` - sends to `srtla_rec`, receives responses.
-4. **Never bind to `0.0.0.0`.** That is the #1 bug - packets leak out the wrong interface.
+1. **Single listener** = `Bun.udpSocket({ hostname: "0.0.0.0", port: listenPort, reusePort: true })` — binding `0.0.0.0` (not a specific uplink IP) is what makes the relay NIC-agnostic.
+2. **One TUN** per leg (`relay<slot>_<uplink>`), the vif /32.
+3. **Kernel side** (backend-provisioned, `nat_rules.ts`): the leg egress table
+   (`default via <gw> dev <uplink>`), the `ip rule iif <tun>` pin, FORWARD
+   accepts, and — keyed on the **learned encoder vif** — the `to <vif>/32 dev <tun>`
+   reply route + MASQUERADE.
 
-**Encoder → destination:**
+**Encoder → uplink:** data frame in → strip 8-byte header → `tun.write(ipPacket)`.
+**Uplink → encoder:** TUN packet (reply to the vif) → reframe → `listener.send(frame, encoderEndpoint)`.
+**Vif learning:** `onEncoderVifLearned(vifIp)` fires once per distinct vif so the backend installs the vif-specific NAT + reply route.
 
--   On data: decode frame, remember `encoderAddr = remote`, `outboundSocket.send(payload, destination.host, destination.port)`. Counters.
-
-**Destination → encoder:**
-
--   On data: reject if `remote.host !== destination.host` (defence). Reject if `encoderAddr === null`. Encode frame, `encoderSocket.send(frame, encoderAddr.host, encoderAddr.port)`. Counters.
-
-**Hotplug:** the library does **not** watch interfaces. The caller (module) restarts the relay when an interface's IP changes.
+**Hotplug:** the library does **not** watch interfaces. The caller (module)
+restarts the leg when an interface's IP changes.
 
 ### 4.8 `buildUdpIpPacket(opts)` - `ip.ts`
 
@@ -333,7 +351,7 @@ Construct a full IPv4/UDP packet from scratch:
 
 ### 5.1 Purpose
 
-A new role available alongside `relay | encoder | obs | broadcaster`. Runs on a multi-uplink box. It enumerates eligible interfaces, and for each starts a `createUdpRelay()` from `@irlctrl/udp-relay`, forwarding to a shared remote `srtla_rec`.
+A new role available alongside `relay | encoder | obs | broadcaster`. Runs on a multi-uplink box. It enumerates eligible interfaces, and for each opens a leg TUN, provisions the kernel routing/NAT (`nat_rules.ts`), and starts a `createUdpRelay()` from `@irlctrl/udp-relay` (one socket + one TUN; the kernel reaches the destination `srtla_rec` on the uplink).
 
 ### 5.2 Module layout
 
@@ -510,7 +528,9 @@ If you find yourself adding auth, discovery, WebSocket, or Moblink messages to `
 
 ### 8.1 Wire protocol (`@irlctrl/udp-relay`)
 
-See §4.4. Two frame types (`0x01` data, `0x02` keepalive), 4-byte header. No auth, no encryption. **This is the only protocol in scope.**
+See §4.4. Two frame types (`0x01` data, `0x02` keepalive), 8-byte data-frame
+header (type + flags + reserved + vifIp). No auth, no encryption. **This is the
+only protocol in scope.**
 
 ### 8.2 Moblink WebSocket protocol
 
