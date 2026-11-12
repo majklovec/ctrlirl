@@ -515,6 +515,9 @@ export function announcePayload(): MoblinkAnnounce | null {
 		interfaces: ifaces.map((i) => ({
 			name: i.name,
 			address: perIfaceAddress ? i.address || host : host,
+			// The vif /32 this leg bridges (the encoder source the relay NATs
+			// to the uplink). Only present while the leg is running.
+			vif_ip: relayLegs.get(i.name)?.vifIp,
 			listenPort: i.listenPort,
 			// Down paths stay advertised (port kept) so the encoder keeps the
 			// mapping and reuses it when the path returns (protocol.md §1/§5).

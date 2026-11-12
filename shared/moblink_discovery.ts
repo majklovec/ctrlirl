@@ -65,6 +65,11 @@ export interface MoblinkSharedEndpoint {
 	 * (the advertise IP override if set, else the auto-detected LAN address) —
 	 * not necessarily the IP of the interface the relay binds to. */
 	address: string;
+	/** The virtual-interface /32 this leg bridges (the encoder source IP the
+	 * relay NATs to the uplink's source in its conntrack table). Present when
+	 * the leg is running; the encoder uses it to know which source to send
+	 * framed packets as. */
+	vif_ip?: string;
 	/** The UDP relay port for this interface. */
 	listenPort: number;
 	/** Path state (protocol.md §4/§5): `down` = the encoder must stop using
