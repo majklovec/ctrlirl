@@ -316,11 +316,21 @@ this.destPort = options.destinationPort;
 
 Do not do `parseIp()` per packet.
 
-### Step 9 - Optional: SO_REUSEPORT + workers
+### Step 9 - Optional: SO_REUSEPORT + workers  — **SKIPPED (measured)**
 
 Implement `workers > 1` by spawning child processes with `Bun.spawn`, passing config via env. Each child runs the same `UdpRelay` with `workers: 1` and `reusePort: true`. Parent forwards SIGTERM/SIGINT to children. Add a `ParentProxyStats` that aggregates counters via a periodic IPC message (once per second, not per packet).
 
 **Skip this step entirely if `bun test` and the bench show you're already under target CPU at 10k pps.** Do not add complexity without demonstrated benefit.
+
+> **Decision: skipped.** Measured 2026-11-12 on the bigcml host, pacing the relay to
+> a 10k pps target (in-process producer, real loopback listener + mock TUN): **~0.04
+> of one core** (≈ 4 %) at the 10k pps load point — far under the 25 %-of-one-core
+> target (§10). The single-socket event-loop forward path is not CPU-bound at this
+> scale, so `Bun.spawn` + IPC `ParentProxyStats` + SIGTERM forwarding would add
+> complexity with no demonstrated benefit. If a single leg ever sustains a
+> multi-core forward load (≫ 100k pps on one core), revisit with a measured
+> `workers > 1` bench. `UdpRelayOptions.workers` is intentionally not in the shipped
+> API.
 
 ### Step 10 - Metrics
 

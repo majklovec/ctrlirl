@@ -82,10 +82,13 @@ user-space NAT map, no per-packet `onStats`, no root for the data path).
    the number of encoders on the leg (not a per-5-tuple set). See `DECISIONS.md` D6.
 4. **Removed `natPacketSource`/`natPacketDestination`** (and their tests) as dead
    code after the kernel took over NAT — the plan's "prefer deleting code" rule.
-5. **`SO_REUSEPORT` + workers (plan Step 9) not implemented.** The single-socket
-   design is already at the throughput ceiling for this use case on one core;
-   multi-worker adds complexity with no demonstrated need. `UdpRelayOptions.workers`
-   is not part of the shipped API.
+5. **`SO_REUSEPORT` + workers (plan Step 9) not implemented — skipped per its own
+   criterion, now measured.** Pacing the relay to a 10k pps target in-process
+   (real loopback listener + mock TUN) uses **~0.04 of one core (≈ 4 %)**, far under
+   the 25 %-of-one-core gate. `Bun.spawn` + IPC `ParentProxyStats` + SIGTERM
+   forwarding would add complexity with no demonstrated benefit at this scale;
+   revisit only if a single leg sustains a multi-core forward load. `UdpRelayOptions.workers`
+   is intentionally not in the shipped API.
 6. **`legacyRawSocket` feature flag (Risks §12) not added** — the encoder never
    relied on raw-socket behavior; the encoder side is `createVirtualInterface`
    (TUN + UDP), unchanged.
