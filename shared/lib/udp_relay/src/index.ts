@@ -90,4 +90,5 @@ export type {
     InterfaceInfo,
     RelayStats,
     VifStats,
+    CommandRunner,
 } from "./types";

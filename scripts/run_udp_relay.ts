@@ -2,89 +2,97 @@
 /**
  * Persistent UDP relay runner (`@irlctrl/udp-relay`) for the relay box.
  *
- * Bridges the encoder's virtual interface (TUN, e.g. 10.3.3.5/24) to one or
- * more physical uplink interfaces, egressing out each of them with SNAT
- * (NAT mode) so a remote SRTLA ingress can route replies back through the
- * tether / LAN:
+ * Single-socket, kernel-NAT design (see TODO/optimize-udp-relay.md): ONE UDP
+ * listener on 0.0.0.0 + one bare-L3 TUN per uplink leg. The kernel does the
+ * NAT per leg (leg routing table + iif rule + MASQUERADE + FORWARD), so replies
+ * leave each uplink with that uplink's source IP — no user-space NAT, no
+ * source-routing pin (the b6db3 fix).
  *
- *   rpi4 TUN (10.3.3.5) ──UDP:4010──▶ leg A: enx7eafd60ad1a2 (mobile, :4010)
- *   rpi4 TUN (10.3.3.5) ──UDP:4000──▶ leg B: eth0 (LAN, :4000)
+ * The encoder's TUN (vif /32) dials each leg on (vifIp, listenPort); the kernel
+ * forwards vif traffic out the leg's uplink. `LEG_A vif 10.3.3.2 :4010`
+ * egresses enx7eafd60ad1a2, `LEG_B vif 10.3.3.3 :4000` egresses eth0.
  *
- * Every leg listens on its own interface IP:port and forwards to the same
- * destination (the SRTLA ingress). The encoder dials each leg with the
- * (interfaceAddress, listenPort) pair; `srtla_ips.txt` on the encoder lists
- * them.
- *
- * Usage (root — raw sockets + SO_BINDTODEVICE):
- *   sudo SRT_DST=83.208.44.38 SRT_PORT=5000 bun scripts/run_udp_relay.ts
+ * Usage (root — TUN + iptables):
+ *   sudo bun scripts/run_udp_relay.ts
  *
  * Env:
- *   SRT_DST    destination host (default 83.208.44.38)
- *   SRT_PORT   destination port (default 5000)
- *   LEGS       comma list of iface:port (default "enx7eafd60ad1a2:4010,eth0:4000")
+ *   LEGS  comma list of iface:port (default "enx7eafd60ad1a2:4010,eth0:4000")
+ *   VIF_BASE  /24 the per-leg vif /32s come from (default 10.3.3.0)
  */
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
-import { createUdpRelay, resolveInterfaceAddress } from "../shared/lib/udp_relay/src/index";
+import {
+    applyLegPlan,
+    createUdpRelay,
+    relayTunName,
+    type CommandRunner,
+} from "../shared/lib/udp_relay/src/index";
 
-const SRT_DST = process.env.SRT_DST ?? "83.208.44.38";
-const SRT_PORT = Number(process.env.SRT_PORT ?? "5000");
-// Each leg: iface:port. Port = the UDP port the vif (encoder TUN) dials, which
-// for the SRTLA leg equals the ingress port (5000) so srtla_send's plain-IP
-// uplinks work unchanged.
 const LEGS = (process.env.LEGS ?? "enx7eafd60ad1a2:4010,eth0:4000")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-const VIF_IP = process.env.VIF_IP ?? "10.3.3.1";
+// Per-leg vif /32s from a /24 base: leg 0 → <base>.2, leg 1 → <base>.3, …
+const VIF_BASE = process.env.VIF_BASE ?? "10.3.3.0";
 
-/** Relay-leg owner duty: install the vif /32 route via this leg's NIC so the
- * relay's own reply/egress path resolves (the relay lib stays transport-only). */
-function handleVifLearned(iface: string, vifIp: string) {
+/** Root command runner (this script is invoked under sudo). */
+const rootRun: CommandRunner = async (cmd, ...args) => {
     try {
-        execFileSync("/usr/sbin/ip", ["route", "replace", `${vifIp}/32`, "dev", iface]);
-        console.log(`[relay ${iface}] route ${vifIp}/32 dev ${iface} installed`);
+        const stdout = execFileSync(cmd, args, { encoding: "utf8" });
+        return { stdout, exitCode: 0 };
     } catch (e) {
-        console.error(`[relay ${iface}] route install failed: ${e}`);
+        const err = e as { status?: number; stdout?: string; stderr?: string };
+        return {
+            stdout: err.stdout ?? err.stderr ?? "",
+            exitCode: err.status ?? 1,
+        };
     }
-}
+};
+
+const vifIpFor = (slot: number): string => {
+    const [a, b, c] = VIF_BASE.split(".").map(Number);
+    return `${a}.${b}.${c}.${slot + 2}`;
+};
 
 const relays = [] as Awaited<ReturnType<typeof createUdpRelay>>[];
 
-for (const spec of LEGS) {
-    const [iface, portStr] = spec.split(":");
+for (let slot = 0; slot < LEGS.length; slot++) {
+    const [iface, portStr] = LEGS[slot].split(":");
     const port = Number(portStr);
-    if (!iface || !port) throw new Error(`bad LEGS entry: ${spec}`);
-    const ip = resolveInterfaceAddress(iface);
-    const leg = { address: ip, port };
+    if (!iface || !port) throw new Error(`bad LEGS entry: ${LEGS[slot]}`);
+    const tunName = relayTunName(slot, iface);
+    const vifIp = vifIpFor(slot);
     const relay = await createUdpRelay({
         interfaceName: iface,
         listenPort: port,
-        interfaceAddress: ip,
-        nat: true,
-        natAddress: ip,
-        onVifLearned: (vifIp) => {
-            console.log(`[relay ${iface}:${port}] vif learned: ${vifIp}`);
-            handleVifLearned(iface, vifIp);
-        },
+        vifIp,
+        tunName,
+        // One socket, all NICs: the kernel pins egress per leg (applyLegPlan).
+        listenAddress: "0.0.0.0",
+        runCommand: rootRun,
+        onVifLearned: (vif) =>
+            console.log(`[relay ${iface}:${port}] vif ${vif} leg on ${iface}`),
         onStats: (s) => {
-            if (s.encRxPackets > 0 && s.encRxPackets % 500 === 0) {
+            if (s.encRxPackets > 0 && s.encRxPackets % 500 === 0)
                 process.stderr.write(
-                    `[relay ${iface}:${port}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} ifaceRx=${s.ifaceRxPackets} ifaceTx=${s.ifaceTxPackets} drops=${s.drops}\n`
+                    `[relay ${iface}:${port}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} vifRx=${s.vifRxPackets} vifTx=${s.vifTxPackets} drops=${s.drops}\n`
                 );
-            }
         },
     });
     await relay.start();
+    // Bring the leg's TUN up + install its kernel netplan.
+    await rootRun("ip", "link", "set", tunName, "up");
+    await applyLegPlan(rootRun, { slot, tun: tunName, uplinkIface: iface, vifIp });
     relays.push(relay);
-    console.log(`[relay] leg up: ${iface} (${ip}:${port}) -> ${SRT_DST}:${SRT_PORT} (nat)`);
+    console.log(
+        `[relay] leg up: ${iface} vif ${vifIp} :${port} (tun ${tunName}, table ${slot + 40})`
+    );
 }
 
 setInterval(() => {
     for (const r of relays) {
         const s = r.stats();
         process.stderr.write(
-            `[stats ${r.interfaceName}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} ifaceRx=${s.ifaceRxPackets} ifaceTx=${s.ifaceTxPackets} drops=${s.drops}\n`
+            `[stats ${r.interfaceName}] encRx=${s.encRxPackets} encTx=${s.encTxPackets} vifRx=${s.vifRxPackets} vifTx=${s.vifTxPackets} drops=${s.drops}\n`
         );
     }
 }, 15000);
@@ -96,4 +104,4 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
         process.exit(0);
     });
 }
-console.log(`[relay] running ${relays.length} leg(s) -> ${SRT_DST}:${SRT_PORT}`);
+console.log(`[relay] running ${relays.length} leg(s), socket 0.0.0.0`);
