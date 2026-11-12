@@ -12,7 +12,13 @@
  * module is unit-testable with `makeMockTunDevice()` — no root, no FFI.
  */
 // @bun-only
-import { decodeFrame, encodeDataFrame, encodeKeepaliveFrame } from "./protocol";
+import {
+    DATA_HEADER_LEN,
+    encodeKeepaliveFrame,
+    sniffFrameKind,
+    writeDataHeader,
+} from "./protocol";
+import { ipToU32 } from "./ip";
 import { newVifStats, noteError } from "./stats";
 import type { Endpoint, VifStats } from "./types";
 import {
@@ -131,6 +137,13 @@ class VifImpl implements VirtualInterface {
     private stopReader: (() => void) | null = null;
     /** Reusable landing buffer for TUN reads (one allocation, not per packet). */
     private rxBuf: Uint8Array;
+    /**
+     * Reusable frame buffer for TUN→relay sends: the 8-byte header (vif IP is
+     * fixed for the lifetime of the vif) is written once; each packet is
+     * copied in at DATA_HEADER_LEN and sent as a view — zero per-packet
+     * allocations.
+     */
+    private txFrame: Uint8Array;
 
     constructor(
         private opts: VirtualInterfaceOptions,
@@ -141,6 +154,8 @@ class VifImpl implements VirtualInterface {
         this._stats = newVifStats();
         // Max IPv4 datagram plus slack — a TUN reader never returns more.
         this.rxBuf = new Uint8Array(65_536);
+        this.txFrame = new Uint8Array(DATA_HEADER_LEN + 65_535);
+        writeDataHeader(this.txFrame, ipToU32(this.localIp));
     }
 
     get name(): string {
@@ -280,11 +295,12 @@ class VifImpl implements VirtualInterface {
         if (!this.socket) return;
         // Forward the whole IP packet. Anything that isn't a minimal IPv4
         // datagram is dropped and counted.
-        if (buf.length < 20) {
+        if (buf.length < 20 || buf.length > this.txFrame.length - DATA_HEADER_LEN) {
             this._stats.txDropped++;
             return;
         }
-        const frame = encodeDataFrame(buf, this.localIp);
+        this.txFrame.set(buf, DATA_HEADER_LEN);
+        const frame = this.txFrame.subarray(0, buf.length + DATA_HEADER_LEN);
         try {
             this.socket.send(frame, this.opts.relay.port, this.opts.relay.host);
         } catch (e) {
@@ -307,16 +323,20 @@ class VifImpl implements VirtualInterface {
             this._stats.rxDropped++;
             return;
         }
-        const frame = decodeFrame(buf, this.mtu);
-        if (frame.type === "malformed" || frame.type === "keepalive") {
+        const kind = sniffFrameKind(buf);
+        if (kind !== "data" || buf.length <= DATA_HEADER_LEN) {
+            this._stats.rxDropped++;
+            return;
+        }
+        const pktLen = buf.length - DATA_HEADER_LEN;
+        if (pktLen > this.mtu) {
             this._stats.rxDropped++;
             return;
         }
         // The payload is already the complete IPv4 packet addressed to the vif
-        // IP — write it into the TUN untouched.
-        const pkt = frame.payload;
+        // IP — write it into the TUN in place (the TUN write is synchronous).
         try {
-            this.tun.write(pkt, 0, pkt.length);
+            this.tun.write(buf, DATA_HEADER_LEN, pktLen);
         } catch (e) {
             noteError(
                 this._stats,
@@ -325,7 +345,7 @@ class VifImpl implements VirtualInterface {
             return;
         }
         this._stats.rxPackets++;
-        this._stats.rxBytes += pkt.length;
+        this._stats.rxBytes += pktLen;
         this.opts.onStats?.(this.stats());
     }
 }
