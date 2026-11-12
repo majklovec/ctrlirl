@@ -74,6 +74,18 @@ describe("planLegCommands", () => {
         expect(cmds).toContain("ip route del 192.168.77.13/32 dev relay0_eno1");
         expect(cmds.some((c) => c.includes("-D POSTROUTING"))).toBe(true);
     });
+
+    test("nat=false omits MASQUERADE (routing + FORWARD stay)", () => {
+        const noNat = planLegCommands({ ...plan, nat: false }).map((c) => c.join(" "));
+        expect(noNat.some((c) => c.includes("MASQUERADE"))).toBe(false);
+        // Routing + FORWARD accepts are independent of the NAT flag.
+        expect(noNat).toContain("ip route add default dev eno1 table 40");
+        expect(noNat).toContain("ip rule add iif relay0_eno1 table 40");
+        expect(noNat).toContain("ip route add 192.168.77.13/32 dev relay0_eno1");
+        expect(noNat).toContain("iptables -I FORWARD 1 -i relay0_eno1 -j ACCEPT");
+        // Default (and nat=true) include the MASQUERADE insert.
+        expect(planLegCommands({ ...plan, nat: true }).some((c) => c.join(" ").includes("MASQUERADE"))).toBe(true);
+    });
 });
 
 describe("applyLegPlan", () => {

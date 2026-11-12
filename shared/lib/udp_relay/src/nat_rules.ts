@@ -61,6 +61,12 @@ export interface LegPlan {
     uplinkIface: string;
     /** The vif /32 this leg bridges. */
     vifIp: string;
+    /**
+     * MASQUERADE the vif to the uplink's source (default). When false, the leg
+     * forwards the vif's source IP unmodified (no NAT) — the uplink must then
+     * be able to route the vif directly.
+     */
+    nat?: boolean;
 }
 
 type Cmd = [string, ...string[]];
@@ -73,7 +79,8 @@ type Cmd = [string, ...string[]];
 export function planLegCommands(p: LegPlan): Cmd[] {
     const table = legTable(p.slot);
     const vif = `${p.vifIp}/32`;
-    return [
+    const nat = p.nat ?? true;
+    const cmds: Cmd[] = [
         // 1. Leg table: egress pin for packets arriving on the TUN.
         ["ip", "route", "del", "default", "table", String(table)],
         ["ip", "route", "add", "default", "dev", p.uplinkIface, "table", String(table)],
@@ -82,29 +89,41 @@ export function planLegCommands(p: LegPlan): Cmd[] {
         // 2. Reply routing in the main table: vif /32 out the TUN.
         ["ip", "route", "del", vif, "dev", p.tun],
         ["ip", "route", "add", vif, "dev", p.tun],
+    ];
+    if (nat) {
         // 3. Conntrack NAT: masquerade the vif to the uplink's source.
-        ["iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vif, "-o", p.uplinkIface, "-j", "MASQUERADE"],
-        ["iptables", "-t", "nat", "-I", "POSTROUTING", "1", "-s", vif, "-o", p.uplinkIface, "-j", "MASQUERADE"],
-        // 4. FORWARD accepts (the host default policy is DROP under Docker).
+        cmds.push(
+            ["iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vif, "-o", p.uplinkIface, "-j", "MASQUERADE"],
+            ["iptables", "-t", "nat", "-I", "POSTROUTING", "1", "-s", vif, "-o", p.uplinkIface, "-j", "MASQUERADE"],
+        );
+    }
+    // FORWARD accepts (the host default policy is DROP under Docker). Always on:
+    // the FORWARD path exists even when NAT is off (the vif is routed directly).
+    cmds.push(
         ["iptables", "-D", "FORWARD", "-i", p.tun, "-j", "ACCEPT"],
         ["iptables", "-I", "FORWARD", "1", "-i", p.tun, "-j", "ACCEPT"],
         ["iptables", "-D", "FORWARD", "-o", p.tun, "-j", "ACCEPT"],
         ["iptables", "-I", "FORWARD", "2", "-o", p.tun, "-j", "ACCEPT"],
-    ];
+    );
+    return cmds;
 }
 
 /** The command plan that tears a leg down (inverse, best-effort). */
 export function planLegRemoval(p: LegPlan): Cmd[] {
     const table = legTable(p.slot);
     const vif = `${p.vifIp}/32`;
-    return [
+    const cmds: Cmd[] = [
         ["ip", "rule", "del", "lookup", String(table)],
         ["ip", "route", "del", "default", "table", String(table)],
         ["ip", "route", "del", vif, "dev", p.tun],
-        ["iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vif, "-o", p.uplinkIface, "-j", "MASQUERADE"],
+    ];
+    if (p.nat ?? true)
+        cmds.push(["iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vif, "-o", p.uplinkIface, "-j", "MASQUERADE"]);
+    cmds.push(
         ["iptables", "-D", "FORWARD", "-i", p.tun, "-j", "ACCEPT"],
         ["iptables", "-D", "FORWARD", "-o", p.tun, "-j", "ACCEPT"],
-    ];
+    );
+    return cmds;
 }
 
 /**

@@ -215,7 +215,7 @@ const failures = new Map<string, string>();
  */
 const relayLegs = new Map<
 	string,
-	{ slot: number; tun: string; uplinkIface: string; vifIp: string }
+{ slot: number; tun: string; uplinkIface: string; vifIp: string; nat: boolean }
 >();
 
 /** Sudo-wrapped command runner for the privileged netplan/TUN shell-outs. */
@@ -605,13 +605,19 @@ async function startRelay(
 		await core.run("ip", ["link", "set", tunName, "up"], true);
 		await applyLegPlan(
 			privilegedRun(),
-			{ slot, tun: tunName, uplinkIface: name, vifIp: addr },
+			{ slot, tun: tunName, uplinkIface: name, vifIp: addr, nat: config().nat },
 		);
 	} catch (e) {
 		await relay.stop().catch(() => {});
 		throw e;
 	}
-	relayLegs.set(name, { slot, tun: tunName, uplinkIface: name, vifIp: addr });
+	relayLegs.set(name, {
+		slot,
+		tun: tunName,
+		uplinkIface: name,
+		vifIp: addr,
+		nat: config().nat,
+	});
 	relays.set(name, relay);
 	lastIfaceAddr.set(name, addr);
 	failures.delete(name);
