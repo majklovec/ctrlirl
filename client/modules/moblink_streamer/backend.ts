@@ -31,7 +31,12 @@
 import { writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import {
+    applyVifSourceRoute,
     createVirtualInterface,
+    removeVifSourceRoute,
+    type CommandRunner,
+    VIF_SOURCE_TABLE_MAX_ORDINAL,
+    vifSourceTable,
     type VirtualInterface,
 } from "@irlctrl/udp-relay";
 import { requireCapability } from "../../../shared/capabilities";
@@ -127,6 +132,10 @@ const tunSlots = new Map<
 const relayOrdinal = new Map<string, number>();
 const relayIfcSeen = new Map<string, number>();
 let relaySeq = 0;
+/** Stable routing-table ordinal per endpoint (encoder vif source tables
+ * live at 20 + ordinal, below the relay-leg base of 40). */
+const vifTableOrdinal = new Map<string, number>();
+let vifTableSeq = 0;
 function slotFor(
     key: string,
     relayHost: string,
@@ -146,6 +155,11 @@ function slotFor(
     }
     const y = relayIfcSeen.get(relayHost) ?? 0;
     relayIfcSeen.set(relayHost, y + 1);
+    // Stable routing-table ordinal (20 + n, below the leg base of 40). Beyond
+    // 20 tunnels the extra TUNs still work, just without the per-source
+    // egress route (srtla can't bind them) - not a real-world scale.
+    if (vifTableSeq <= VIF_SOURCE_TABLE_MAX_ORDINAL)
+        vifTableOrdinal.set(key, vifTableSeq++);
     const slot = {
         x,
         y,
@@ -341,6 +355,19 @@ function desiredTargets(): TunnelTarget[] {
         });
 }
 
+/** `core.run` (throws on failure, dry-run aware) as a library
+ * `CommandRunner` (exit codes). */
+const runCommand: CommandRunner = async (cmd, ...args) => {
+    try {
+        return {
+            stdout: await core.run(cmd, args),
+            exitCode: 0,
+        };
+    } catch (err: unknown) {
+        return { stdout: errorMessage(err), exitCode: 1 };
+    }
+};
+
 async function startTunnel(target: TunnelTarget): Promise<void> {
     const c = config();
     // Bind the wire-protocol UDP socket to the LAN egress IP, not the TUN IP.
@@ -357,6 +384,20 @@ async function startTunnel(target: TunnelTarget): Promise<void> {
         relay: { host: target.relayHost, port: target.relayPort },
     });
     if (!core.config.DRY_RUN) await created.start();
+    // Per-source egress route FIRST: srtla binds its sources to the vif IP
+    // and `sendto()` fails the FIB lookup (ENETUNREACH - the main default
+    // route carries the LAN source) unless an `ip rule from <vifIp>` steers
+    // egress onto this TUN. Without it the TUN never sees a single srtla
+    // packet - and installing it before `uplinks.add` closes the window where
+    // srtla would already hold the source without its route.
+    const ordinal = vifTableOrdinal.get(target.key);
+    if (ordinal !== undefined) {
+        await applyVifSourceRoute(runCommand, {
+            name: target.tunName,
+            vifIp: target.localIp,
+            table: vifSourceTable(ordinal),
+        });
+    }
     let uplinkId: string | undefined;
     if (c.autoRegisterUplink) {
         const id = `moblink:${target.tunName}`;
@@ -388,6 +429,16 @@ async function stopTunnel(key: string): Promise<void> {
                 `moblink_streamer: uplink remove failed: ${errorMessage(e)}`,
             );
         }
+    }
+    const ordinal = vifTableOrdinal.get(key);
+    if (ordinal !== undefined) {
+        // Best-effort (the helper swallows "not found"); the ordinal map
+        // deliberately survives, like the slot, so a re-created TUN reuses it.
+        await removeVifSourceRoute(runCommand, {
+            name: t.target.tunName,
+            vifIp: t.target.localIp,
+            table: vifSourceTable(ordinal),
+        });
     }
     if (!core.config.DRY_RUN) {
         try {
@@ -453,6 +504,8 @@ async function stopAllTunnels(): Promise<void> {
     relayOrdinal.clear();
     relayIfcSeen.clear();
     relaySeq = 0;
+    vifTableOrdinal.clear();
+    vifTableSeq = 0;
     core.notifyStateChange();
     writeStatusFile();
 }

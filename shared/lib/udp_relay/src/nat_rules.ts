@@ -35,19 +35,22 @@ export const LEG_TABLE_BASE = 40;
 export const LEG_TABLE_MAX = 99;
 
 /**
- * Relay-side leg TUN name: `relay<slot>_<uplink iface>`, truncated to 15
- * chars (the Linux limit). Matches `MOBLINK_TUN_NAME_RE` so the network
- * module hides it from "own interfaces" (same convention the encoders use).
+ * Relay-side leg TUN name: `rltun<slot>` (`rltun0`, `rltun1`, ...). Deliberately
+ * distinct from the encoder-side tunnel TUNs (`relay<X>_<iface>`,
+ * `MOBLINK_TUN_NAME_RE`): `relay*` devices exist ONLY on encoders (the vifs
+ * srtla sends through), while `rltun*` devices exist ONLY on relay boxes.
+ * Matching `MOBLINK_TUN_NAME_RE` used to blur the two - a relay box showed
+ * `relay*` interfaces while the encoder had none, which is wrong.
  */
-export function relayTunName(slot: number, uplinkIface: string): string {
+export const LEG_TUN_NAME_RE = /^rltun\d+$/u;
+
+export function relayTunName(slot: number): string {
     if (!Number.isInteger(slot) || slot < 0)
         throw new Error(`slot must be a non-negative integer (${slot})`);
-    // Mirror the encoders' naming (truncated to 15 chars) so both sides
-    // derive the same device name.
-    const name = `relay${slot}_${uplinkIface}`.slice(0, 15);
-    if (!MOBLINK_TUN_NAME_RE.test(name))
+    const name = `rltun${slot}`;
+    if (!LEG_TUN_NAME_RE.test(name))
         throw new Error(
-            `relay TUN name does not match the shared pattern: ${name}`,
+            `relay TUN name does not match the leg pattern: ${name}`,
         );
     return name;
 }
@@ -323,10 +326,13 @@ export async function removeVifPlan(
 
 /**
  * Startup sweep: delete TUN devices on this host that match the MobLink
- * leg pattern from a previous (crashed) run. Returns the names removed.
+ * leg patterns from a previous (crashed) run. Returns the names removed.
  *
- * Safe: a relay host never runs encoder-side MobLink tunnels, so any TUN
- * matching `relay\d+_<iface>` here is ours.
+ * Matches both the current `rltun<N>` leg TUNs and the LEGACY
+ * `relay<slot>_<iface>` leg names (before the relay/encoder naming split):
+ * a relay host never runs encoder-side MobLink tunnels, so a TUN matching
+ * either pattern here is stale - including crash leftovers from older
+ * versions that provisioned `relay*` TUNs on the relay.
  */
 export async function sweepStaleLegTuns(
     runCommand: CommandRunner,
@@ -338,7 +344,8 @@ export async function sweepStaleLegTuns(
         const m = /^\d+:\s+([a-zA-Z0-9_.@-]+):/.exec(line);
         if (!m) continue;
         const name = m[1].split("@")[0];
-        if (MOBLINK_TUN_NAME_RE.test(name)) names.push(name);
+        if (LEG_TUN_NAME_RE.test(name) || MOBLINK_TUN_NAME_RE.test(name))
+            names.push(name);
     }
     for (const name of names) {
         try {

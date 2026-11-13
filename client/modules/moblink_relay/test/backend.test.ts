@@ -452,7 +452,8 @@ describe("relay provisions its leg netplan (table + iif rule + NAT)", () => {
     test("start: base netplan up-front; vif NAT only after the encoder is learned", async () => {
         const base = 45410;
         const table = "40";
-        const tun = "relay0_lo";
+        // Relay-side leg TUN name (rltun<slot> - NOT the encoder's `relay*`).
+        const tun = "rltun0";
         const ENC_VIF = "10.90.50.1"; // the encoder's dedicated non-local vif.
         // A core whose `run` records each (cmd, args) so we can assert the netplan.
         const runCalls: Array<{ cmd: string; args: string[] }> = [];
@@ -492,8 +493,8 @@ describe("relay provisions its leg netplan (table + iif rule + NAT)", () => {
         expect(has(`link set ${tun} up`)).toBe(true);
         expect(has(`route add default dev lo table ${table}`)).toBe(true);
         expect(has(`rule add iif ${tun} table ${table}`)).toBe(true);
-        expect(hasNat("-I FORWARD 1 -i relay0_lo -j ACCEPT")).toBe(true);
-        expect(hasNat("-I FORWARD 2 -o relay0_lo -j ACCEPT")).toBe(true);
+        expect(hasNat("-I FORWARD 1 -i rltun0 -j ACCEPT")).toBe(true);
+        expect(hasNat("-I FORWARD 2 -o rltun0 -j ACCEPT")).toBe(true);
         // The vif-specific part is NOT installed yet (the encoder hasn't
         // spoken). This is the fix for the b6db3 dead-end: no uplink-IP NAT.
         expect(hasNat("MASQUERADE")).toBe(false);
@@ -571,7 +572,7 @@ describe("relay provisions its leg netplan (table + iif rule + NAT)", () => {
             runCalls.some(
                 (c) =>
                     c.cmd === "ip" &&
-                    ipArgs(c.args) === "rule add iif relay1_lo table 41",
+                    ipArgs(c.args) === "rule add iif rltun1 table 41",
             ),
         ).toBe(true);
 
@@ -930,5 +931,37 @@ describe("encoder discovery + WS channels (protocol.md §2–§5)", () => {
         expect(knownEncoders().some((e) => e.encoderId === "enc-live")).toBe(
             true,
         );
+    });
+
+    test("two ids for one box (OS hostname vs configured identity) merge into one entry", () => {
+        // The UDP/mDNS announce carries the OS hostname...
+        noteEncoder({
+            encoderId: "rpi4",
+            ip: "192.168.10.50",
+            wsPort: 8190,
+            proto: 1,
+            lastSeen: Date.now(),
+        });
+        // ...and the control-server lookup lists the SAME box by its
+        // configured device hostname. It must not become a second entry.
+        noteEncoder({
+            encoderId: "moblink-encoder",
+            ip: "192.168.10.50",
+            wsPort: 8191,
+            proto: 1,
+            lastSeen: Date.now() + 1_000,
+        });
+        const byIp = knownEncoders().filter(
+            (e) => e.ip === "192.168.10.50",
+        );
+        expect(byIp).toHaveLength(1);
+        // The first-seen id wins (the WS channel dials under it - it must
+        // stay stable)...
+        expect(byIp[0].encoderId).toBe("rpi4");
+        // ...but the merge refreshes the endpoint view.
+        expect(byIp[0].wsPort).toBe(8191);
+        expect(
+            knownEncoders().some((e) => e.encoderId === "moblink-encoder"),
+        ).toBe(false);
     });
 });

@@ -68,7 +68,10 @@ function fakeMoblinkRegistry() {
 type CapRelay = Parameters<MoblinkRegistry["upsertRelay"]>[0];
 
 /** `section` is the content of `state.data.moblinkStreamer`. */
-function fakeCore(section: Record<string, unknown> | null = null): ModuleCore {
+function fakeCore(
+    section: Record<string, unknown> | null = null,
+): ModuleCore & { commands: string[] } {
+    const commands: string[] = [];
     return {
         state: { data: section ? { moblinkStreamer: section } : {} },
         saveState: async () => {},
@@ -81,7 +84,14 @@ function fakeCore(section: Record<string, unknown> | null = null): ModuleCore {
         notifyStateChange: () => {},
         cancelAutostart: () => {},
         logEvent: () => {},
-    } as unknown as ModuleCore;
+        // Records kernel commands (the vif source-route install/teardown)
+        // without executing them.
+        run: async (cmd: string, args: string[]) => {
+            commands.push([cmd, ...args].join(" "));
+            return "";
+        },
+        commands,
+    } as unknown as ModuleCore & { commands: string[] };
 }
 
 const up = () => mod.default as NonNullable<typeof mod.default>;
@@ -152,6 +162,21 @@ describe("moblink_streamer", () => {
         await up().stop();
         expect(uplinks.removed).toContain("moblink:relay0_eth0");
         expect(uplinks.list()).toEqual([]);
+    });
+
+    test("installs a per-source egress route for the vif IP (srtla can send)", async () => {
+        const core = (await setup()).core;
+        await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
+        expect(core.commands).toContain(
+            "ip rule add from 10.90.0.1 lookup 20 priority 300",
+        );
+        expect(core.commands).toContain(
+            "ip route add default dev relay0_eth0 table 20",
+        );
+        await up().stop();
+        // The teardown drops the rule (and the table default) again.
+        expect(core.commands).toContain("ip rule del from 10.90.0.1");
+        expect(core.commands).toContain("ip route del default table 20");
     });
 
     test("multiple shared interfaces → one TUN each, IPs derived from the ordinals", async () => {

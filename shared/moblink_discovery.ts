@@ -42,20 +42,31 @@ export const MOBLINK_ANNOUNCE_TTL_MS = 15_000;
 export const MOBLINK_BROADCAST_ADDR = "255.255.255.255";
 
 /**
- * Name pattern of an ENCODER-side MobLink tunnel TUN (the `moblink_streamer`
- * names them `relay${slot}_${relayIface}`, e.g. `relay0_wg0`, truncated to 15
- * chars - the Linux interface-name limit). These are TUNNELS to a relay's
- * shared uplink, not the machine's own interfaces, so any interface listing
- * that means "the device's real interfaces" (the network card's
- * "Own interfaces" group, relay eligibility) must exclude them. This is the
- * single source of truth shared by the `network` backend
- * (`listNetworkInterfaces`) and the network card.
+ * Name pattern of an ENCODER-side MobLink tunnel TUN (the
+ * `moblink_streamer` names them `relay${slot}_${relayIface}`, e.g.
+ * `relay0_wg0`, truncated to 15 chars - the Linux interface-name limit).
+ * These are TUNNELS to a relay's shared uplink, not the machine's own
+ * interfaces, so any interface listing that means "the device's real
+ * interfaces" (the network card's "Own interfaces" group, relay
+ * eligibility) must exclude them. The `relay*` namespace is exclusively
+ * encoder-side: the relay box's own leg TUNs are `rltun<N>` (see
+ * `LEG_TUN_NAME_RE` in `@irlctrl/udp-relay`).
  */
 export const MOBLINK_TUN_NAME_RE = /^relay\d+_[a-z0-9]+$/u;
 
-/** True when `name` is an encoder-side MobLink tunnel TUN (see the RE above). */
+/**
+ * Name pattern of a RELAY-side leg TUN (`rltun0`, `rltun1`, ... - one per
+ * uplink leg, see `LEG_TUN_NAME_RE` in `@irlctrl/udp-relay`). Like the
+ * encoder tunnels, these are not the device's own interfaces and must be
+ * excluded from "own interfaces" listings - on the relay box in
+ * particular, where they must never be picked up as new relay uplinks.
+ */
+export const MOBLINK_LEG_TUN_NAME_RE = /^rltun\d+$/u;
+
+/** True when `name` is a MobLink TUN of either side (encoder tunnel
+ * `relay*` or relay leg `rltun*`). */
 export const isMoblinkTun = (name: string): boolean =>
-    MOBLINK_TUN_NAME_RE.test(name);
+    MOBLINK_TUN_NAME_RE.test(name) || MOBLINK_LEG_TUN_NAME_RE.test(name);
 
 /** One tunnel interface the relay offers to encoders. */
 export interface MoblinkSharedEndpoint {

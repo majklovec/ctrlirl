@@ -14,6 +14,13 @@ steered back through the leg TUN. Doing this in the kernel (routing + conntrack)
 means the user-space forward path is just **one UDP callback → one TUN write**.
 There is no raw socket, no `SO_BINDTODEVICE`, no user-space SNAT/dNAT map.
 
+**TUN naming split:** the relay box's leg TUNs are `rltun<slot>` (`rltun0`,
+`rltun1`, ...); the `relay<X>_<iface>` names (`MOBLINK_TUN_NAME_RE`) exist
+ONLY on encoders - those are the virtual interfaces `srtla_send` sends
+through. The names must not mix: `isMoblinkTun()` excludes both from the
+"own interfaces" listings (the relay must never pick its own leg TUNs up as
+new uplinks).
+
 ```
 encoder → UDP → [relay 0.0.0.0:port] → TUN (vif /32)
     → ip rule iif <tun> table <T>
@@ -43,7 +50,7 @@ module claims `>= 100`).
 
 ## Rule sets
 
-Notation: `slot=1` (table `41`), `tun=relay1_enx76ae2`, `uplink=enx76ae207e3de7`,
+Notation: `slot=1` (table `41`), `tun=rltun1`, `uplink=enx76ae207e3de7`,
 `gw=172.21.254.48`, `vif=10.90.1.1` (learned).
 
 ### 1. Base plan (vif-independent)
@@ -56,12 +63,12 @@ ip route    del default table 41                 # best-effort (idempotent)
 ip route add default via 172.21.254.48 dev enx76ae207e3de7 table 41
 # Pin egress to that table for packets arriving on this TUN.
 ip rule     del lookup 41                          # best-effort
-ip rule     add iif relay1_enx76ae2 table 41
+ip rule     add iif rltun1 table 41
 # FORWARD accepts (host default policy is DROP under Docker).
-iptables -D  FORWARD -i relay1_enx76ae2 -j ACCEPT  # best-effort
-iptables -I  FORWARD 1 -i relay1_enx76ae2 -j ACCEPT
-iptables -D  FORWARD -o relay1_enx76ae2 -j ACCEPT  # best-effort
-iptables -I  FORWARD 2 -o relay1_enx76ae2 -j ACCEPT
+iptables -D  FORWARD -i rltun1 -j ACCEPT  # best-effort
+iptables -I  FORWARD 1 -i rltun1 -j ACCEPT
+iptables -D  FORWARD -o rltun1 -j ACCEPT  # best-effort
+iptables -I  FORWARD 2 -o rltun1 -j ACCEPT
 ```
 
 > **The gateway is required.** `default via <gw> dev <uplink>` — not
@@ -76,8 +83,8 @@ iptables -I  FORWARD 2 -o relay1_enx76ae2 -j ACCEPT
 ```bash
 nft add table ip forward
 nft add chain ip forward { type filter hook forward priority 0; policy accept; }
-nft add rule  ip forward iifname "relay1_enx76ae2" accept
-nft add rule  ip forward oifname "relay1_enx76ae2" accept
+nft add rule  ip forward iifname "rltun1" accept
+nft add rule  ip forward oifname "rltun1" accept
 ```
 
 ### 2. Vif plan (applied on learn, keyed on the learned vif)
@@ -86,8 +93,8 @@ nft add rule  ip forward oifname "relay1_enx76ae2" accept
 
 ```bash
 # Reply routing: the vif /32 is local to the leg TUN (main table).
-ip route del 10.90.1.1/32 dev relay1_enx76ae2      # best-effort
-ip route add 10.90.1.1/32 dev relay1_enx76ae2
+ip route del 10.90.1.1/32 dev rltun1      # best-effort
+ip route add 10.90.1.1/32 dev rltun1
 # Conntrack NAT: masquerade the encoder vif to the uplink's source.
 iptables -t nat -D POSTROUTING -s 10.90.1.1/32 -o enx76ae207e3de7 -j MASQUERADE  # best-effort
 iptables -t nat -I POSTROUTING 1 -s 10.90.1.1/32 -o enx76ae207e3de7 -j MASQUERADE
@@ -112,8 +119,10 @@ the main table which device to use.)
 -   **Base** (`planLegRemoval` → `removeLegPlan`): `ip rule del lookup <T>` +
     `ip route del default table <T>` + the two `-D FORWARD` deletes.
 -   **Stale TUNs** (`sweepStaleLegTuns`): on startup, `ip link del` any TUN
-    matching the MobLink leg pattern left by a crashed run. A relay host never
-    runs encoder-side tunnels, so any `relay\d+_<iface>` TUN here is stale.
+    matching the leg patterns (`rltun\d+`, plus the legacy `relay\d+_<iface>`
+    names from older versions) left by a crashed run. A relay host never runs
+    encoder-side tunnels (`relay*`), so a TUN matching either pattern here is
+    stale.
 
 All `add`/`insert` steps are preceded by a best-effort `del` so the plans are
 idempotent; real `add` failures throw (the `del` failures are ignored).

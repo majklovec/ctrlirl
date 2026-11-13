@@ -260,7 +260,14 @@ describe("virtual_interface.ts - packet logic (mock TUN)", () => {
         stub.close();
     });
 
-    test("reply from the wrong host → rxDropped (source check)", async () => {
+    test("vif-tagged reply from a wire source other than relay.host is accepted", async () => {
+        // The production bug: a leg's announced endpoint is the cell/CGNAT
+        // address (relay.host), but the relay is 0.0.0.0-bound and returns a
+        // reply from whichever interface routes to us (the home-LAN IP). The
+        // identity that must hold is the frame's vifIp == this vif, NOT the
+        // UDP source address. Here localIp is 127.0.0.1, relay.host is a
+        // *different* address, and the reply arrives from 127.0.0.1 — the
+        // old source-address guard dropped it; the vif-tag guard must not.
         const { device, written } = makeMockTunDevice();
         const vif = await createVirtualInterface({
             name: "virt4",
@@ -278,8 +285,45 @@ describe("virtual_interface.ts - packet logic (mock TUN)", () => {
         } as unknown as Parameters<typeof Bun.udpSocket>[0])) as any;
         const vifPort = vif.socketAddress?.port;
         expect(vifPort).toBeTypeOf("number");
+        const packet = buildUdpIpPacket({
+            srcIp: "127.0.0.2",
+            dstIp: "127.0.0.1",
+            srcPort: 1,
+            dstPort: 2,
+            payload: enc.encode("reply"),
+        });
+        stub.send(encodeDataFrame(packet, "127.0.0.1"), vifPort!, "127.0.0.1");
+        await waitFor(() => written.length >= 1);
+        expect(vif.stats().rxPackets).toBe(1);
+        expect(vif.stats().rxDropped).toBe(0);
+        const back = parseUdpPacket(written[0]);
+        expect(back?.payload).toEqual(enc.encode("reply"));
+        await vif.stop();
+        stub.close();
+    });
+
+    test("reply tagged with a different vif → rxDropped (vif identity)", async () => {
+        const { device, written } = makeMockTunDevice();
+        const vif = await createVirtualInterface({
+            name: "virt4b",
+            localIp: "127.0.0.1",
+            prefixLength: 8,
+            relay: { host: "127.0.0.1", port: 58905 },
+            bindAddress: "127.0.0.1",
+            tunDevice: device,
+        });
+        await vif.start();
+        const stub = (await Bun.udpSocket({
+            hostname: "127.0.0.1",
+            port: 58905,
+            binaryType: "uint8array",
+        } as unknown as Parameters<typeof Bun.udpSocket>[0])) as any;
+        const vifPort = vif.socketAddress?.port;
+        expect(vifPort).toBeTypeOf("number");
+        // Same source as relay.host, but the frame is tagged for a DIFFERENT
+        // vif /32 → not ours to write into this TUN.
         stub.send(
-            encodeDataFrame(enc.encode("reply"), "127.0.0.1"),
+            encodeDataFrame(enc.encode("other vif"), "10.99.99.1"),
             vifPort!,
             "127.0.0.1",
         );

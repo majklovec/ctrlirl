@@ -224,15 +224,14 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 		status.defaultRouteInterface,
 		status.defaultRouteSourceIp,
 	);
-	// The encoder's MobLink TUNs publish their live view on
-	// `status.state.moblinkStreamer` (the streamer backend's `status()`), which
-	// is merged into every card's live status. Their TUN interfaces (e.g.
-	// `relay0_wg0`) are tunnels to a relay's shared uplink, not the machine's
-	// own interfaces - they also appear in the OS `status.interfaces` list, so
-	// we list each one under its relay group (below) and hide it from "Own
-	// interfaces". The name rule (`isMoblinkTun`) catches them even when the
-	// streamer isn't reporting them live yet; `tunnelIfaceNames` additionally
-	// hides whatever the streamer currently reports, by exact name.
+	// MobLink TUNs are not the machine's own interfaces: the encoder's
+	// tunnel TUNs (e.g. `relay0_wg0`) are tunnels to a relay's shared uplink,
+	// and the relay box's leg TUNs (`rltun<N>`) are its own legs. Both publish
+	// their live view on module state, and both appear in the OS
+	// `status.interfaces` list - the name rule (`isMoblinkTun`) catches them
+	// all and hides them from "Own interfaces" (tunnels go under their relay
+	// group below, leg TUNs are hidden). `tunnelIfaceNames` additionally hides
+	// whatever the streamer currently reports, by exact name.
 	const streamer = host.st.status?.state?.moblinkStreamer as
 		| MoblinkStreamerView
 		| undefined;

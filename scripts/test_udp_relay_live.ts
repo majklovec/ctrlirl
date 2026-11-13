@@ -86,7 +86,7 @@ const RELAY_PORT = Number(arg("relay-port", "5101"));
 const VIF_IP = arg("vif", "10.3.3.1");
 const SLOT = Number(arg("slot", "0"));
 const KEEP = flag("keep");
-const TUN = relayTunName(SLOT, IFACE);
+const TUN = relayTunName(SLOT);
 
 if (process.getuid?.() !== 0) {
     console.error(

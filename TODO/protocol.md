@@ -170,6 +170,10 @@ only needed for the initial dial. Additionally:
 
 -   If the relay sends `interface_down` or `interface_removed`, the encoder stops using that path.
 -   If the relay sends `interface_added` or `interface_up`, the encoder may start using that path.
+-   The TUN's vif IP needs a **per-source egress route** on the encoder: an app
+    bound to `10.{90+x}.{y}.1` fails the FIB lookup (ENETUNREACH) unless
+    `ip rule from <vifIp>` steers its egress onto the TUN. `vif_source_route.ts`
+    provisions it (table 20+n, `default dev <tun>`); the TUN stays idle without it.
 
 ---
 

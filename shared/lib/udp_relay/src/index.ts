@@ -20,6 +20,7 @@ export type { LegPlan } from "./nat_rules";
 export {
     applyLegPlan,
     applyVifPlan,
+    LEG_TUN_NAME_RE,
     legTable,
     planLegBaseCommands,
     planLegCommands,
@@ -41,6 +42,17 @@ export {
     sniffFrameKind,
     writeDataHeader,
 } from "./protocol";
+export type { VifSourceRoute } from "./vif_source_route";
+export {
+    applyVifSourceRoute,
+    planVifSourceRoute,
+    planVifSourceRouteRemoval,
+    removeVifSourceRoute,
+    VIF_SOURCE_RULE_PRIORITY,
+    VIF_SOURCE_TABLE_BASE,
+    VIF_SOURCE_TABLE_MAX_ORDINAL,
+    vifSourceTable,
+} from "./vif_source_route";
 export type {
     EncoderDecision,
     RelaySocket,

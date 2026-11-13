@@ -23,6 +23,7 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Socket } from "bun";
+import { resolveBinary } from "./binaries";
 import type { Supervisor } from "../client/backend/supervisor";
 import { t } from "./i18n";
 import { errorMessage, textOf } from "./util";
@@ -644,9 +645,14 @@ export class SrtlaSend {
         extra?: { listenPort?: string },
     ): Promise<SrtlaState> {
         const { sendPort, remoteHost, remotePort, uplinksFile } = launch;
+        // A bare `srtla_send` is not on the service PATH; resolve it (PATH,
+        // then cwd) so the capability probe and the spawn both find the real
+        // binary. If it were left unresolved, the probe would fail and start()
+        // would silently fall back to the dry-run (no media sent).
+        const resolvedBin = resolveBinary(bin);
         const caps = this.services.dryRun
             ? null
-            : await srtlaSendCapabilities(bin);
+            : await srtlaSendCapabilities(resolvedBin);
         const flags = srtlaSendFlags(
             caps ?? { controlSocket: true, mode: true, quality: true },
             launch.options ?? {},
@@ -654,7 +660,7 @@ export class SrtlaSend {
         );
         const withControl = !!this.cfg.controlSocket && !!caps?.controlSocket;
         const args = [...flags, sendPort, remoteHost, remotePort, uplinksFile];
-        console.log(`Starting ${bin} ${args.join(" ")}`);
+        console.log(`Starting ${resolvedBin} ${args.join(" ")}`);
 
         const started = (pid?: number): SrtlaState => ({
             running: true,
@@ -668,14 +674,14 @@ export class SrtlaSend {
                 : { pid, reloadCount: this.live.reloadCount ?? 0 }),
         });
 
-        this.lastLaunch = { bin, launch };
+        this.lastLaunch = { bin: resolvedBin, launch };
         if (caps) {
             await this.supervisor().start(() => {
                 // The starter re-runs on restarts: drop the stale socket and
                 // (re)connect the control client on every (re)spawn.
                 this.control.prepare(this.cfg.controlSocket, withControl);
                 if (withControl) this.control.start(this.cfg.controlSocket);
-                const proc = Bun.spawn([bin, ...args], {
+                const proc = Bun.spawn([resolvedBin, ...args], {
                     stdout: "inherit",
                     stderr: "inherit",
                     stdin: "inherit",

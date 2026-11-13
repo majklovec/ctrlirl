@@ -256,17 +256,40 @@ export function stopAnnouncing(): void {
 // Encoder registry (encoder → relay announces, protocol.md §2)
 // ----------------------------------------------------------------------
 
-/** A TTL'd registry of encoders this relay has heard (keyed by `encoder_id`).
- * Encoders re-announce periodically, so entries that stop being heard are
- * swept after `MOBLINK_ANNOUNCE_TTL_MS` (~3× the announce interval). */
+/** A TTL'd registry of encoders this relay has heard (keyed by
+ * `encoder_id`, one entry per box - see `noteEncoder`). Encoders re-announce
+ * periodically, so entries that stop being heard are swept after
+ * `MOBLINK_ANNOUNCE_TTL_MS` (~3× the announce interval). */
 const encoderRegistry = new Map<string, MoblinkDiscoveredEncoder>();
 
 /**
- * Record or refresh an encoder (UDP announce or control-server lookup). The
- * entry's `lastSeen` is taken from `e` (the callers stamp it with the
- * announce time) so the TTL sweep can expire silent encoders.
+ * Record or refresh an encoder (UDP/mDNS announce or control-server lookup).
+ * ONE ENTRY PER BOX: the same encoder reaches us under two ids - its OS
+ * hostname (the UDP/mDNS announce `encoder_id`) and its configured identity
+ * (the control server lists devices by their device hostname, e.g. `rpi4`
+ * vs `moblink-encoder`). Merging on the IP keeps the pre-existing entry's
+ * id (stable name, no WebSocket-channel churn) and refreshes its endpoint +
+ * `lastSeen`. The `lastSeen` is taken from `e` (the callers stamp it with
+ * the announce time) so the TTL sweep can expire silent encoders.
  */
 export function noteEncoder(e: MoblinkDiscoveredEncoder): void {
+    const existing = e.ip
+        ? [...encoderRegistry.values()].find((x) => x.ip === e.ip)
+        : encoderRegistry.get(e.encoderId);
+    if (existing && existing.encoderId !== e.encoderId) {
+        // Same box, a different id for it: fold the new view into the
+        // existing entry - the id the WS channel dials under must stay
+        // stable, so keep the one that was first.
+        encoderRegistry.set(existing.encoderId, {
+            ...existing,
+            ip: e.ip,
+            wsPort: e.wsPort,
+            proto: e.proto,
+            token: e.token,
+            lastSeen: e.lastSeen,
+        });
+        return;
+    }
     encoderRegistry.set(e.encoderId, { ...e });
 }
 

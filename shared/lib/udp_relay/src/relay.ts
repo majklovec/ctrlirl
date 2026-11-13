@@ -104,8 +104,9 @@ export interface UdpRelayOptions {
     /** The virtual-interface /32 this leg bridges (the TUN address). */
     vifIp: string;
     /** Name of the TUN device backing this leg (the backend provisions it).
-     * Default `"rltun0"`. Must be ≤14 chars and match the shared TUN-name
-     * matcher so the network module hides it from uplinks. */
+     * Default `"rltun0"` - relay-side leg TUNs are `rltun<slot>` (`relay*`
+     * names belong to the encoder-side tunnels). Must be ≤15 chars and match
+     * the TUN-name matcher so the network module hides it from uplinks. */
     tunName?: string;
     /**
      * Local address to bind the listener to. Default `"0.0.0.0"` - every

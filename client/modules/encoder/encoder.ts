@@ -11,6 +11,7 @@
  * state (running flag, pid, restarts, last error) is module-local.
  */
 import { basename } from "node:path";
+import { resolveBinary } from "../../../shared/binaries";
 import { t } from "../../../shared/i18n";
 import { errorMessage, readLines } from "../../../shared/util";
 import { BITRATE_FILE, CERACODER_CONF, ENCODER_BIN, IS_CERA } from "./config";
@@ -412,8 +413,8 @@ let instance: Encoder | null = null;
 export function encoder(): Encoder {
     if (!instance)
         instance = IS_CERA
-            ? new Ceracoder(ENCODER_BIN)
-            : new Belacoder(ENCODER_BIN);
+            ? new Ceracoder(resolveBinary(ENCODER_BIN))
+            : new Belacoder(resolveBinary(ENCODER_BIN));
     return instance;
 }
 

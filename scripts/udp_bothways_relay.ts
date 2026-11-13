@@ -25,7 +25,7 @@ const IFACE = process.argv[2] ?? "enx7eafd60ad1a2";
 const PORT = Number(process.argv[3] ?? 4150);
 const SECONDS = Number(process.argv[4] ?? 40);
 const VIF_IP = process.argv[5] ?? "10.3.3.1";
-const TUN = relayTunName(0, IFACE);
+const TUN = relayTunName(0);
 
 const rootRun: CommandRunner = async (cmd, ...args) => {
     try {

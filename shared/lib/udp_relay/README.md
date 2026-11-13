@@ -151,6 +151,8 @@ bun test shared/lib/udp_relay/test
     `onEncoderVifLearned` (once per distinct vif from the frame header).
 -   `nat_rules.test.ts` — the leg base/vif command plans (gateway egress,
     MASQUERADE keyed on the learned vif, idempotent add/remove).
+-   `vif_source_route.test.ts` — the encoder-side per-source egress plan
+    (`from <vifIp>` rule + `default dev <tun>` in table 20+n).
 -   `virtual-interface.test.ts` — packet logic via the mock TUN seam.
 -   `tun-linux.test.ts` — struct layout, no root required.
 
@@ -159,6 +161,10 @@ bun test shared/lib/udp_relay/test
 -   **Bind `0.0.0.0` for the relay, never a specific uplink IP** — that is what
     makes the relay NIC-agnostic. The *encoder* must bind a real address
     (never `0.0.0.0`) or its packets leak out the default route.
+-   **The encoder vif IP needs a per-source egress route** — a source bound to
+    `10.{90+x}.{y}.1` fails the FIB lookup (ENETUNREACH) unless
+    `ip rule from <vifIp>` steers it onto the TUN. `vif_source_route.ts`
+    provisions that (table 20+n); without it the TUN never sees srtla traffic.
 -   **`IFF_NO_PI` is mandatory** — without it the kernel prepends 4 bytes and
     every parse is garbage.
 -   **Key NAT + the reply route on the encoder vif**, learned from the first

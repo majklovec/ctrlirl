@@ -7,7 +7,7 @@
  */
 import "./styles.css";
 import { Actions, Badge, Button, Card, Form, Table } from "@ui/components/";
-import { OutlineIcon } from "@ui/components/icons";
+import { Icon, OutlineIcon } from "@ui/components/icons";
 import { card, type DeviceCard } from "@ui/device/store";
 import { t } from "@ui/i18n";
 import { formatBitrate, since } from "@ui/util";
@@ -110,6 +110,14 @@ function moblinkCardBody(host: DeviceCard): m.Children {
 		},
 		{ key: "uplink", header: t("dev.moblink.uplink") },
 	];
+	// The interfaces an encoder is sending THROUGH: that leg has received
+	// encoder traffic (encRxPackets > 0), so it points to the encoder - the
+	// camera mark is shown next to its name.
+	const encoderIfaces = new Set(
+		s.relays
+			.filter((r) => (r.stats?.encRxPackets ?? 0) > 0)
+			.map((r) => r.interfaceName),
+	);
 	return (
 		<div class="moblink-relay">
 			<p class="status" data-state={s.connected ? "online" : "offline"}>
@@ -143,7 +151,17 @@ function moblinkCardBody(host: DeviceCard): m.Children {
 								"-"
 							)}
 						</td>
-						<td>{uplinkIcon(i.state)}</td>
+						<td class="uplink-cell">
+							{encoderIfaces.has(i.name) ? (
+								<Icon
+									name="video"
+									class="encoder-mark"
+									title={t("dev.moblink.encoder_here")}
+								/>
+							) : (
+								uplinkIcon(i.state)
+							)}
+						</td>
 					</tr>
 				))}
 			</Table>

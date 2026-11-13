@@ -4,7 +4,7 @@
 # Topology:
 #   rpi4 (encoder) 192.168.10.101
 #     └─ TUN relay<slot>_<uplink>  →  UDP  →  bigcml relay (this host)
-#                            └─ leg enxb6db32817e7a (mobile) → phone CGNAT → VPS
+#                            └─ leg enx76ae207e3de7 (mobile) → phone CGNAT → VPS
 #                            └─ leg eno1 (home LAN)          → home router  → VPS
 #                            └─ leg wg0 (wireguard)          → wg peer      → VPS
 #
@@ -50,27 +50,29 @@ SSH_VPS() { ssh -q -o ConnectTimeout=8 -o StrictHostKeyChecking=no -o BatchMode=
 
 # ---------------------------------------------------------------------------
 # Auto-detect the rpi4's mobile MobLink TUN.
-#   Returns "name ip" on the first line of stdout. The mobile leg is the TUN
-#   whose egress (the relay uplink on bigcml) reaches the phone CGNAT
-#   (172.21.254.0/24); we pick the TUN routed to that /24. Fallback: the first
-#   MobLink TUN that has an IP. Empty when no MobLink TUN exists.
+#   Returns "name ip" (bare IP, no /prefix) on the first line of stdout. The
+#   TUN routing model has no `via <gateway>` in the vif route, so the mobile
+#   leg is identified by the TUN NAME: relay<slot>_<uplink> embeds the relay
+#   uplink iface, and the mobile uplink is a cellular device (enx… MAC alias,
+#   wwan, wl…). Fallback: the first MobLink TUN that has an IP. Empty when no
+#   MobLink TUN exists.
 # ---------------------------------------------------------------------------
 mobile_tun() {
 	SSH_RPI4 "
-set -e
 for t in \$(ip -o link show type tun 2>/dev/null | awk -F: '{print \$2}' | tr -d ' '); do
     case \"\$t\" in relay[0-9]_*) ;; *) continue ;; esac
     ip4=\$(ip -4 -o addr show \"\$t\" 2>/dev/null | awk '{print \$4; exit}')
     [ -n \"\$ip4\" ] || continue
-    gw=\$(ip route get 172.21.254.1 from \"\$ip4\" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if(\$i==\"via\"){print \$(i+1); exit} \$(i-1)==\"dev\"{print}}')
-    if [ -n \"\$gw\" ] && [[ \"\$gw\" == 172.21.254.* ]]; then
-        echo \"\$t \$ip4\"; exit 0
-    fi
+    base=\${t##*relay[0-9]_}
+    case \"\$base\" in
+        enx*|wwan*|wl*)
+            echo \"\$t \${ip4%%/*}\"; exit 0 ;;
+    esac
 done
 for t in \$(ip -o link show type tun 2>/dev/null | awk -F: '{print \$2}' | tr -d ' '); do
     case \"\$t\" in relay[0-9]_*) ;; *) continue ;; esac
     ip4=\$(ip -4 -o addr show \"\$t\" 2>/dev/null | awk '{print \$4; exit}')
-    if [ -n \"\$ip4\" ]; then echo \"\$t \$ip4\"; exit 0; fi
+    if [ -n \"\$ip4\" ]; then echo \"\$t \${ip4%%/*}\"; exit 0; fi
 done
 exit 0
 " 2>/dev/null || true
@@ -205,11 +207,14 @@ test_srtla_to_vps() {
 		fi
 	fi
 
-	# Check srtla_rec container is running.
-	local container
+	# Check srtla_rec is running on the VPS - either as a docker container or a
+	# native process listening on :5000.
+	local container recproc
 	container=$(SSH_VPS "docker ps --filter name=srtla_rec --format '{{.Names}}' 2>/dev/null" | head -1)
 	if [[ -n "$container" ]]; then
 		pass "srtla_rec container '$container' is running on VPS"
+	elif recproc=$(SSH_VPS "ps aux 2>/dev/null | grep -i srtla_rec | grep -v grep") && [[ -n "$recproc" ]]; then
+		pass "srtla_rec native receiver is running on VPS"
 	else
 		fail "srtla_rec container not found on VPS"
 	fi

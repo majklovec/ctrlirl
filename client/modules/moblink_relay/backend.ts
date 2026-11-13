@@ -619,7 +619,9 @@ async function startRelay(
     listenPort: number,
 ): Promise<UdpRelay> {
     const slot = legSlotFor(name);
-    const tunName = relayTunName(slot, name);
+    // Relay-side leg TUN: `rltun<slot>` - distinct from the encoder-side
+    // tunnel TUNs (`relay<X>_<iface>`), which exist only on encoders.
+    const tunName = relayTunName(slot);
     // The base leg plan (egress table + iif rule + FORWARD) is vif-independent
     // and installed up-front; the NAT + reply route key on the encoder's vif,
     // which is only known once the first frame arrives on the wire.

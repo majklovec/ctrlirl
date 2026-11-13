@@ -16,6 +16,10 @@ import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { $ } from "bun";
 import { argEnv, intArgEnv } from "../../../shared/args";
+import {
+    VIF_SOURCE_TABLE_BASE,
+    VIF_SOURCE_TABLE_MAX_ORDINAL,
+} from "../../../shared/lib/udp_relay";
 import { isMoblinkTun } from "../../../shared/moblink_discovery";
 import { errorMessage, readLines } from "../../../shared/util";
 import type { ModuleCore } from "../../backend/module_core";
@@ -339,8 +343,18 @@ let managedTableCount = 0;
 let lastAppliedPlan: string | null = null;
 let lastAppliedPlanEntries: RoutePlanEntry[] = [];
 
+// The encoder's own vif source-route tables (20-39) are written by the
+// udp_relay module for srtla_send egress, not by this network monitor. Their
+// route events (e.g. `default dev relay0_x table 22`) must be treated as
+// self-generated, or the monitor reloads srtla_send on our own vif changes.
+const isVifSourceTable = (table: number): boolean =>
+    table >= VIF_SOURCE_TABLE_BASE &&
+    table <= VIF_SOURCE_TABLE_BASE + VIF_SOURCE_TABLE_MAX_ORDINAL;
+
 const isManagedTable = (table: number): boolean =>
-    table >= TABLE_BASE && table < TABLE_BASE + Math.max(managedTableCount, 1);
+    isVifSourceTable(table) ||
+    (table >= TABLE_BASE &&
+        table < TABLE_BASE + Math.max(managedTableCount, 1));
 
 /**
  * Seed `managedTableCount` from the live `ip rule` tables. After a process
@@ -863,9 +877,11 @@ function carrierState(name: string): "up" | "down" {
 
 /** List the machine's own IPv4 interfaces. Filtered:
  * - loopback (never carries relay traffic)
- * - MobLink tunnel TUNs (`relay${slot}_${iface}`, e.g. `relay0_wg0`) -
- *   tunnels to a relay's shared uplinks, not own interfaces: selecting one
- *   would loop traffic back through the relay (see `isMoblinkTun`). */
+ * - MobLink TUNs of both sides (see `isMoblinkTun`): encoder tunnel TUNs
+ *   (`relay${slot}_${iface}`, e.g. `relay0_wg0` - tunnels to a relay's shared
+ *   uplink; selecting one would loop traffic back through the relay) and
+ *   relay leg TUNs (`rltun${slot}` - the relay's own legs; selecting one
+ *   would open a leg ON a leg). */
 export function listNetworkInterfaces(): NetworkInterfaceInfo[] {
     const out: NetworkInterfaceInfo[] = [];
     for (const [name, addrs] of Object.entries(networkInterfaces() ?? {})) {

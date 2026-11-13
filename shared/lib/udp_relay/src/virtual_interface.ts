@@ -13,7 +13,7 @@
  */
 // @bun-only
 
-import { ipToU32 } from "./ip";
+import { bytesToU32, ipToU32 } from "./ip";
 import {
     DATA_HEADER_LEN,
     encodeKeepaliveFrame,
@@ -132,6 +132,11 @@ class VifImpl implements VirtualInterface {
     private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
     private running = false;
     private stopReader: (() => void) | null = null;
+    /**
+     * u32 of this vif's own IP - the identity a reply frame must carry for us
+     * to accept it. Precomputed once (the receive path is per-packet).
+     */
+    private readonly localIpU32: number;
     /** Reusable landing buffer for TUN reads (one allocation, not per packet). */
     private rxBuf: Uint8Array;
     /**
@@ -149,10 +154,13 @@ class VifImpl implements VirtualInterface {
         private keepaliveIntervalMs: number,
     ) {
         this._stats = newVifStats();
+        // The vif /32 is fixed for its lifetime; cache its u32 for the receive
+        // guard so the per-packet path does no address parsing.
+        this.localIpU32 = ipToU32(this.localIp);
         // Max IPv4 datagram plus slack - a TUN reader never returns more.
         this.rxBuf = new Uint8Array(65_536);
         this.txFrame = new Uint8Array(DATA_HEADER_LEN + 65_535);
-        writeDataHeader(this.txFrame, ipToU32(this.localIp));
+        writeDataHeader(this.txFrame, this.localIpU32);
     }
 
     get name(): string {
@@ -208,8 +216,8 @@ class VifImpl implements VirtualInterface {
                     _s: any,
                     buf: Uint8Array,
                     _port: number,
-                    addr: string,
-                ) => this.onRelayData(buf, addr)) as DataFn,
+                    _addr: string,
+                ) => this.onRelayData(buf)) as DataFn,
                 // Native network errors (e.g. an ICMP port-unreachable surfacing
                 // via the UDP errqueue as ECONNREFUSED when the relay's port is
                 // closed) are thrown from the socket, not delivered as data.
@@ -317,15 +325,24 @@ class VifImpl implements VirtualInterface {
     }
 
     /** Inbound: relay reply (already a full IP packet) → straight into the TUN. */
-    private onRelayData(buf: Uint8Array, addr: string): void {
+    private onRelayData(buf: Uint8Array): void {
         if (!this.tun) return;
-        // Defence: only accept frames from the configured relay host.
-        if (addr !== this.opts.relay.host) {
+        const kind = sniffFrameKind(buf);
+        if (kind !== "data" || buf.length <= DATA_HEADER_LEN) {
             this._stats.rxDropped++;
             return;
         }
-        const kind = sniffFrameKind(buf);
-        if (kind !== "data" || buf.length <= DATA_HEADER_LEN) {
+        // Identity check on the FRAME, not the wire source: the relay is bound
+        // to 0.0.0.0, so a reply comes back addressed *to the vif /32* from
+        // whichever of the relay's interfaces routes to us (e.g. the home-LAN
+        // IP when we reached the relay through that NIC, even if the leg's
+        // announced endpoint is a cell / CGNAT address). Matching the frame's
+        // vifIp against this vif's own IP is the invariant that holds across
+        // every relay source - the source-address equality the old guard used
+        // did not (it dropped all replies on any non-primary leg, leaving the
+        // TUN rx at 0 and SRT stuck in "connecting").
+        const frameVifU32 = bytesToU32(buf, 4);
+        if (frameVifU32 === null || frameVifU32 !== this.localIpU32) {
             this._stats.rxDropped++;
             return;
         }

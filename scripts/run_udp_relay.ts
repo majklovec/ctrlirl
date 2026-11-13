@@ -60,7 +60,7 @@ for (let slot = 0; slot < LEGS.length; slot++) {
     const [iface, portStr] = LEGS[slot].split(":");
     const port = Number(portStr);
     if (!iface || !port) throw new Error(`bad LEGS entry: ${LEGS[slot]}`);
-    const tunName = relayTunName(slot, iface);
+    const tunName = relayTunName(slot);
     const vifIp = vifIpFor(slot);
     const relay = await createUdpRelay({
         interfaceName: iface,

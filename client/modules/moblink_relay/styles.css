@@ -26,6 +26,20 @@
 .uplink-mark-down {
 	stroke: var(--muted, #888);
 }
+/* Encoder mark: the camera icon in the Uplink column of the interfaces an
+ * encoder is sending through (that leg has received encoder traffic). 1em
+ * inline, stroked with the accent colour, sitting left of the uplink arrow. */
+.encoder-mark {
+	height: 1em;
+	width: 1em;
+	margin-right: 0.3rem;
+	vertical-align: -0.2em;
+	fill: none;
+	stroke: var(--accent, #3d8bfd);
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
 /* Read-only advertise-IP line (was an input; the relay auto-detects it). */
 .moblink-relay .announce-host {
 	margin: 0.25rem 0 0.5rem;

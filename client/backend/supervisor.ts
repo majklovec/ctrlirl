@@ -45,9 +45,20 @@ export class Supervisor {
 
     /** Spawn via starter and watch the child; failures propagate to the caller. */
     async start(starter: Starter): Promise<void> {
-        this.wantedFlag = true;
-        this.starter = starter;
-        this.watch(await Promise.resolve(starter()));
+        try {
+            this.wantedFlag = true;
+            this.starter = starter;
+            this.watch(await Promise.resolve(starter()));
+        } catch (err) {
+            // The starter failed (e.g. ENOEXEC from an unspawnable binary).
+            // `wantedFlag`/`starter` were set above, so clear them - otherwise
+            // the target is wedged as "wanted" and every later start/retry hits
+            // the "already running" guard instead of trying again.
+            this.wantedFlag = false;
+            this.starter = null;
+            this.clearTimer();
+            throw err;
+        }
     }
 
     /** Stop (SIGTERM, optionally escalated to SIGKILL) and wait until it is gone. */
