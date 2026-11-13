@@ -762,7 +762,10 @@ const extraUplinks = new Map<string, UplinkExtra>();
  * their ids; a source that is also a bonded IP is written once. Exported as a
  * test seam. */
 export function uplinksLines(ips: string[]): string[] {
-    return [...ips].filter((ip, i, all) => all.indexOf(ip) === i);
+    const extras = [...extraUplinks.values()].map((e) => e.source);
+    return [...ips, ...extras].filter(
+        (ip, i, all) => all.indexOf(ip) === i,
+    );
 }
 
 /**
@@ -821,6 +824,17 @@ export async function removeProgrammaticUplink(id: string): Promise<void> {
     if (!extraUplinks.delete(id)) return;
     await rewriteUplinksWithExtras();
     await fireUplinksChanged();
+}
+
+/** Test seam: clear all programmatic uplinks without touching the file. */
+export function clearProgrammaticUplinksForTest(): void {
+    extraUplinks.clear();
+}
+
+/** Test seam: forget the last written uplinks content so the next read
+ * comes from the fixture file, not a cache set by an earlier test. */
+export function clearLastUplinksContentForTest(): void {
+    lastUplinksContent = null;
 }
 
 /** The currently registered programmatic uplinks (stable order by insertion). */
@@ -1009,6 +1023,15 @@ async function tableIdByName(name: string): Promise<number | undefined> {
 }
 
 export async function isSelfGeneratedEvent(line: string): Promise<boolean> {
+    // Link / address events on the moblink streamer's own TUNs
+    // (`N: relay0_eno2: <POINTOPOINT,...>`, `inet 10.90.0.1/24 dev
+    // relay0_eno2`) carry no `table` token and would otherwise trigger a
+    // full reconfigure → uplinks reload for our own state. Drop them: the
+    // TUN set is reconciled by the streamer itself, never by ip monitor.
+    const dev =
+        line.match(/^\d+:\s+([a-z0-9_.]+):\s*</)?.[1] // link: `55: relay0_wg0: <...`
+        ?? line.match(/^\d+:\s+([a-z0-9_.]+)\s+inet\b/)?.[1]; // addr: `60: relay0_eno2 inet ...`
+    if (dev !== undefined && isMoblinkTun(dev)) return true;
     const token = line.match(/\btable (\S+)/)?.[1];
     if (token === undefined) return false;
     if (/^\d+$/.test(token)) return isManagedTable(parseInt(token, 10));

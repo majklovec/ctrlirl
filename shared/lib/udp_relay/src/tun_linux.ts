@@ -315,6 +315,26 @@ export async function openTun(name: string): Promise<TunDevice> {
             "cannot open TUN: this Bun build exposes no working `bun:ffi` - " +
                 "run under a standard Bun build that includes FFI",
         );
+    // A previous process (killed or stopped between module stops) may have
+    // left a TUN device with this name in the kernel. `TUNSETIFF` fails with
+    // EEXIST for a name that already exists and there is no ioctl to *re-attach*
+    // to an existing device - so a stale interface would wedge every restart
+    // until the name is freed. Re-adopt it: delete the orphan first, then own
+    // the name fresh. Failing to delete (missing CAP_NET_ADMIN/root) fails
+    // fast with this clear error instead of the misleading EEXIST one.
+    try {
+        const shown = await runCmd("ip", [
+            "-o",
+            "link",
+            "show",
+            "dev",
+            name,
+        ]);
+        if (shown.includes(` ${name}: `))
+            await runCmd("ip", ["link", "del", "dev", name]);
+    } catch {
+        // `ip` unavailable or no such device - proceed to the ioctl.
+    }
     const fd = openTunFd();
     // `struct ifreq` for TUNSETIFF: `ifr_name` at 0, `ifr_flags` (IFF_TUN|
     // IFF_NO_PI) at offset 16. Build a full 64-byte buffer - the kernel copies
@@ -332,7 +352,7 @@ export async function openTun(name: string): Promise<TunDevice> {
     if (ret < 0) {
         closeSync(fd);
         throw new Error(
-            `ioctl(TUNSETIFF) failed for ${name} (requires CAP_NET_ADMIN/root)`,
+            `ioctl(TUNSETIFF) failed for ${name}`,
         );
     }
     const assigned = readTunsetName(ifr);

@@ -14,6 +14,7 @@ import type {
     MoblinkSharedEndpoint,
 } from "../../../../shared/moblink_discovery";
 import * as mod from "../backend";
+import { orphanTunNames } from "../backend";
 import {
     knownRelays,
     noteMdnsRelay,
@@ -645,5 +646,40 @@ describe("encoderInfo (protocol.md §2 relay lookup)", () => {
         expect(info?.wsPort).toBe(8190);
         expect(info?.proto).toBe(1);
         await up().stop();
+    });
+});
+
+describe("orphan TUN sweep (killed-process cleanup)", () => {
+    test("orphanTunNames picks only MobLink TUNs from ip link show output", () => {
+        const out = [
+            "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536",
+            "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500",
+            "3: usb0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500",
+            "60: relay0_eno2: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1400",
+            "61: relay0_enx76ae2: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1400",
+            "62: relay0_wg0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1400",
+            "70: rltun2: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1420",
+        ].join("\n");
+        expect(orphanTunNames(out)).toEqual(
+            expect.arrayContaining([
+                "relay0_eno2",
+                "relay0_enx76ae2",
+                "relay0_wg0",
+                "rltun2",
+            ]),
+        );
+        // Regular NICs are never swept.
+        expect(orphanTunNames(out)).not.toContain("eth0");
+        expect(orphanTunNames(out)).not.toContain("usb0");
+        expect(orphanTunNames(out)).not.toContain("lo");
+    });
+
+    test("orphanTunNames is empty when there are no MobLink TUNs", () => {
+        const out = [
+            "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536",
+            "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500",
+        ].join("\n");
+        expect(orphanTunNames(out)).toEqual([]);
+        expect(orphanTunNames("")).toEqual([]);
     });
 });

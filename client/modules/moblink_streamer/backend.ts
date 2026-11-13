@@ -49,6 +49,7 @@ import type {
     Uplinks,
 } from "../../../shared/contracts/module_capabilities";
 import {
+    isMoblinkTun,
     MOBLINK_RELAY_WS_PROTOCOL,
     type MoblinkDiscoveredRelay,
     type MoblinkRelayWsMessage,
@@ -510,6 +511,58 @@ async function stopAllTunnels(): Promise<void> {
     writeStatusFile();
 }
 
+/**
+ * Remove MobLink TUNs left in the kernel by a prior process. A process that is
+ * SIGKILL'd (or crashes) never runs `stopAllTunnels`, so its TUN devices
+ * survive in the kernel. On the next start the first `reconcile` calls
+ * `openTun` on the same name and `ioctl(TUNSETIFF)` fails with EEXIST, so the
+ * tunnel map never fills - the UI then shows the relay with no interfaces and
+ * `srtla_send` idles on the stale uplinks file. Sweeping at start guarantees a
+ * clean slate. `openTun` itself also re-adopts a pre-existing device, so this
+ * is belt-and-braces (it also clears TUNs for interfaces the current relay set
+ * no longer announces, e.g. a downed path's old name). Best-effort: a failure
+ * (no `ip`, no CAP_NET_ADMIN) must not block start.
+ */
+async function sweepOrphanTuns(): Promise<void> {
+    if (core.config.DRY_RUN) return;
+    let out: string;
+    try {
+        out = await core.run("ip", ["-o", "link", "show"]);
+    } catch (e) {
+        core.logEvent(
+            "warn",
+            "Relay tunnels",
+            `orphan TUN sweep: ip link show failed: ${errorMessage(e)}`,
+        );
+        return;
+    }
+    for (const name of orphanTunNames(out)) {
+        try {
+            await core.run("ip", ["link", "del", "dev", name]);
+            console.log(`moblink_streamer: swept orphan TUN ${name}`);
+        } catch (e) {
+            console.warn(
+                `moblink_streamer: sweep ${name} failed: ${errorMessage(e)}`,
+            );
+        }
+    }
+}
+
+/**
+ * Extract the MobLink TUN names from `ip -o link show` output. Pure (no I/O)
+ * so the parsing is unit-testable; the device-name prefix is
+ * `N: name:` and only names matching the MobLink TUN pattern are returned.
+ * Non-MobLink interfaces (eth0, usb0, …) are ignored.
+ */
+export function orphanTunNames(linkShow: string): string[] {
+    const out = new Set<string>();
+    for (const line of linkShow.split("\n")) {
+        const m = line.match(/^\s*\d+:\s+([a-z0-9_.]+):/);
+        if (m && isMoblinkTun(m[1])) out.add(m[1]);
+    }
+    return [...out];
+}
+
 // ----------------------------------------------------------------------
 // Discovery wiring
 // ----------------------------------------------------------------------
@@ -888,6 +941,10 @@ const registration: BackendModule<ModuleCore> = {
         ensureDiscovery();
         syncRegistry(knownRelays());
         ensureControlPlane();
+        // A previously-killed process can leave MobLink TUNs in the kernel.
+        // They wedge the first reconcile (`openTun` EEXIST) and leave the
+        // in-memory map empty → UI shows no interfaces. Sweep them first.
+        await sweepOrphanTuns();
         try {
             await reconcile();
         } catch (e) {

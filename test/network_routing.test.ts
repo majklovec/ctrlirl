@@ -1,15 +1,29 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import {
+    afterAll,
+    beforeEach,
+    describe,
+    expect,
+    test,
+} from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
-// The "uplinks file rewrite" block below must run before any other test that
-// triggers a file write: the routing module's lastUplinksContent cache would
-// then shadow the fixture file and the re-read under test would not happen.
 import type { ModuleCore } from "../client/backend/module_core";
 import { defaultRouteRowIndex } from "../client/modules/network/route_view";
-import {
+
+// The routing module derives its uplinks-file path from the UPLINKS_FILE env
+// var at import time. Point it at a per-process temp path *before* importing
+// so the "uplinks file rewrite" test never reads/writes a real (possibly
+// root-owned production) /tmp/srtla_ips.txt on the dev host.
+process.env.UPLINKS_FILE = join(
+    tmpdir(),
+    `srtla_ips.routingtest.${process.pid}`,
+);
+const {
     addProgrammaticUplink,
     bindRouting,
+    clearLastUplinksContentForTest,
+    clearProgrammaticUplinksForTest,
     defaultRouteDetails,
     fireInterfaceChangeIfChanged,
     isSelfGeneratedEvent,
@@ -20,13 +34,23 @@ import {
     setRtTablesFileForTest,
     setSysfsNetForTest,
     uplinksLines,
-} from "../client/modules/network/routing";
+    UPLINKS_FILE,
+} = await import("../client/modules/network/routing");
 
 // The tests below bind stub bags into the module singleton; hand the real
 // process bag back so later test files see the device as discovery left it.
 const rtTablesFixture = join(tmpdir(), `irtctrl_rt_tables.${process.pid}`);
+
+// A programmatic uplink added in one test must not leak into the next:
+// `uplinksLines` reflects the module-level `extraUplinks`, which previously
+// carried "moblink:relay0_eno2" across the describe blocks.
+beforeEach(() => {
+    clearProgrammaticUplinksForTest();
+    clearLastUplinksContentForTest();
+});
 afterAll(() => {
     rmSync(rtTablesFixture, { force: true });
+    rmSync(UPLINKS_FILE, { force: true });
     setRtTablesFileForTest(null);
 });
 afterAll(async () => {
@@ -36,10 +60,9 @@ afterAll(async () => {
 
 describe("uplinks file rewrite", () => {
     test("drops stale uplink ids an older build left in the file", async () => {
-        const file = join(tmpdir(), "srtla_ips.txt");
-        const saved = await Bun.file(file)
-            .text()
-            .catch(() => null);
+        // `UPLINKS_FILE` points at a per-process temp path (set above the
+        // module import), so this only ever touches the test scratch file.
+        const file = UPLINKS_FILE;
         let written: string | null = null;
         try {
             writeFileSync(file, "192.168.1.136\nmoblink:relay0_eno2\n");
@@ -57,8 +80,7 @@ describe("uplinks file rewrite", () => {
             expect(written).toContain("10.90.0.1");
             expect(written).not.toContain("moblink:");
         } finally {
-            if (saved === null) rmSync(file, { force: true });
-            else writeFileSync(file, saved);
+            rmSync(file, { force: true });
         }
     });
 });
@@ -230,6 +252,40 @@ describe("self-generated route event filtering", () => {
         );
         setRtTablesFileForTest(null);
         rmSync(rtTables, { force: true });
+    });
+
+    test("drops link and address events on MobLink TUNs (no table token)", async () => {
+        // `ip monitor` prints these without any `table` token when the
+        // streamer's own TUNs come up or get their address - they must not
+        // trigger a reconfigure + srtla reload loop (regression for the
+        // `[monitor] 55: relay0_wg0: <POINTOPOINT...> - reloading` spam).
+        expect(
+            await isSelfGeneratedEvent(
+                "55: relay0_wg0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1400 qdisc pfifo_fast state UNKNOWN group default",
+            ),
+        ).toBe(true);
+        expect(
+            await isSelfGeneratedEvent(
+                "12: rltun2: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN group default",
+            ),
+        ).toBe(true);
+        expect(
+            await isSelfGeneratedEvent(
+                "60: relay0_eno2    inet 10.90.0.1/24 scope global relay0_eno2",
+            ),
+        ).toBe(true);
+
+        // Regular NICs are untouched - their events stay relevant.
+        expect(
+            await isSelfGeneratedEvent(
+                "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default",
+            ),
+        ).toBe(false);
+        expect(
+            await isSelfGeneratedEvent(
+                "2: eth0    inet 192.168.10.101/24 brd 192.168.10.255 scope global dynamic noprefixroute eth0",
+            ),
+        ).toBe(false);
     });
 });
 
