@@ -1029,8 +1029,11 @@ export async function isSelfGeneratedEvent(line: string): Promise<boolean> {
     // full reconfigure → uplinks reload for our own state. Drop them: the
     // TUN set is reconciled by the streamer itself, never by ip monitor.
     const dev =
-        line.match(/^\d+:\s+([a-z0-9_.]+):\s*</)?.[1] // link: `55: relay0_wg0: <...`
-        ?? line.match(/^\d+:\s+([a-z0-9_.]+)\s+inet\b/)?.[1]; // addr: `60: relay0_eno2 inet ...`
+        // Link creation `55: relay0_wg0: <...>` and teardown
+        // `Deleted 55: relay0_wg0: <...>` share the `NNN: name:` core after
+        // dropping the `Deleted ` word. Addr: `60: relay0_eno2 inet ...`.
+        line.replace(/^Deleted\s+/, "").match(/^\d+:\s+([a-z0-9_.]+):\s*</)?.[1]
+        ?? line.match(/^\d+:\s+([a-z0-9_.]+)\s+inet\b/)?.[1];
     if (dev !== undefined && isMoblinkTun(dev)) return true;
     const token = line.match(/\btable (\S+)/)?.[1];
     if (token === undefined) return false;

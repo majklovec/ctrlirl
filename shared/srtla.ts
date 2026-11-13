@@ -426,6 +426,58 @@ export class SrtlaControlSocket {
         if (s) this.notifyChange();
     }
 
+    /**
+     * Liveness probe for an ALREADY-RUNNING `srtla_send` (adoption): opens one
+     * throwaway connection and issues a trivial RPC. A closed/stale socket
+     * file (crashed sender) fails the connect, so a dead one is never
+     * adopted. `ping` is not a srtla method - ANY reply (including the
+     * method-not-found error) proves a live process owns the socket.
+     */
+    async probe(path: string, timeoutMs = 1500): Promise<boolean> {
+        let reply: Promise<void> | null = null;
+        let resolveReply: (() => void) | null = null;
+        let srt: Socket<undefined> | null = null;
+        try {
+            const { socket } = await Bun.connect({
+                unix: path,
+                socket: {
+                    open(s: Socket<undefined>) {
+                        srt = s;
+                        reply = new Promise<void>((res) => {
+                            resolveReply = res;
+                        });
+                        s.write(
+                            `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" })}\n`,
+                        );
+                    },
+                    data(_s, chunk: unknown) {
+                        if (textOf(chunk).trim()) {
+                            resolveReply?.();
+                            s?.end();
+                        }
+                    },
+                    close() {},
+                    error() {},
+                },
+            });
+            void socket;
+            const timer = new Promise<never>((_, reject) =>
+                setTimeout(
+                    () => reject(new Error(`probe timeout (${timeoutMs}ms)`)),
+                    timeoutMs,
+                ),
+            );
+            await Promise.race([reply ?? timer, timer]);
+            return true;
+        } catch {
+            return false;
+        } finally {
+            try {
+                srt?.end();
+            } catch {}
+        }
+    }
+
     /** Send a JSON-RPC request and wait for its result. */
     rpc<T = unknown>(
         method: string,
@@ -605,6 +657,8 @@ export class SrtlaSend {
     private sup: Supervisor | undefined;
     private live: SrtlaState = { running: false };
     private dryRunActive = false; // --dry-run has no process to track
+    /** A pre-existing srtla_send was adopted (we own its control socket, not its process). */
+    private adopted = false;
     private lastLaunch: { bin: string; launch: SrtlaSendLaunch } | undefined;
 
     constructor(
@@ -674,6 +728,21 @@ export class SrtlaSend {
                 : { pid, reloadCount: this.live.reloadCount ?? 0 }),
         });
 
+        // Restart recovery: a previous client run may have left a healthy
+        // srtla_send behind (its TUNs/SRT port survive the restart). Spawning
+        // a second one would just die on EADDRINUSE and loop forever - adopt
+        // the live one and drive it through the control socket instead.
+        if (caps && withControl && (await this.control.probe(this.cfg.controlSocket))) {
+            this.adopted = true;
+            this.control.start(this.cfg.controlSocket);
+            this.live = started(undefined);
+            console.log(
+                `Adopted already-running srtla_send on ${this.cfg.controlSocket} (no respawn)`,
+            );
+            this.services.notifyStateChange();
+            return this.live;
+        }
+        this.adopted = false;
         this.lastLaunch = { bin: resolvedBin, launch };
         if (caps) {
             await this.supervisor().start(() => {
@@ -698,10 +767,12 @@ export class SrtlaSend {
     }
 
     async stop(): Promise<void> {
-        if (!this.sup && !this.dryRunActive) return; // never started - nothing to stop
+        if (!this.sup && !this.dryRunActive && !this.adopted)
+            return; // never started - nothing to stop
         await this.sup?.stop();
         this.control.stop();
         this.dryRunActive = false;
+        this.adopted = false; // an adopted (externally-owned) process is left running
         this.live = { ...this.live, running: false, pid: undefined };
         this.services.notifyStateChange();
     }

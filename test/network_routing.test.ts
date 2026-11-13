@@ -274,6 +274,19 @@ describe("self-generated route event filtering", () => {
                 "60: relay0_eno2    inet 10.90.0.1/24 scope global relay0_eno2",
             ),
         ).toBe(true);
+        // Teardown + recreation of a TUN flap the `Deleted`/plain link lines
+        // - the device name sits after the `Deleted` prefix. A reload here is
+        // a regression (it re-read uplinks and SIGHUP'd srtla for nothing).
+        expect(
+            await isSelfGeneratedEvent(
+                "Deleted 82: relay0_enx76ae2: <POINTOPOINT,MULTICAST,NOARP> mtu 1400 qdisc noop state DOWN group default",
+            ),
+        ).toBe(true);
+        expect(
+            await isSelfGeneratedEvent(
+                "82: relay0_enx76ae2: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1400 qdisc pfifo_fast state UNKNOWN group default",
+            ),
+        ).toBe(true);
 
         // Regular NICs are untouched - their events stay relevant.
         expect(
