@@ -12,6 +12,8 @@
     "dev.link_up": "attivo",
     "dev.link_weak": "debole",
     "dev.monitor_watching": "monitoraggio",
+    "dev.tun_enc": "Encoder attivo",
+    "dev.tun_enc_traffic": "traffico encoder: {{rx}} in / {{tx}} out pkt · visto per l'ultima volta {{last}}",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "Ultima volta sentito",
     "dev.net_self_announce": "Auto-annuncia",

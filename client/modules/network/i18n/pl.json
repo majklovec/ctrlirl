@@ -12,6 +12,8 @@
     "dev.link_up": "aktywne",
     "dev.link_weak": "słabe",
     "dev.monitor_watching": "monitoruje",
+    "dev.tun_enc": "Aktywny enkoder",
+    "dev.tun_enc_traffic": "ruch enkodera: {{rx}} in / {{tx}} out pkt · ostatni sygnał {{last}}",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "Ostatnio usłyszano",
     "dev.net_self_announce": "Własne ogłoszenie",

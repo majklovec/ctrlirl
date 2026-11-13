@@ -12,6 +12,8 @@
     "dev.link_up": "activo",
     "dev.link_weak": "débil",
     "dev.monitor_watching": "monitorizando",
+    "dev.tun_enc": "Codificador activo",
+    "dev.tun_enc_traffic": "tráfico del codificador: {{rx}} in / {{tx}} out pkt · visto por última vez {{last}}",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "Última vez oído",
     "dev.net_self_announce": "Auto-anuncio",

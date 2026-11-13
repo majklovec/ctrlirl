@@ -12,6 +12,8 @@
     "dev.link_up": "активен",
     "dev.link_weak": "слабый",
     "dev.monitor_watching": "наблюдение",
+    "dev.tun_enc": "Энкодер активен",
+    "dev.tun_enc_traffic": "трафик энкодера: {{rx}} in / {{tx}} out pkt · последний сигнал {{last}}",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "Последнее получение",
     "dev.net_self_announce": "Самоанонсация",

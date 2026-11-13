@@ -73,6 +73,13 @@ export interface MoblinkAvailableInterface {
 export interface MoblinkRelayStatusEntry {
     interfaceName: string;
     interfaceAddress: string;
+    /** The leg TUN name (`rltun<slot>`) this leg's relay forwards through. */
+    tun?: string;
+    /**
+     * The encoder's dedicated vif (/32 over the leg) learned from the wire -
+     * `undefined` until the first encoder frame arrives on the leg.
+     */
+    vifIp?: string;
     stats: {
         encRxPackets: number;
         encTxPackets: number;

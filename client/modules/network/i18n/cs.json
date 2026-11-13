@@ -12,6 +12,8 @@
     "dev.link_up": "aktivní",
     "dev.link_weak": "slabé",
     "dev.monitor_watching": "sleduje",
+    "dev.tun_enc": "Aktivní enkodér",
+    "dev.tun_enc_traffic": "souvah enkodéru: {{rx}} in / {{tx}} out pkt · poslední signál {{last}}",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "Naposlední slyšeno",
     "dev.net_self_announce": "Vlastní ohlášení",

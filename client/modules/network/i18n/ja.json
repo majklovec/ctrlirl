@@ -12,6 +12,8 @@
     "dev.link_up": "稼働中",
     "dev.link_weak": "弱い",
     "dev.monitor_watching": "監視中",
+    "dev.tun_enc": "エンコーダー稼働中",
+    "dev.tun_enc_traffic": "エンコーダー通信: {{rx}} in / {{tx}} out pkt · 最終検出 {{last}}",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "最終受信",
     "dev.net_self_announce": "自己広告",

@@ -486,9 +486,12 @@ function buildStatus(): MoblinkRuntimeStatus {
     });
     const relaysArr = [...relays.entries()].map(([name, relay]) => {
         const st = relay.stats();
+        const leg = relayLegs.get(name);
         return {
             interfaceName: name,
             interfaceAddress: relay.interfaceAddress,
+            tun: leg?.tun,
+            vifIp: leg?.vifIp,
             stats: {
                 encRxPackets: st.encRxPackets,
                 encTxPackets: st.encTxPackets,

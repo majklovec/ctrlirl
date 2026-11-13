@@ -16,6 +16,7 @@ import type {
 	FrontendModule,
 } from "../../../shared/contracts/frontend_module";
 import { isMoblinkTun } from "../../../shared/moblink_discovery";
+import type { MoblinkRelayState } from "../moblink_relay/types";
 import type {
 	MoblinkStreamerTunnelStatus,
 	MoblinkStreamerView,
@@ -197,7 +198,24 @@ function tunnelRow(
 					{tun.interfaceAddress ? `${tun.interfaceAddress}/24` : null}
 					{" → "}
 					{tun.relayHost}:{tun.relayPort}
+					{tun.uplink
+						? ` · ${tun.uplink.interface}`
+						: null}
 				</span>
+				{tun.encoderStats ? (
+					<span
+						class="tun-enc muted"
+						title={t("dev.tun_enc_traffic", {
+							rx: tun.encoderStats.rxPackets,
+							tx: tun.encoderStats.txPackets,
+							last: tun.encoderStats.lastEncoderSeen
+								? since(tun.encoderStats.lastEncoderSeen)
+								: "-",
+						})}
+					>
+						{t("dev.tun_enc")}
+					</span>
+				) : null}
 			</td>
 			<td class="is-signal">-</td>
 			<td class="is-network">-</td>
@@ -307,12 +325,60 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 				relayEndpointHosts.set(addr, r.host);
 		}
 	}
+
 	const tunnelsByRelay = new Map<string, MoblinkStreamerTunnelStatus[]>();
 	for (const tun of streamer?.runtime?.tunnels ?? []) {
 		const relayHost = relayEndpointHosts.get(tun.relayHost) ?? tun.relayHost;
 		const list = tunnelsByRelay.get(relayHost) ?? [];
 		list.push(tun);
 		tunnelsByRelay.set(relayHost, list);
+	}
+	// On the RELAY box the "tunnels" are the relay's own leg TUNs
+	// (`rltun<N>`), one per active uplink leg - published on the relay runtime
+	// under `state.moblink`. Map them into the same row schema as encoder
+	// tunnels so the relay's own group in this table shows real rows instead
+	// of "No active tunnels": `rltun<N>` + the learned vif (10.90.x.1) + which
+	// uplink the leg egresses through. They hang off this box's own announce
+	// host (the relay announces itself, it is not "a relay" to itself).
+	const relayState = host.st.status?.state?.moblink as
+		| MoblinkRelayState
+		| undefined;
+	if (relayState && Array.isArray(relayState.relays)
+		&& relayState.relays.length > 0
+		&& relayState.announceHost) {
+		for (const leg of relayState.relays) {
+			if (
+				typeof leg !== "object" ||
+				!leg ||
+				typeof leg.interfaceName !== "string"
+			)
+				continue;
+			const uplink = relayState.availableInterfaces?.find(
+				(a) => a.name === leg.interfaceName,
+			);
+			const tun: MoblinkStreamerTunnelStatus = {
+				interfaceName: leg.tun ?? "",
+				interfaceAddress: leg.vifIp ?? "",
+				relayHost: uplink?.address ?? leg.interfaceAddress,
+				relayPort: uplink?.listenPort ?? 0,
+				uplinkRegistered: true,
+				stats: {
+					txPackets: leg.stats?.encTxPackets ?? 0,
+					rxPackets: leg.stats?.encRxPackets ?? 0,
+				},
+				uplink: uplink
+					? {
+							interface: leg.interfaceName,
+							address: uplink.address,
+							port: uplink.listenPort,
+					  }
+					: undefined,
+				encoderStats: leg.stats,
+			};
+			const list = tunnelsByRelay.get(relayState.announceHost) ?? [];
+			list.push(tun);
+			tunnelsByRelay.set(relayState.announceHost, list);
+		}
 	}
 
 	// One flat, uniformly-keyed list of <tr> rows for a single table: the

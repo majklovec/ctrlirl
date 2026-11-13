@@ -44,6 +44,21 @@ export interface MoblinkStreamerTunnelStatus {
     uplinkRegistered: boolean;
     stats: { txPackets: number; rxPackets: number };
     lastError?: string;
+    /**
+     * Present on the RELAY box, where a "tunnel" is a leg TUN
+     * (`rltun<N>`) toward an encoder: the uplink interface the leg egresses
+     * through, and the encoder-traffic counters the relay observed on it.
+     */
+    uplink?: {
+        interface: string;
+        address: string;
+        port: number;
+    };
+    encoderStats?: {
+        rxPackets: number;
+        txPackets: number;
+        lastEncoderSeen: number;
+    };
 }
 
 /** One relay entry in the runtime status file (§9.1). */
