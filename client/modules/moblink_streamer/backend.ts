@@ -80,6 +80,7 @@ import {
     lastEncoderUdpAnnounceAt,
     noteMdnsRelay,
     noteRelay,
+    relayKey,
     startDiscovering,
     startEncoderAnnouncing,
     stopDiscovering,
@@ -130,6 +131,11 @@ const tunSlots = new Map<
     string,
     { x: number; y: number; name: string; localIp: string }
 >();
+/** Keyed by the relay's STABLE identity (`relayKey`: hostname, else host),
+ * NOT by the announced host - the WS `hello` path can register a relay
+ * under the WS peer address (e.g. the relay's cellular uplink IP), which
+ * must earn the SAME ordinal as the UDP-announced host of that relay, or
+ * one physical relay would occupy two ordinals (`relay0_*` + `relay1_*`). */
 const relayOrdinal = new Map<string, number>();
 const relayIfcSeen = new Map<string, number>();
 let relaySeq = 0;
@@ -139,7 +145,7 @@ const vifTableOrdinal = new Map<string, number>();
 let vifTableSeq = 0;
 function slotFor(
     key: string,
-    relayHost: string,
+    relay: MoblinkDiscoveredRelay,
     ifaceName: string,
 ): {
     x: number;
@@ -149,13 +155,14 @@ function slotFor(
 } {
     const existing = tunSlots.get(key);
     if (existing) return existing;
-    let x = relayOrdinal.get(relayHost);
+    const id = relayKey(relay);
+    let x = relayOrdinal.get(id);
     if (x === undefined) {
         x = relaySeq++;
-        relayOrdinal.set(relayHost, x);
+        relayOrdinal.set(id, x);
     }
-    const y = relayIfcSeen.get(relayHost) ?? 0;
-    relayIfcSeen.set(relayHost, y + 1);
+    const y = relayIfcSeen.get(id) ?? 0;
+    relayIfcSeen.set(id, y + 1);
     // Stable routing-table ordinal (20 + n, below the leg base of 40). Beyond
     // 20 tunnels the extra TUNs still work, just without the per-source
     // egress route (srtla can't bind them) - not a real-world scale.
@@ -312,7 +319,7 @@ function desiredTargets(): TunnelTarget[] {
             host: string;
             port: number;
             order: number;
-            relayHost: string;
+            relay: MoblinkDiscoveredRelay;
             iface: string;
         }
     >();
@@ -320,13 +327,13 @@ function desiredTargets(): TunnelTarget[] {
     const add = (
         host: string,
         port: number,
-        relayHost: string,
+        relay: MoblinkDiscoveredRelay,
         iface: string,
     ): void => {
         if (!host || !port) return;
         const key = `${host}:${port}`;
         if (byKey.has(key)) return;
-        byKey.set(key, { host, port, order: order++, relayHost, iface });
+        byKey.set(key, { host, port, order: order++, relay, iface });
     };
     for (const r of knownRelays().sort((a, b) =>
         a.host.localeCompare(b.host),
@@ -337,7 +344,7 @@ function desiredTargets(): TunnelTarget[] {
             // path returns no re-detection is needed - reconcile just
             // re-creates the TUN for the SAME endpoint.
             if (ep.state === "down") continue;
-            add(ep.address || r.host, ep.listenPort, r.host, ep.name);
+            add(ep.address || r.host, ep.listenPort, r, ep.name);
         }
     }
     // Assign a stable name + local IP per endpoint (stable across set growth).
@@ -345,7 +352,7 @@ function desiredTargets(): TunnelTarget[] {
         .sort((a, b) => a.order - b.order)
         .map((t) => {
             const key = `${t.host}:${t.port}`;
-            const slot = slotFor(key, t.relayHost, t.iface);
+            const slot = slotFor(key, t.relay, t.iface);
             return {
                 key,
                 tunName: slot.name,

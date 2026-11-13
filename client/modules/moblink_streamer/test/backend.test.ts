@@ -625,6 +625,103 @@ describe("registry dedupe (one entry per relay)", () => {
         expect(knownRelays()[0].host).toBe("192.0.2.20");
         await up().stop();
     });
+
+    test("one physical relay = one ordinal, even when the WS hello arrives via its cellular leg", async () => {
+        await setup();
+        // UDP broadcast announce: one identity ("bigcml") with four legs,
+        // including the cellular uplink (192.0.2.30:4005).
+        noteRelay({
+            host: "192.0.2.10",
+            hostname: "bigcml",
+            interfaces: [
+                {
+                    name: "eno1",
+                    address: "192.0.2.10",
+                    listenPort: 4004,
+                },
+                { name: "eno2", address: "192.0.2.11", listenPort: 4000 },
+                {
+                    name: "enx7ee7150ef057",
+                    address: "192.0.2.30",
+                    listenPort: 4005,
+                },
+                { name: "wg0", address: "192.0.2.12", listenPort: 4002 },
+            ],
+            lastSeen: Date.now(),
+        } as MoblinkDiscoveredRelay);
+        await Bun.sleep(10);
+        let v = await view();
+        // All four legs of the SAME relay share ordinal 0 → `relay0_*` TUNs
+        // on 10.90.y.1 vifs (the cellular leg is relay0, not relay1).
+        expect(
+            v.runtime.tunnels.map((t) => t.interfaceName).sort(),
+        ).toEqual([
+            "relay0_eno1",
+            "relay0_eno2",
+            "relay0_enx7ee71",
+            "relay0_wg0",
+        ]);
+        // The cellular leg dials its interface's own IP on ordinal-0 vifs.
+        expect(
+            v.runtime.tunnels.find((t) => t.relayHost === "192.0.2.30")
+                ?.interfaceAddress,
+        ).toBe("10.90.2.1");
+
+        // The relay's WS `hello` now arrives with the cellular peer address
+        // (its WS connection went out the cellular uplink). This must merge
+        // into the existing "bigcml" entry, not mint a second ordinal.
+        mod.onRelayWsMessage(
+            "bigcml",
+            {
+                type: "hello",
+                relay_id: "bigcml",
+                proto: 1,
+                interfaces: [
+                    {
+                        iface_name: "eno1",
+                        ip: "192.0.2.10",
+                        udp_port: 4004,
+                        state: "up",
+                        uplink: true,
+                    },
+                    {
+                        iface_name: "eno2",
+                        ip: "192.0.2.11",
+                        udp_port: 4000,
+                        state: "up",
+                        uplink: true,
+                    },
+                    {
+                        iface_name: "enx7ee7150ef057",
+                        ip: "192.0.2.30",
+                        udp_port: 4005,
+                        state: "up",
+                        uplink: true,
+                    },
+                    {
+                        iface_name: "wg0",
+                        ip: "192.0.2.12",
+                        udp_port: 4002,
+                        state: "up",
+                        uplink: true,
+                    },
+                ],
+            },
+            "192.0.2.30",
+        );
+        await Bun.sleep(10);
+        v = await view();
+        expect(knownRelays()).toHaveLength(1);
+        expect(
+            v.runtime.tunnels.map((t) => t.interfaceName).sort(),
+        ).toEqual([
+            "relay0_eno1",
+            "relay0_eno2",
+            "relay0_enx7ee71",
+            "relay0_wg0",
+        ]);
+        await up().stop();
+    });
 });
 
 describe("encoderInfo (protocol.md §2 relay lookup)", () => {
