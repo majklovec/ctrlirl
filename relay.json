@@ -16,9 +16,6 @@
       "outputs": [],
       "profiles": []
     },
-    "encoder": {
-      "enabled": false
-    },
     "ctrlink_relay": {
       "enabled": false,
       "listenPortBase": 4000,
@@ -31,6 +28,9 @@
       "interfaceNameOverrides": {}
     },
     "ctrlink_streamer": {
+      "enabled": false
+    },
+    "encoder": {
       "enabled": false
     },
     "modems": {
@@ -73,7 +73,7 @@
     },
     "speedtest": {
       "enabled": true,
-      "interface": "wwx001e101f0000",
+      "interface": "wwan0",
       "serverId": 85
     },
     "ssh": {

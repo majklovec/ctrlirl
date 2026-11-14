@@ -203,6 +203,11 @@ export const state: PersistentState = CONFIG_EXISTS
 	? fromConfig(INITIAL_CONFIG)
 	: { settings: {}, autostart: false, data: {} };
 
+// Seed the change detector with the canonical form of the loaded config so the
+// first saveState() of a process writes only when a value actually differs —
+// an untouched file is never rewritten (no spurious reformat/mtime churn).
+lastConfig = stableStringify(projectConfig(state));
+
 // Hostnames change; the uuid is the device's permanent identity on the control server.
 // It is auto-assigned here (backfilled into older config files) and never changes.
 // Older config files have no language either; normalize so it is always present.
