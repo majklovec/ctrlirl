@@ -1,5 +1,5 @@
 {
-    "name": "@irlctrl/udp-relay",
+    "name": "@ctrlirl/udp-relay",
     "version": "0.1.0",
     "private": true,
     "description": "Transport primitive: tunnel UDP payloads between a Linux TUN and a bound UDP socket. No SRTLA, no auth, no discovery.",

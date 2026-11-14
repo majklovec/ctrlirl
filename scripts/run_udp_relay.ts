@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Persistent relay-slot runner (`@irlctrl/gretap-relay`) for the relay box.
+ * Persistent relay-slot runner (`@ctrlirl/gretap-relay`) for the relay box.
  *
  * Note (GRETAP cutover): the data plane is now a kernel GRETAP tunnel (set
  * up on the streamer side); `createUdpRelay` is a no-op slot holder, so this

@@ -1,6 +1,6 @@
-# Handoff Document: Ctrlink Support for `irlctrl`
+# Handoff Document: Ctrlink Support for `ctrlirl`
 
-**Target repository:** https://github.com/majklovec/irlctrl
+**Target repository:** https://github.com/majklovec/ctrlirl
 **Reference implementations:**
 
 -   `ctrlink-rust` — https://github.com/datagutt/ctrlink-rust (auth + WebSocket protocol)
@@ -10,11 +10,11 @@
 
 | #     | Deliverable                  | Type             | Location                           |
 | ----- | ---------------------------- | ---------------- | ---------------------------------- |
-| **A** | `@irlctrl/udp-relay` library | Shared primitive | `shared/lib/udp-relay/`            |
+| **A** | `@ctrlirl/udp-relay` library | Shared primitive | `shared/lib/udp-relay/`            |
 | **B** | `ctrlink-relay` role         | Role + module    | `client/modules/ctrlink-relay/`    |
 | **C** | `ctrlink-streamer` module    | Module           | `client/modules/ctrlink-streamer/` |
 
-The library (A) is the transport primitive. The modules (B, C) build on it and own all config, UI, supervision, auth (if applicable), and integration with the rest of `irlctrl`.
+The library (A) is the transport primitive. The modules (B, C) build on it and own all config, UI, supervision, auth (if applicable), and integration with the rest of `ctrlirl`.
 
 ---
 
@@ -27,7 +27,7 @@ Extend an encoder's SRTLA bond with the uplinks of a separate relay box — **wi
    │
    ├─ srtla_send  ──▶  TUN (10.3.3.1)  ──▶  ctrlink-streamer module
    │                                              │
-   │                                              │ (UDP tunnel via @irlctrl/udp-relay)
+   │                                              │ (UDP tunnel via @ctrlirl/udp-relay)
    │                                              ▼
 [ RELAY BOX (role: ctrlink-relay) ]
    │
@@ -69,13 +69,13 @@ Do **not** make the user hand-edit the uplinks file. When `ctrlink-streamer` bri
 
 ### 2.4 The library is the transport; the modules are the features
 
-`@irlctrl/udp-relay` (deliverable A) knows nothing about SRTLA, Ctrlink, auth, discovery, or config. It moves UDP payloads between a TUN on one host and a bound UDP socket on another. Deliverables B and C are the features that use it.
+`@ctrlirl/udp-relay` (deliverable A) knows nothing about SRTLA, Ctrlink, auth, discovery, or config. It moves UDP payloads between a TUN on one host and a bound UDP socket on another. Deliverables B and C are the features that use it.
 
 Do **not** add Ctrlink protocol messages, auth, or discovery to the library. Do **not** import the library from `ctrlink-relay`'s CLI parsing. The library is a primitive.
 
 ### 2.5 Transport mode
 
-The modules use the **UDP transport** provided by `@irlctrl/udp-relay`. Do **not** implement the WebSocket-based Ctrlink relay protocol (challenge–response, `Hello`/`Identify`/`startTunnel`) in v1 — it belongs to a future transport mode and is out of scope for this document. If you find yourself porting `ctrlink-rust/src/protocol.rs`, stop: that code is **not** part of this task.
+The modules use the **UDP transport** provided by `@ctrlirl/udp-relay`. Do **not** implement the WebSocket-based Ctrlink relay protocol (challenge–response, `Hello`/`Identify`/`startTunnel`) in v1 — it belongs to a future transport mode and is out of scope for this document. If you find yourself porting `ctrlink-rust/src/protocol.rs`, stop: that code is **not** part of this task.
 
 ---
 
@@ -94,7 +94,7 @@ The modules use the **UDP transport** provided by `@irlctrl/udp-relay`. Do **not
 
 ---
 
-## 4. Deliverable A — `@irlctrl/udp-relay` Library
+## 4. Deliverable A — `@ctrlirl/udp-relay` Library
 
 ### 4.1 Purpose
 
@@ -113,7 +113,7 @@ The library is **protocol-agnostic** (moves payloads, no SRTLA), **auth-agnostic
 
 ```
 shared/lib/udp-relay/
-├── package.json                 # { "name": "@irlctrl/udp-relay" }
+├── package.json                 # { "name": "@ctrlirl/udp-relay" }
 ├── tsconfig.json                # extends repo root
 ├── src/
 │   ├── index.ts                 # public exports
@@ -129,7 +129,7 @@ shared/lib/udp-relay/
     ├── ip.test.ts
     ├── relay.test.ts
     ├── virtual-interface.test.ts
-    └── integration.test.ts      # gated by IRLCTRL_TEST_NET_ADMIN=1
+    └── integration.test.ts      # gated by CTRLIRL_TEST_NET_ADMIN=1
 ```
 
 No new runtime dependencies. No CLI binary. Bun-only files marked `// @bun-only`.
@@ -139,7 +139,7 @@ No new runtime dependencies. No CLI binary. Bun-only files marked `// @bun-only`
 #### Encoder side
 
 ```ts
-import { createVirtualInterface } from "@irlctrl/udp-relay";
+import { createVirtualInterface } from "@ctrlirl/udp-relay";
 
 const vif = await createVirtualInterface({
     name: "ctrlink0", // <= 15 chars
@@ -182,7 +182,7 @@ interface VifStats {
 #### Relay side
 
 ```ts
-import { createUdpRelay } from "@irlctrl/udp-relay";
+import { createUdpRelay } from "@ctrlirl/udp-relay";
 
 const relay = await createUdpRelay({
     interfaceName: "eth0",
@@ -333,7 +333,7 @@ Construct a full IPv4/UDP packet from scratch:
 
 ### 5.1 Purpose
 
-A new role available alongside `relay | encoder | obs | broadcaster`. Runs on a multi-uplink box. It enumerates eligible interfaces, and for each starts a `createUdpRelay()` from `@irlctrl/udp-relay`, forwarding to a shared remote `srtla_rec`.
+A new role available alongside `relay | encoder | obs | broadcaster`. Runs on a multi-uplink box. It enumerates eligible interfaces, and for each starts a `createUdpRelay()` from `@ctrlirl/udp-relay`, forwarding to a shared remote `srtla_rec`.
 
 ### 5.2 Module layout
 
@@ -395,7 +395,7 @@ Follow `client/modules/relay/frontend.tsx` and `settings.tsx` patterns.
 
 ### 6.1 Purpose
 
-Encoder-side module. Creates a TUN interface via `createVirtualInterface()` from `@irlctrl/udp-relay`, and **auto-registers the resulting IP as an uplink** with the `network` module so `srtla_send` picks it up without user intervention.
+Encoder-side module. Creates a TUN interface via `createVirtualInterface()` from `@ctrlirl/udp-relay`, and **auto-registers the resulting IP as an uplink** with the `network` module so `srtla_send` picks it up without user intervention.
 
 ### 6.2 Module layout
 
@@ -498,7 +498,7 @@ On stop, `remove(id)`. This is the **whole point** of §2.3 — do not skip it, 
 
 ### 7.4 Config migration
 
-Users upgrading from an older `irlctrl` have no `ctx.state.ctrlink*`. Initialise defaults on first read; **disabled by default**. Never crash on missing config. On start, sweep any stale `ctrlink:*` entries from the uplinks list before re-adding.
+Users upgrading from an older `ctrlirl` have no `ctx.state.ctrlink*`. Initialise defaults on first read; **disabled by default**. Never crash on missing config. On start, sweep any stale `ctrlink:*` entries from the uplinks list before re-adding.
 
 ### 7.5 Library is a transport primitive; do not pollute it
 
@@ -508,7 +508,7 @@ If you find yourself adding auth, discovery, WebSocket, or Ctrlink messages to `
 
 ## 8. Protocol Summary
 
-### 8.1 Wire protocol (`@irlctrl/udp-relay`)
+### 8.1 Wire protocol (`@ctrlirl/udp-relay`)
 
 See §4.4. Two frame types (`0x01` data, `0x02` keepalive), 4-byte header. No auth, no encryption. **This is the only protocol in scope.**
 
@@ -589,7 +589,7 @@ Written on every state change (connect, disconnect, uplink add/remove, config ch
 
 ### 10.2 Library integration test
 
-Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUdpRelay()` and one `createVirtualInterface()` on it. Sends UDP packets through the tunnel end to end and asserts arrival; checks `ip link show` after `stop()`.
+Gated by `CTRLIRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUdpRelay()` and one `createVirtualInterface()` on it. Sends UDP packets through the tunnel end to end and asserts arrival; checks `ip link show` after `stop()`.
 
 ### 10.3 Module tests
 
@@ -611,7 +611,7 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
 
 ### Library (`shared/lib/udp-relay/`)
 
--   [ ] `package.json` (`"name": "@irlctrl/udp-relay"`), `tsconfig.json`, `README.md`
+-   [ ] `package.json` (`"name": "@ctrlirl/udp-relay"`), `tsconfig.json`, `README.md`
 -   [ ] `src/index.ts` exporting `createUdpRelay`, `createVirtualInterface`, `listInterfaces`, and all types
 -   [ ] `src/protocol.ts`, `ip.ts`, `tun-linux.ts`, `relay.ts`, `virtual-interface.ts`, `stats.ts`, `types.ts`
 -   [ ] Factory throws only on invalid input; runtime errors surface from `start()`
@@ -629,7 +629,7 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
 -   [ ] Config in `ctx.state.ctrlink` (§5.4) — no CLI flags, no DB file
 -   [ ] Relay IDs in `ctx.state.ctrlink.relayIds` — **not** a separate JSON file
 -   [ ] Runtime status file per §9.1
--   [ ] Uses `createUdpRelay()` from `@irlctrl/udp-relay`
+-   [ ] Uses `createUdpRelay()` from `@ctrlirl/udp-relay`
 -   [ ] Interface list from `network` module capability (not re-implemented)
 -   [ ] Tests (§10.3)
 
@@ -638,7 +638,7 @@ Gated by `IRLCTRL_TEST_NET_ADMIN=1`. Creates a `dummy0` interface, one `createUd
 -   [ ] `client/modules/ctrlink-streamer/` with the same file set
 -   [ ] `roles: ["encoder"]`
 -   [ ] Config in `ctx.state.ctrlinkStreamer` (§6.4) — no CLI flags
--   [ ] Uses `createVirtualInterface()` from `@irlctrl/udp-relay`
+-   [ ] Uses `createVirtualInterface()` from `@ctrlirl/udp-relay`
 -   [ ] **Auto-registers uplink via `network.uplinks.add/remove`** (§7.2, §2.3)
 -   [ ] Runtime status file per §9.1
 -   [ ] Stale-uplink sweep on start
@@ -692,7 +692,7 @@ Ship each layer green before moving on.
 
 ## 14. References
 
--   `irlctrl` — https://github.com/majklovec/irlctrl
+-   `ctrlirl` — https://github.com/majklovec/ctrlirl
 -   `ctrlink-rust` — https://github.com/datagutt/ctrlink-rust (for future transport mode; **not** to be ported in v1)
 -   Moblin iOS — https://github.com/eerimoq/moblin (conceptual only)
 -   BELABOX / SRTLA — https://github.com/BELABOX

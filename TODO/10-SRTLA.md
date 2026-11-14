@@ -1,6 +1,6 @@
-# Handoff Document: `irlctrl` — SRTLA-Everywhere Migration
+# Handoff Document: `ctrlirl` — SRTLA-Everywhere Migration
 
-**Repo:** `https://github.com/majklovec/irlctrl`
+**Repo:** `https://github.com/majklovec/ctrlirl`
 **Scope:** Rewire encoder→relay transport from SRT to SRTLA, make relay a full SRTLA→SRTLA bridge, delete the `combined` role.
 **Status of spec:** All open questions resolved. This is the implementation spec.
 

@@ -4,7 +4,7 @@ job "[[.DOMAIN]]" {
   type        = "service"
 
   # ============================================================
-  # Group 1 — the existing irlctrl-server (unchanged)
+  # Group 1 — the existing ctrlirl-server (unchanged)
   # ============================================================
   group "[[.SERVICE_ID]]" {
     count = 1
@@ -23,7 +23,7 @@ job "[[.DOMAIN]]" {
       user   = "1000:1000"
 
       config {
-        image = "ghcr.io/majklovec/irlctrl-server"
+        image = "ghcr.io/majklovec/ctrlirl-server"
         ports = ["http"]
         mount {
           type     = "bind"

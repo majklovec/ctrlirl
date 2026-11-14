@@ -1,17 +1,17 @@
-# irlctrl-emmc-install.service
+# ctrlirl-emmc-install.service
 #
 # One-shot service that installs the running Armbian system to eMMC on
 # first boot. It disables itself after a successful run.
 
 [Unit]
-Description=IRLCTRL eMMC auto-installer
+Description=CTRLIRL eMMC auto-installer
 After=local-fs.target network-online.target
 Wants=network-online.target
 ConditionPathExists=!/root/.emmc-install-complete
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/irlctrl-emmc-install.sh
+ExecStart=/usr/local/sbin/ctrlirl-emmc-install.sh
 RemainAfterExit=yes
 StandardOutput=journal
 StandardError=journal

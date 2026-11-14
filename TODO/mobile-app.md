@@ -1,7 +1,7 @@
-# Project Specification: IRLCTRL Mobile — SRTLA Streaming Encoder for Android
+# Project Specification: CTRLIRL Mobile — SRTLA Streaming Encoder for Android
 
 **Document type:** Handoff specification for an implementing AI agent
-**Target repository:** `majklovec/irlctrl`
+**Target repository:** `majklovec/ctrlirl`
 **Proposed module name:** `android-encoder` (native Android client)
 **Status:** Draft for implementation
 **Revision:** 2 — adds implementation-language decision (§2.4, §7.2)
@@ -10,17 +10,17 @@
 
 ## 1. Executive Summary
 
-IRLCTRL is a Bun-based controller for BELABOX-style bonded streaming. It exposes four device roles — `relay`, `encoder`, `obs`, and `broadcaster` — and an optional control server that manages devices over an outbound WebSocket connection. Today the `encoder` role runs on Linux-class devices with GStreamer pipelines and a local `srtla_send` process.
+CTRLIRL is a Bun-based controller for BELABOX-style bonded streaming. It exposes four device roles — `relay`, `encoder`, `obs`, and `broadcaster` — and an optional control server that manages devices over an outbound WebSocket connection. Today the `encoder` role runs on Linux-class devices with GStreamer pipelines and a local `srtla_send` process.
 
 This project adds **a native Android application** that fulfils the **`encoder` role on a mobile device**. The Android app will:
 
 1. Capture video/audio from the phone’s camera and microphone.
 2. Encode using hardware-accelerated MediaCodec.
 3. Bond multiple network interfaces (Wi‑Fi + cellular) using SRTLA.
-4. Send the bonded SRTLA stream to an IRLCTRL `relay` (or directly to an SRTLA receiver).
-5. Register with the IRLCTRL control server as a first-class device, exposing the same RPC methods and status events that the control server and dashboards already understand for the `encoder` role.
+4. Send the bonded SRTLA stream to an CTRLIRL `relay` (or directly to an SRTLA receiver).
+5. Register with the CTRLIRL control server as a first-class device, exposing the same RPC methods and status events that the control server and dashboards already understand for the `encoder` role.
 
-The deliverable is a new Android module (Gradle project) inside the `irlctrl` repository, plus the minimal shared-contract additions needed so the control server recognises the mobile encoder without core changes. **The application is implemented in Kotlin**, with the SRTLA bonding engine kept behind a clean Kotlin interface so it can be swapped to a native (C/C++ or Rust) implementation via JNI if pure-Kotlin performance is measured to be insufficient (see §7.2).
+The deliverable is a new Android module (Gradle project) inside the `ctrlirl` repository, plus the minimal shared-contract additions needed so the control server recognises the mobile encoder without core changes. **The application is implemented in Kotlin**, with the SRTLA bonding engine kept behind a clean Kotlin interface so it can be swapped to a native (C/C++ or Rust) implementation via JNI if pure-Kotlin performance is measured to be insufficient (see §7.2).
 
 ---
 
@@ -32,7 +32,7 @@ The deliverable is a new Android module (Gradle project) inside the `irlctrl` re
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G1  | Implement an Android foreground service that captures, encodes, and streams SRTLA-bonded video/audio.                                                                               |
 | G2  | Bond Wi‑Fi and cellular interfaces simultaneously; fall back gracefully when one link disappears.                                                                                   |
-| G3  | Integrate with the IRLCTRL control server over the existing WebSocket JSON protocol (`{ id, method, params }` → `{ type: "response", id, ok }` + `{ type: "event", event, data }`). |
+| G3  | Integrate with the CTRLIRL control server over the existing WebSocket JSON protocol (`{ id, method, params }` → `{ type: "response", id, ok }` + `{ type: "event", event, data }`). |
 | G4  | Expose encoder RPC methods (`encoder.start`, `encoder.stop`, `encoder.setBitrate`, etc.) so dashboards and the virtual StreamDeck work unchanged.                                   |
 | G5  | Persist device identity (UUID, hostname, role, control-server URL/token) in local storage so the device re-registers after reboot.                                                  |
 | G6  | Provide a minimal on-device UI for setup, start/stop, and live link statistics.                                                                                                     |
@@ -62,7 +62,7 @@ The deliverable is a new Android module (Gradle project) inside the `irlctrl` re
 **Kotlin as the primary language** is chosen because:
 
 -   The Android toolchain (Compose, CameraX, MediaCodec, `ConnectivityManager`, foreground services) is Kotlin-first.
--   Coroutines + `Flow` map directly onto IRLCTRL’s event model: each incoming `{ type: "event", … }` becomes an emission on a `SharedFlow<DeviceEvent>`; each `{ id, method, params }` becomes a `suspend fun` return.
+-   Coroutines + `Flow` map directly onto CTRLIRL’s event model: each incoming `{ type: "event", … }` becomes an emission on a `SharedFlow<DeviceEvent>`; each `{ id, method, params }` becomes a `suspend fun` return.
 -   `srtdroid` — the maintained SRT JNI wrapper — exposes a Kotlin API. No bridging code needed for the SRT layer.
 -   Kotlin data classes diff cleanly against the TypeScript types in `shared/contracts/`, which makes the wire contract reviewable by the same maintainers who own the Bun code.
 
@@ -80,14 +80,14 @@ The deliverable is a new Android module (Gradle project) inside the `irlctrl` re
 
 ## 3. System Context and Integration Points
 
-### 3.1 Where the Android app sits in IRLCTRL
+### 3.1 Where the Android app sits in CTRLIRL
 
 ```
-Android Encoder  ──SRTLA (bonded)──▶  IRLCTRL Relay  ──SRTLA/SRT──▶  Receiver
+Android Encoder  ──SRTLA (bonded)──▶  CTRLIRL Relay  ──SRTLA/SRT──▶  Receiver
        │                                    │
        │  WebSocket (outbound)              │
        ▼                                    ▼
-                 IRLCTRL Control Server
+                 CTRLIRL Control Server
 ```
 
 The Android app is a **device client** that connects to the control server at `wss://ctl.example.com/device` with a bearer token. The control server assigns the device to the token owner and relays RPC commands from the browser UI.
@@ -124,7 +124,7 @@ Status events must include at least: `streaming` (bool), `bitrate` (current), `u
 ```
 android-encoder/
 ├── app/                          # Android application module
-│   ├── src/main/java/net/irlctrl/encoder/
+│   ├── src/main/java/net/ctrlirl/encoder/
 │   │   ├── core/                 # Foreground service, lifecycle
 │   │   ├── capture/              # CameraX + AudioRecord
 │   │   ├── encode/               # MediaCodec wrappers
@@ -134,11 +134,11 @@ android-encoder/
 │   │   └── stats/                # Link stats collection
 │   └── build.gradle.kts
 ├── srtla-core/                   # SrtlaBond interface + pure-Kotlin impl (+ optional JNI)
-├── shared-contracts/             # Kotlin copies of irlctrl wire types
+├── shared-contracts/             # Kotlin copies of ctrlirl wire types
 └── DEVIATIONS.md                 # Any deviations from this spec, with reasons
 ```
 
-Modules are co-located like irlctrl device modules (`client/modules/<name>`). The Android project lives under `android-encoder/` at the repository root.
+Modules are co-located like ctrlirl device modules (`client/modules/<name>`). The Android project lives under `android-encoder/` at the repository root.
 
 ### 4.2 Capture layer
 
@@ -163,7 +163,7 @@ Modules are co-located like irlctrl device modules (`client/modules/<name>`). Th
 The bonding engine sits between the encoder output and the network sockets. It is behind a **Kotlin interface** so it can be swapped to a native implementation later:
 
 ```kotlin
-// srtla-core/src/main/kotlin/net/irlctrl/encoder/srtla/SrtlaBond.kt
+// srtla-core/src/main/kotlin/net/ctrlirl/encoder/srtla/SrtlaBond.kt
 interface SrtlaBond {
     fun addLink(networkHandle: Long, remoteHost: String, remotePort: Int): LinkId
     fun removeLink(id: LinkId)
@@ -200,7 +200,7 @@ Implement the **sender side** of SRTLA as documented in the BELABOX/IRLToolkit `
 
 #### 4.4.3 Interaction with SRT transport
 
-The app uses an SRT sender (via `srtdroid`). The bonding engine intercepts the sender’s outgoing packets and sends them over the bonded sockets, while feeding received control packets back into the SRT sender. The destination address for the SRT sender is the **relay’s SRTLA receiver port** (default UDP 6000 on the relay, per irlctrl’s relay role).
+The app uses an SRT sender (via `srtdroid`). The bonding engine intercepts the sender’s outgoing packets and sends them over the bonded sockets, while feeding received control packets back into the SRT sender. The destination address for the SRT sender is the **relay’s SRTLA receiver port** (default UDP 6000 on the relay, per ctrlirl’s relay role).
 
 ### 4.5 Control client (WebSocket)
 
@@ -237,9 +237,9 @@ AudioRecord ──▶ MediaCodec (AAC) ┘
 Choose **one** of the following and document the choice in the implementation:
 
 -   **Option A (recommended):** MPEG-TS muxer inside the app (`MediaMuxer` with `MUXER_OUTPUT_MPEG_TS` is not universally available; a lightweight TS writer or a library like `mp4parser` adapted for TS is acceptable). Feed the TS stream into SRT as payload.
--   **Option B:** Raw H.264/AAC with a custom framing header, matching what the IRLCTRL relay/broadcaster expects. **This must be verified against the relay’s `srtla_rec` configuration** — a relay that expects TS will fail on raw frames.
+-   **Option B:** Raw H.264/AAC with a custom framing header, matching what the CTRLIRL relay/broadcaster expects. **This must be verified against the relay’s `srtla_rec` configuration** — a relay that expects TS will fail on raw frames.
 
-> **Handoff instruction:** Before implementing the packetiser, read `client/modules/relay` and `client/modules/broadcaster` in irlctrl to determine the exact SRT payload format the relay forwards. Align the Android encoder with that format.
+> **Handoff instruction:** Before implementing the packetiser, read `client/modules/relay` and `client/modules/broadcaster` in ctrlirl to determine the exact SRT payload format the relay forwards. Align the Android encoder with that format.
 
 ### 5.3 Clock and timestamping
 
@@ -336,8 +336,8 @@ Add a GitHub Actions workflow:
 ### 8.3 End-to-end validation (definition of done)
 
 1. Flash the APK on a physical Android device with both Wi‑Fi and cellular active.
-2. Configure it to point at an IRLCTRL relay and control server.
-3. Start the stream from the IRLCTRL browser dashboard (`encoder.start` button).
+2. Configure it to point at an CTRLIRL relay and control server.
+3. Start the stream from the CTRLIRL browser dashboard (`encoder.start` button).
 4. Verify that the relay receives a bonded SRTLA stream and forwards SRT to the configured output.
 5. Disable Wi‑Fi mid-stream; the stream must continue over cellular without session teardown (SRTLA bonding failover).
 6. The control-server dashboard shows live link stats and bitrate identical to the fields produced by the Linux encoder.
@@ -377,12 +377,12 @@ Add a GitHub Actions workflow:
 
 ## 11. Handoff Instructions for the Implementing Agent
 
-1. **Read the IRLCTRL module contract first.** Open `shared/contracts/backend_module.ts` and `client/modules/encoder/backend.ts` to see exactly what an `encoder` module must implement. Your Kotlin classes should mirror that surface, even if the underlying implementation is native Android rather than Bun.
+1. **Read the CTRLIRL module contract first.** Open `shared/contracts/backend_module.ts` and `client/modules/encoder/backend.ts` to see exactly what an `encoder` module must implement. Your Kotlin classes should mirror that surface, even if the underlying implementation is native Android rather than Bun.
 2. **Write Kotlin, not Java.** All Android-side code is Kotlin; the only exception is generated stubs.
 3. **Build `srtla-core` as a standalone library.** Keep it free of Android UI dependencies so it is unit-testable on the JVM. Ship `KotlinSrtlaBond` first; do not start `NativeSrtlaBond` until the performance gate in §8.3 actually fails.
 4. **Do not change the control-server protocol.** The Android app is a new device on the same wire protocol. If you need a method that does not exist, propose it as an additive change to `methods.ts` and update both the Bun encoder and the Android encoder.
 5. **Use Brix as the primary Android reference.** It is an AGPL-3.0 Android app that implements SRT and SRTLA from scratch and runs on Android 10+. Respect its licence when consulting it.
-6. **Validate against a real IRLCTRL relay early.** Spin up the Docker Compose stack (`docker compose up relay server`) and point the emulator/device at the relay’s SRTLA port. This catches payload-format issues before the UI is polished.
+6. **Validate against a real CTRLIRL relay early.** Spin up the Docker Compose stack (`docker compose up relay server`) and point the emulator/device at the relay’s SRTLA port. This catches payload-format issues before the UI is polished.
 7. **Keep the JNI surface small.** If native promotion is triggered, the JNI boundary is _only_ the `SrtlaBond` methods — one `external fun` per operation, `ByteBuffer`-based, no per-byte callbacks. Never call native from the UI thread.
 8. **Document every deviation.** If you cannot implement a behaviour exactly as specified (e.g. an Android API limitation), record it in `android-encoder/DEVIATIONS.md` with the reason and the workaround.
 
@@ -390,7 +390,7 @@ Add a GitHub Actions workflow:
 
 ## 12. Open Questions to Resolve at Implementation Time
 
-1. **SRT payload format:** Does the IRLCTRL relay `srtla_rec` accept MPEG-TS only, or can it forward raw H.264/AAC? (Check `client/modules/relay` and the `srtla_rec` startup args.)
+1. **SRT payload format:** Does the CTRLIRL relay `srtla_rec` accept MPEG-TS only, or can it forward raw H.264/AAC? (Check `client/modules/relay` and the `srtla_rec` startup args.)
 2. **Token provisioning:** Should the Android app support QR-code provisioning of the control-server URL and token, or is manual entry sufficient for v1?
 3. **Background operation:** Android may restrict camera/mic access in the background. Confirm that a foreground service with `FOREGROUND_SERVICE_CAMERA` + `FOREGROUND_SERVICE_MICROPHONE` is sufficient on target OEMs.
 4. **Adaptive bitrate:** Should the Android encoder react to SRTLA link stats by lowering bitrate automatically, or is manual `encoder.setBitrate` enough for v1?
@@ -398,4 +398,4 @@ Add a GitHub Actions workflow:
 
 ---
 
-\*This specification is intended to be self-contained. The implementing agent should treat the cited IRLCTRL README sections and the `client/modules/encoder` source as the authoritative reference for protocol and module behaviour, and the Brix / `srtla_send` projects as the authoritative reference for SRTLA bonding semantics. The language decision (§2.4, §7.2) is final for v1: **Kotlin for the app, `srtla-core` behind a swap-friendly interface, native only if measured necessary.\***
+\*This specification is intended to be self-contained. The implementing agent should treat the cited CTRLIRL README sections and the `client/modules/encoder` source as the authoritative reference for protocol and module behaviour, and the Brix / `srtla_send` projects as the authoritative reference for SRTLA bonding semantics. The language decision (§2.4, §7.2) is final for v1: **Kotlin for the app, `srtla-core` behind a swap-friendly interface, native only if measured necessary.\***

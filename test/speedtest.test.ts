@@ -683,7 +683,7 @@ describe("run manager", () => {
                 "--server",
                 "105",
             ]);
-            expect(call.env.IRLCTRL_SPEEDTEST).toBe("1");
+            expect(call.env.CTRLIRL_SPEEDTEST).toBe("1");
         });
     });
 

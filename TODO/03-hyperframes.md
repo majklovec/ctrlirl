@@ -2,19 +2,19 @@
 
 ## 1. Context
 
-**Repository:** `https://github.com/majklovec/irlctrl`
+**Repository:** `https://github.com/majklovec/ctrlirl`
 **Target directory:** `server/modules/overlay_elements/`
 **Your task:** Add a new overlay element type called `hyperframes` that renders [HyperFrames](https://github.com/heygen-com/hyperframes) compositions/animations/videos inside an overlay.
 
 **What HyperFrames is:** An HTML-based animation/video composition format by HeyGen. Each composition is a self-contained HTML file (or URL) that can be played back using the official `@hyperframes/player` web component (`<hyperframes-player>`). The player auto-detects the composition's native size and scales it to its container. It exposes attributes like `src`, `srcdoc`, `controls`, `autoplay`, `loop`, `muted`, and `volume`.
 
-**What the user expects:** A first-class overlay element in irlctrl, on par with the existing `image`, `video`, and `iframe` elements — configurable via the overlay inspector, pliable in the overlay layout, and rendered via `<hyperframes-player>`.
+**What the user expects:** A first-class overlay element in ctrlirl, on par with the existing `image`, `video`, and `iframe` elements — configurable via the overlay inspector, pliable in the overlay layout, and rendered via `<hyperframes-player>`.
 
 ---
 
 ## 2. Before you write any code
 
-The proposal above is a **reference implementation**, not gospel. The `overlay_elements` module in `irlctrl` follows a strict contract (`OverlayElementDef`, `ElementContext`, `ElementProps`, `bindField`, `strProp`/`numProp`, `OverlayElementSchema`, `normalizeProps`). Your first job is to **read the module and align with the current contract**, because helper names and type shapes may have changed since this proposal was drafted.
+The proposal above is a **reference implementation**, not gospel. The `overlay_elements` module in `ctrlirl` follows a strict contract (`OverlayElementDef`, `ElementContext`, `ElementProps`, `bindField`, `strProp`/`numProp`, `OverlayElementSchema`, `normalizeProps`). Your first job is to **read the module and align with the current contract**, because helper names and type shapes may have changed since this proposal was drafted.
 
 Mandatory reading (in this order):
 1. `server/modules/overlay_elements/overlay_elements.tsx` — element registry.

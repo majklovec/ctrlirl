@@ -5,9 +5,9 @@
  * and every peer browses for the opposite service type.
  *
  * Services (port 5353 multicast `224.0.0.251`):
- *   `_irlctrl-relay._udp.local`   — relay → encoders
+ *   `_ctrlirl-relay._udp.local`   — relay → encoders
  *       TXT: `h=<hostname>;ip=<primary>;i=<name=addr:port;name2=addr2:port2>`
- *   `_irlctrl-encoder._udp.local` — encoder → relays
+ *   `_ctrlirl-encoder._udp.local` — encoder → relays
  *       TXT: `id=<encoderId>;ip=<ip>;port=<wsPort>;proto=<proto>[;tok=<token>]`
  *       SRV port = the encoder's WS port (the dialable service).
  *
@@ -22,8 +22,8 @@ import dgram from "node:dgram";
 
 export const MDNS_ADDR = "224.0.0.251";
 export const MDNS_PORT_DEFAULT = 5_353;
-export const MDNS_RELAY_SERVICE = "_irlctrl-relay._udp.local";
-export const MDNS_ENCODER_SERVICE = "_irlctrl-encoder._udp.local";
+export const MDNS_RELAY_SERVICE = "_ctrlirl-relay._udp.local";
+export const MDNS_ENCODER_SERVICE = "_ctrlirl-encoder._udp.local";
 /** Re-advertise / re-query cadence (well under the 15 s registry TTL). */
 export const MDNS_REFRESH_MS = 10_000;
 /** TXT record data ceiling (DNS). */
@@ -159,7 +159,7 @@ export function mdnsInstanceLabel(id: string): string {
 		.replace(/[^A-Za-z0-9._-]/g, "-")
 		.replace(/^[-.]+/, "")
 		.slice(0, 63);
-	return s || "irlctrl";
+	return s || "ctrlirl";
 }
 
 /** Build a standard PTR query datagram for a service type. */

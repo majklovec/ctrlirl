@@ -1,6 +1,6 @@
 {
-    "name": "IRLCTRL",
-    "short_name": "IRLCTRL",
+    "name": "CTRLIRL",
+    "short_name": "CTRLIRL",
     "description": "IRL streaming control server",
     "start_url": "/",
     "scope": "/",

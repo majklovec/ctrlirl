@@ -1,4 +1,4 @@
-# 🤖 AI Agent Handoff — `systeminfo` Module for `majklovec/irlctrl`
+# 🤖 AI Agent Handoff — `systeminfo` Module for `majklovec/ctrlirl`
 
 > **Read this document top-to-bottom before touching code.** It is a complete, self-contained specification. Everything you need to create the module is in §4. Nothing outside `client/modules/systeminfo/` should be modified. **Frontend components use JSX, not `m(...)` calls.**
 
@@ -6,7 +6,7 @@
 
 ## 1. Objective & Scope
 
-Add a new device module **`systeminfo`** to the [irlctrl](https://github.com/majklovec/irlctrl) repository that:
+Add a new device module **`systeminfo`** to the [ctrlirl](https://github.com/majklovec/ctrlirl) repository that:
 
 1. **Runs on every device role** (`relay`, `encoder`, `obs`, `broadcaster`) — implemented by **omitting** the `roles` field on the `BackendModule`.
 2. **Exposes a device card** with live hardware telemetry (CPU load, temperatures, memory, disks, network, board-specific extras).

@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="logo-irlctrl.png" alt="IRLCTRL" width="240" />
+<img src="logo-ctrlirl.png" alt="CTRLIRL" width="240" />
 
 </div>
 
-# IRLCTRL
+# CTRLIRL
 
 Řídicí aplikace založená na Bun pro streamování s agregací připojení ve stylu [BELABOX](https://belabox.net/). Jeden modulární klient zařízení spouští zvolenou roli a volitelný řídicí server umožňuje spravovat celou skupinu zařízení prostřednictvím webového prohlížeče.
 
-[![Build & Release](https://img.shields.io/github/actions/workflow/status/majklovec/irlctrl/release.yml?style=flat-square&label=release)](https://github.com/majklovec/irlctrl/actions)
+[![Build & Release](https://img.shields.io/github/actions/workflow/status/majklovec/ctrlirl/release.yml?style=flat-square&label=release)](https://github.com/majklovec/ctrlirl/actions)
 [![Bun](https://img.shields.io/badge/Bun-1.x-f9f1e1?style=flat-square&logo=bun)](https://bun.sh)
-[![Version](https://img.shields.io/github/v/tag/majklovec/irlctrl?style=flat-square&label=version)](https://github.com/majklovec/irlctrl/releases)
+[![Version](https://img.shields.io/github/v/tag/majklovec/ctrlirl?style=flat-square&label=version)](https://github.com/majklovec/ctrlirl/releases)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7.x-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 
 <p align="center">
@@ -171,16 +171,16 @@ open http://ctl.example.com/  # přesměruje na /login; zadejte uživatelské jm
 
 ### systemd
 
-Spouštějte zkompilované binární soubory (`bun run build:client` / `bun run build:server`) jako službu. Příklad jednotky pro zařízení (`/etc/systemd/system/irlctrl.service`):
+Spouštějte zkompilované binární soubory (`bun run build:client` / `bun run build:server`) jako službu. Příklad jednotky pro zařízení (`/etc/systemd/system/ctrlirl.service`):
 
 ```ini
 [Unit]
-Description=IRLCTRL device
+Description=CTRLIRL device
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/bun /opt/irlctrl/client --config /var/lib/irlctrl/config.json
+ExecStart=/usr/local/bin/bun /opt/ctrlirl/client --config /var/lib/ctrlirl/config.json
 Restart=always
 User=root
 
@@ -197,7 +197,7 @@ Zařízení uchovává stav v cestě určené parametrem `--config`. Tato cesta 
 Adresář [`armbian/`](armbian/) obsahuje nástroje pro nativní sestavení připraveného obrazu Armbian pro streamování přímo na hostitelském počítači:
 -   `setup-host.sh` — jednorázová instalace závislostí potřebných pro sestavení (spouštějte jako root).
 -   `build.sh [config]` — stáhne sestavovací framework Armbian, propojí přibalený adresář `userpatches/` a sestaví obraz. Výchozí konfigurace je `orangepi5-plus`.
--   `build-all.sh` — sestaví obě varianty: obraz pro SD kartu a obraz pro automatickou instalaci na **eMMC** (`orangepi5-plus-emmc`), který při prvním spuštění zkopíruje systém na eMMC pomocí jednorázové služby `irlctrl-emmc-install.service`.
+-   `build-all.sh` — sestaví obě varianty: obraz pro SD kartu a obraz pro automatickou instalaci na **eMMC** (`orangepi5-plus-emmc`), který při prvním spuštění zkopíruje systém na eMMC pomocí jednorázové služby `ctrlirl-emmc-install.service`.
 
 Obraz obsahuje celý řetězec pro streamování: GStreamer (včetně `gstreamer1.0-rockchip1`), SRT od CERALIVE, [ceracoder](https://github.com/CERALIVE/ceracoder) (sestavený ze zdrojových kódů), [srtla_send](https://github.com/irlserver/srtla_send) (předpřipravený balíček `.deb` pro arm64) a pravidla udev pro zvuk v belaUI.
 
@@ -211,9 +211,9 @@ Soubor `docker-compose.yaml` spouští celý systém — řídicí server, relé
 docker compose up -d --build
 ```
 
--   **server** — `server/backend/server.ts`, řídicí server (`Dockerfile`, obraz `majkl/irlctrl-control`), webové rozhraní na portu `8090`.
+-   **server** — `server/backend/server.ts`, řídicí server (`Dockerfile`, obraz `majkl/ctrlirl-control`), webové rozhraní na portu `8090`.
 -   **obs-client** — běžný `client/backend/client.ts --role obs` s modulem `obs`; připojuje se k OBS na hostiteli přes `ws://host.docker.internal:4455`.
--   **relay** — `client/backend/client.ts --role relay`, agreguje SRT stream pomocí `srtla_send` (`Dockerfile.device`, obraz `majkl/irlctrl-device`).
+-   **relay** — `client/backend/client.ts --role relay`, agreguje SRT stream pomocí `srtla_send` (`Dockerfile.device`, obraz `majkl/ctrlirl-device`).
 -   **encoder** — `client/backend/client.ts --role encoder`, spouští `ceracoder`/GStreamer a odesílá SRT do relé; používá stejný obraz zařízení, ale jinou roli a proměnnou `ENCODER_BIN`.
 -   **broadcaster** — `client/backend/client.ts --role broadcaster` spouští modul `client/modules/broadcaster` s ffmpeg; cíle se konfigurují v nastavení zařízení a SRTLA přijímač používá UDP port `5001`.
 

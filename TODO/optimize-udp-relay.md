@@ -1,8 +1,8 @@
-# Handoff: Refactor `irlctrl/shared/lib/udp_relay` to single-socket + high-performance design
+# Handoff: Refactor `ctrlirl/shared/lib/udp_relay` to single-socket + high-performance design
 
 **Audience:** Implementing AI agent (Claude, GPT, Cursor, Aider, etc.)
 **Author of handoff:** Previous analysis pass
-**Repository:** `https://github.com/majklovec/irlctrl`
+**Repository:** `https://github.com/majklovec/ctrlirl`
 **Target path:** `shared/lib/udp_relay`
 **Reference project:** `https://github.com/datagutt/ctrlink-rust`
 
@@ -12,7 +12,7 @@
 
 You are being asked to **rewrite the `udp_relay` library** in TypeScript/Bun. Read this handoff top to bottom before touching code. Then:
 
-1. **Clone** `https://github.com/majklovec/irlctrl` locally.
+1. **Clone** `https://github.com/majklovec/ctrlirl` locally.
 2. **Clone** `https://github.com/datagutt/ctrlink-rust` as read-only reference.
 3. **Read every file** in `shared/lib/udp_relay` and every consumer of it (search the repo for imports from `udp_relay`).
 4. **Reconcile this handoff against the actual source.** This document was written from an architectural analysis, not line-by-line source. If any claim here contradicts the source, **trust the source** and update your plan — then flag the discrepancy in your final report.
@@ -24,7 +24,7 @@ If something in this handoff is ambiguous, make the **minimal, conservative** ch
 
 ## 1. Project context
 
-`irlctrl` is a project for controlling IRL (in-real-life) streaming hardware. The `shared/lib/udp_relay` library is the **networking core**: it relays UDP traffic between an encoder (phone/streamer device) and a physical network interface so that the encoder can appear as a normal host on that interface without requiring raw-socket privileges on the encoder side.
+`ctrlirl` is a project for controlling IRL (in-real-life) streaming hardware. The `shared/lib/udp_relay` library is the **networking core**: it relays UDP traffic between an encoder (phone/streamer device) and a physical network interface so that the encoder can appear as a normal host on that interface without requiring raw-socket privileges on the encoder side.
 
 Today the relay works as follows (verify against source):
 

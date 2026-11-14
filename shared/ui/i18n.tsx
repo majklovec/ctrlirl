@@ -28,7 +28,7 @@ import type { MithrilJSXComponent } from "./jsx";
 export type { Language };
 export { LANGUAGES };
 
-const STORAGE_KEY = "irlctrl-lang";
+const STORAGE_KEY = "ctrlirl-lang";
 
 /**
  * Where the UI language is looked up: the persisted choice first, then the
@@ -48,7 +48,7 @@ const i18n = i18next.createInstance();
 const detector = new LanguageDetector(undefined, detection);
 
 /**
- * The initial UI language: the persisted choice (irlctrl-lang) first, then
+ * The initial UI language: the persisted choice (ctrlirl-lang) first, then
  * the navigator locale. "cs-CZ" is folded to "cs" and anything unsupported
  * falls back to the default language.
  */

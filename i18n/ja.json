@@ -97,7 +97,7 @@
     "dev.scheduler_classic": "クラシック",
     "dev.scheduler_enhanced": "拡張",
     "dev.signal": "信号",
-    "dev.title": "IRLCTRL",
+    "dev.title": "CTRLIRL",
     "dev.unit_gbs": "{{value}} Gb/s",
     "dev.unit_kbps": "kbps",
     "dev.unit_mbps": "Mbps",
@@ -147,7 +147,7 @@
     "mgmt.th.status": "ステータス",
     "mgmt.th.stream": "ストリーム",
     "mgmt.th_bitrate": "ビットレート / 最大",
-    "mgmt.title": "IRLCTRL 制御",
+    "mgmt.title": "CTRLIRL 制御",
     "mlog.action.activate": "有効化",
     "mlog.action.configuration": "設定",
     "mlog.action.create": "作成",
@@ -358,9 +358,9 @@
     "setup.step.language_sub": "インターフェース言語を選択します。",
     "setup.step.relay": "リレー",
     "setup.step.review": "確認",
-    "setup.step.role_sub": "この IRLCTRL がネットワークに参加する方法を選択します。",
+    "setup.step.role_sub": "この CTRLIRL がネットワークに参加する方法を選択します。",
     "setup.step_invalid": "ハイライトされた項目を入力して続行してください。",
-    "setup.title": "IRLCTRL セットアップ",
+    "setup.title": "CTRLIRL セットアップ",
     "setup.username_title": "ユーザー名",
     "srv.offline": "デバイスはオフライン ({{reason}})",
     "srv.online": "デバイスはオンライン ({{address}})",
@@ -413,5 +413,5 @@
     "ui.save": "保存",
     "ui.start": "開始",
     "ui.stop": "停止",
-    "ui.title_suffix": "- IRLCTRL"
+    "ui.title_suffix": "- CTRLIRL"
 }

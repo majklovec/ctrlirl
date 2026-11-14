@@ -41,7 +41,7 @@ async function waitFor(url: string, proc: ReturnType<typeof Bun.spawn>) {
 
 function createSourceTree(): string {
 	// a copy of the sources without generated/ (node_modules is shared by symlink)
-	const tree = mkdtempSync(join(tmpdir(), "irlctrl-nogen-"));
+	const tree = mkdtempSync(join(tmpdir(), "ctrlirl-nogen-"));
 	expect(existsSync(join(tree, "generated"))).toBe(false);
 	for (const dir of [
 		"client",

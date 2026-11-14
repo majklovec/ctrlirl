@@ -1,6 +1,6 @@
-# Handoff: LibreSpeed Speedtest Module for `irlctrl`
+# Handoff: LibreSpeed Speedtest Module for `ctrlirl`
 
-**Audience:** An AI coding agent (or human) implementing the feature in https://github.com/majklovec/irlctrl
+**Audience:** An AI coding agent (or human) implementing the feature in https://github.com/majklovec/ctrlirl
 **Status:** Ready for implementation
 **This is the consolidated final version** — it supersedes all earlier revisions.
 
@@ -10,7 +10,7 @@
 
 | Decision              | Value                                                                                                           |
 | --------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Result persistence    | ❌ **None.** Results live in memory only; cleared on `irlctrl` restart.                                         |
+| Result persistence    | ❌ **None.** Results live in memory only; cleared on `ctrlirl` restart.                                         |
 | Auto-run / scheduling | ❌ **None.** Manual "Run test" only.                                                                            |
 | Server selection      | ✅ Download `servers.php`, show searchable dropdown, pass **`--server <id>`** to the CLI.                       |
 | Interface selection   | ✅ Enumerate host interfaces, show dropdown, pass `--interface <name>`.                                         |
@@ -23,7 +23,7 @@
 
 ## 1. Objective
 
-Add a **speedtest module** to `irlctrl` that:
+Add a **speedtest module** to `ctrlirl` that:
 
 1. **Downloads the official LibreSpeed server list** from `https://librespeed.org/backend-servers/servers.php` and lets the user pick a **specific server** by ID.
 2. **Enumerates network interfaces** on the host and lets the user pick which one to bind the test to (e.g. `wwx001e101f0000`).
@@ -33,15 +33,15 @@ Add a **speedtest module** to `irlctrl` that:
 6. Renders a **single UI card** with live phase, progress, current Mbps, and the final summary.
 7. Keeps the **last result in memory only** — no DB, no files, no history.
 
-Primary use case: `irlctrl` manages a cellular modem (x86_64 or ARM); the user manually verifies link health against a chosen LibreSpeed server.
+Primary use case: `ctrlirl` manages a cellular modem (x86_64 or ARM); the user manually verifies link health against a chosen LibreSpeed server.
 
 ---
 
 ## 2. First task for the implementer
 
-You **do not have visibility into `irlctrl`'s codebase yet.** Before coding:
+You **do not have visibility into `ctrlirl`'s codebase yet.** Before coding:
 
-1. Clone/inspect https://github.com/majklovec/irlctrl.
+1. Clone/inspect https://github.com/majklovec/ctrlirl.
 2. Determine and note down:
     - Backend language & framework.
     - Frontend framework & tooling.
@@ -181,7 +181,7 @@ Report object:
     - download / upload (Mbps, 2 dp), ping / jitter (ms, 2 dp),
     - server name + sponsor, client IP + org, TLS version/cipher,
     - timestamp, chosen interface + server ID.
-5. **In-memory last result** — backend holds the last successful result. `GET /api/speedtest/last` returns it after a page reload. **No persistence**; restarting `irlctrl` clears it.
+5. **In-memory last result** — backend holds the last successful result. `GET /api/speedtest/last` returns it after a page reload. **No persistence**; restarting `ctrlirl` clears it.
 6. **Cancel** — `SIGTERM`, emit synthetic `error` + `exit`.
 7. **Single-flight** — second Run returns `409 Conflict`.
 8. **Error surface** — non-zero exit or parse failure shown in the card; future runs unaffected.
@@ -230,7 +230,7 @@ Refresh must write `servers.json.tmp` then `fs.renameSync(tmp, final)`. POSIX re
 ### 5.3 Process & resource hygiene
 
 -   Spawn async — no blocking the main event loop.
--   **Cleanup** — kill the child on shutdown, cancel, and client disconnect (§9.5). Tag children with `IRLCTRL_SPEEDTEST=1` in their env; on startup, kill stale orphans matching that tag.
+-   **Cleanup** — kill the child on shutdown, cancel, and client disconnect (§9.5). Tag children with `CTRLIRL_SPEEDTEST=1` in their env; on startup, kill stale orphans matching that tag.
 -   **Logging** — raw NDJSON → rotating debug log. Do not log full client IPs to normal logs.
 -   **Timeout** — hard-kill the child at `duration × 3 + 30 s` (default ≈ 75 s) if it hasn't exited.
 
@@ -402,7 +402,7 @@ Server-specific:
 3. **Stale server ID** (not in current cache) → `409 server_not_in_list`, **no spawn** (§5.1).
 4. **Refresh race** → atomic rename guarantees the child sees a complete file (§5.1).
 
-General (from prior revisions): 5. **Server-list fetch fails** → cached copy if present; else hide server selection, warning banner. 6. **Stored ID not in refreshed list** → clear selection, prompt. 7. **Interface missing / no address** → CLI exits non-zero; surface stderr. 8. **No internet / server unreachable** → error card; do not set `lastResult`. 9. **Client closes tab mid-run** → after last SSE subscriber disconnects, cancel child after 5 s grace. 10. **Server restart during run** → kill stale `IRLCTRL_SPEEDTEST=1` children on startup. 11. **Two runs** → `409`, no queue. 12. **Partial JSON line at exit** → strip. 13. **Non-Linux** → names differ; don't break the module. 14. **Binary download fails** → clear error with release URL + detected arch. 15. **`servers.php` returns malformed JSON** → treat as fetch failure; never pass malformed JSON to `--local-json`. 16. **`--local-json` path with spaces** → quote correctly. 17. **32-bit ARM mismatch** → detect via `uname -m`; on SIGILL at startup surface detected arch + manual-install instructions.
+General (from prior revisions): 5. **Server-list fetch fails** → cached copy if present; else hide server selection, warning banner. 6. **Stored ID not in refreshed list** → clear selection, prompt. 7. **Interface missing / no address** → CLI exits non-zero; surface stderr. 8. **No internet / server unreachable** → error card; do not set `lastResult`. 9. **Client closes tab mid-run** → after last SSE subscriber disconnects, cancel child after 5 s grace. 10. **Server restart during run** → kill stale `CTRLIRL_SPEEDTEST=1` children on startup. 11. **Two runs** → `409`, no queue. 12. **Partial JSON line at exit** → strip. 13. **Non-Linux** → names differ; don't break the module. 14. **Binary download fails** → clear error with release URL + detected arch. 15. **`servers.php` returns malformed JSON** → treat as fetch failure; never pass malformed JSON to `--local-json`. 16. **`--local-json` path with spaces** → quote correctly. 17. **32-bit ARM mismatch** → detect via `uname -m`; on SIGILL at startup surface detected arch + manual-install instructions.
 
 ---
 

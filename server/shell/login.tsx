@@ -5,7 +5,7 @@ import { Card, Field, Footer, Input } from "@ui/components/";
 import { i18nReady, LanguageSelect, t } from "@ui/i18n";
 import { mountPage } from "@ui/util";
 import m from "mithril";
-import logoUrl from "../../shared/assets/img/logo-irlctrl.png";
+import logoUrl from "../../shared/assets/img/logo-ctrlirl.png";
 
 // Show a one-time "account created" note when we just came back from /register.
 const params = new URLSearchParams(location.search);
@@ -60,7 +60,7 @@ const App: m.Component = {
 	view: () => (
 		<div class="login-page">
 			<Card>
-				<img class="login-logo" src={logoUrl} alt="IRLCTRL" />
+				<img class="login-logo" src={logoUrl} alt="CTRLIRL" />
 				<div class="login-head">
 					<h2>{t("login.title")}</h2>
 					<LanguageSelect />

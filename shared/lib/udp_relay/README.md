@@ -1,6 +1,6 @@
-# @irlctrl/udp-relay
+# @ctrlirl/udp-relay
 
-A transport primitive for irlctrl: move UDP payloads between a Linux **TUN**
+A transport primitive for ctrlirl: move UDP payloads between a Linux **TUN**
 device on one host and a bound **UDP socket** on another. It knows nothing
 about SRTLA, CtrLink, authentication, or configuration.
 
@@ -30,7 +30,7 @@ import {
     createUdpRelay,
     listInterfaces,
     // low-level: protocol, ip, tun-linux
-} from "@irlctrl/udp-relay";
+} from "@ctrlirl/udp-relay";
 
 // Encoder side — creates a TUN, bridges it to the relay.
 const vif = await createVirtualInterface({
@@ -89,7 +89,7 @@ bun test shared/lib/udp-relay/test
 - `virtual-interface.test.ts` — packet logic via the mock TUN seam.
 - `tun-linux.test.ts` — struct layout, no root required.
 - `integration.test.ts` — full pipe on loopback + a real-TUN test gated by
-  `IRLCTRL_TEST_NET_ADMIN=1` (needs root + NET_ADMIN).
+  `CTRLIRL_TEST_NET_ADMIN=1` (needs root + NET_ADMIN).
 
 ## Pitfalls (from 100-ctrlink.md §12)
 

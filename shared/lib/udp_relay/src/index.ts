@@ -1,4 +1,4 @@
-/* @irlctrl/udp-relay — transport primitive public API (grows as modules land). */
+/* @ctrlirl/udp-relay — transport primitive public API (grows as modules land). */
 import { networkInterfaces } from "node:os";
 export {
     buildUdpIpPacket,

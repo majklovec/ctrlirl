@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * LIVE smoke test for `@irlctrl/udp-relay` on a real (mobile tethered)
+ * LIVE smoke test for `@ctrlirl/udp-relay` on a real (mobile tethered)
  * interface. This is an integration test, NOT the mock-based unit suite
  * (`bun test shared/lib/udp_relay`): it drives a real `createUdpRelay` bound to
  * a physical NIC and verifies the forwarded packets on the wire with tcpdump.

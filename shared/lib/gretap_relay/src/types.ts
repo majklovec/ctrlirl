@@ -1,4 +1,4 @@
-/* Shared types for @irlctrl/gretap-relay.
+/* Shared types for @ctrlirl/gretap-relay.
  *
  * The library is a transport primitive: it brings up a kernel GRETAP tunnel
  * (L2 over GRE, IP protocol 47) and bridges the tunnel device into the local

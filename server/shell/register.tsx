@@ -7,7 +7,7 @@ import { Card, Field, Footer, Input } from "@ui/components/";
 import { i18nReady, LanguageSelect, t } from "@ui/i18n";
 import { mountPage } from "@ui/util";
 import m from "mithril";
-import logoUrl from "../../shared/assets/img/logo-irlctrl.png";
+import logoUrl from "../../shared/assets/img/logo-ctrlirl.png";
 
 /** Server /api/register error strings → i18n keys (unknowns pass through). */
 function mapError(message: string): string {
@@ -115,7 +115,7 @@ const App: m.Component = {
 	view: () => (
 		<div class="login-page">
 			<Card>
-				<img class="login-logo" src={logoUrl} alt="IRLCTRL" />
+				<img class="login-logo" src={logoUrl} alt="CTRLIRL" />
 				<div class="login-head">
 					<h2>{t("register.title")}</h2>
 					<LanguageSelect />

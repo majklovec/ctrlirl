@@ -15,7 +15,7 @@
 #   name=value  optional variable name → value (numbers as-is, booleans
 #               as true/false)
 #
-# IRLCTRL_BASE defaults to http://localhost:8090.
+# CTRLIRL_BASE defaults to http://localhost:8090.
 
 set -euo pipefail
 
@@ -24,7 +24,7 @@ if [ "$#" -lt 3 ]; then
 	exit 1
 fi
 
-BASE="${IRLCTRL_BASE:-http://localhost:8090}"
+BASE="${CTRLIRL_BASE:-http://localhost:8090}"
 TOKEN="$1"
 OVERLAY_ID="$2"
 EVENT_NAME="$3"

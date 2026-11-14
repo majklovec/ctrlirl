@@ -97,7 +97,7 @@
     "dev.scheduler_classic": "经典",
     "dev.scheduler_enhanced": "增强",
     "dev.signal": "信号",
-    "dev.title": "IRLCTRL",
+    "dev.title": "CTRLIRL",
     "dev.unit_gbs": "{{value}} Gb/s",
     "dev.unit_kbps": "kbps",
     "dev.unit_mbps": "Mbps",
@@ -147,7 +147,7 @@
     "mgmt.th.status": "状态",
     "mgmt.th.stream": "流",
     "mgmt.th_bitrate": "码率 / 最大",
-    "mgmt.title": "IRLCTRL 控制",
+    "mgmt.title": "CTRLIRL 控制",
     "mlog.action.activate": "激活",
     "mlog.action.configuration": "配置",
     "mlog.action.create": "创建",
@@ -358,9 +358,9 @@
     "setup.step.language_sub": "选择界面语言。",
     "setup.step.relay": "中继",
     "setup.step.review": "检查",
-    "setup.step.role_sub": "选择此 IRLCTRL 加入网络的方式。",
+    "setup.step.role_sub": "选择此 CTRLIRL 加入网络的方式。",
     "setup.step_invalid": "请填写高亮显示的字段以继续。",
-    "setup.title": "IRLCTRL 设置",
+    "setup.title": "CTRLIRL 设置",
     "setup.username_title": "用户名",
     "srv.offline": "设备离线 ({{reason}})",
     "srv.online": "设备在线 ({{address}})",
@@ -413,5 +413,5 @@
     "ui.save": "保存",
     "ui.start": "启动",
     "ui.stop": "停止",
-    "ui.title_suffix": "- IRLCTRL"
+    "ui.title_suffix": "- CTRLIRL"
 }

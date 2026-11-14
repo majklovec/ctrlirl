@@ -135,7 +135,7 @@ function isCandidate(value: unknown): value is RTCIceCandidateInit {
 
 /**
  * Mint a time-limited TURN credential for a deployment using coturn's
- * `use-auth-secret` (shared-secret) scheme — the same auth the `irlctrl.nomad`
+ * `use-auth-secret` (shared-secret) scheme — the same auth the `ctrlirl.nomad`
  * job turns on (`static-auth-secret` + no static users). The username is the
  * credential's expiry as a unix timestamp (seconds); the credential is
  * `base64(HMAC-SHA1(secret, username))`. Because the secret never leaves the

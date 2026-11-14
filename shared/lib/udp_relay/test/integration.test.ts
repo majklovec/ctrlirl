@@ -2,7 +2,7 @@
  * + protocol + a transparent L3 relay (mocked raw iface socket seam), driving
  * traffic the way a real deployment would. The kernel-bound pieces
  * (openTun/ioctl, configureTun, openIfaceRawSocket) are exercised separately
- * and remain gated behind IRLCTRL_TEST_NET_ADMIN=1 because they need root.
+ * and remain gated behind CTRLIRL_TEST_NET_ADMIN=1 because they need root.
  *
  * This file is safe to run in CI without privileges: it uses the mock TUN and
  * mock iface-socket seams (no /dev/net/tun, no RAW sockets) plus plain
@@ -124,9 +124,9 @@ describe("integration — encoder ⇄ transparent relay on loopback", () => {
 
 /**
  * Privileged integration: real /dev/net/tun + `ip` configuration. Skips
- * gracefully unless IRLCTRL_TEST_NET_ADMIN=1 (needs root + NET_ADMIN).
+ * gracefully unless CTRLIRL_TEST_NET_ADMIN=1 (needs root + NET_ADMIN).
  */
-const gated = process.env.IRLCTRL_TEST_NET_ADMIN === "1";
+const gated = process.env.CTRLIRL_TEST_NET_ADMIN === "1";
 describe("integration — real TUN (gated)", () => {
     test("openTun + configureTun bring up a live interface", async () => {
         if (!gated) return;

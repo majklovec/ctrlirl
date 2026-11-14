@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src="logo-irlctrl.png" alt="IRLCTRL" width="240" />
+<img src="logo-ctrlirl.png" alt="CTRLIRL" width="240" />
 
-# IRLCTRL
+# CTRLIRL
 
 Bun-based controller for [BELABOX](https://belabox.net/)-style bonded streaming. One module-driven device client runs the selected role, and an optional control server manages a fleet from a browser.
 
-[![Build & Release](https://img.shields.io/github/actions/workflow/status/majklovec/irlctrl/release.yml?style=flat-square&label=release)](https://github.com/majklovec/irlctrl/actions)
-[![Version](https://img.shields.io/github/v/tag/majklovec/irlctrl?style=flat-square&label=version)](https://github.com/majklovec/irlctrl/releases)
+[![Build & Release](https://img.shields.io/github/actions/workflow/status/majklovec/ctrlirl/release.yml?style=flat-square&label=release)](https://github.com/majklovec/ctrlirl/actions)
+[![Version](https://img.shields.io/github/v/tag/majklovec/ctrlirl?style=flat-square&label=version)](https://github.com/majklovec/ctrlirl/releases)
 [![Bun](https://img.shields.io/badge/Bun-1.x-f9f1e1?style=flat-square&logo=bun)](https://bun.sh)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7.x-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 
@@ -160,16 +160,16 @@ The service worker caches only the app shell: the hashed `/assets/*` bundles and
 
 ### systemd
 
-Run the compiled binaries (`bun run build:client` / `bun run build:server`) as a service. Example device unit (`/etc/systemd/system/irlctrl.service`):
+Run the compiled binaries (`bun run build:client` / `bun run build:server`) as a service. Example device unit (`/etc/systemd/system/ctrlirl.service`):
 
 ```ini
 [Unit]
-Description=IRLCTRL device
+Description=CTRLIRL device
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/bun /opt/irlctrl/client --config /var/lib/irlctrl/config.json
+ExecStart=/usr/local/bin/bun /opt/ctrlirl/client --config /var/lib/ctrlirl/config.json
 Restart=always
 User=root
 
@@ -184,7 +184,7 @@ The control server is the same with `server` in place of `client` (no `root` nee
 [`armbian/`](armbian/) builds a ready-to-stream **Armbian** image natively on the host:
 -   `setup-host.sh` — one-time install of the build dependencies (run as root)
 -   `build.sh [config]` — clones the Armbian build framework, links the bundled `userpatches/`, and compiles the image (default config `orangepi5-plus`)
--   `build-all.sh` — builds both variants: the SD-card image and the **eMMC auto-install** image (`orangepi5-plus-emmc`), which copies itself to eMMC on first boot via a one-shot `irlctrl-emmc-install.service`
+-   `build-all.sh` — builds both variants: the SD-card image and the **eMMC auto-install** image (`orangepi5-plus-emmc`), which copies itself to eMMC on first boot via a one-shot `ctrlirl-emmc-install.service`
 
 The image ships with the whole streaming chain — GStreamer (incl. `gstreamer1.0-rockchip1`), CERALIVE's SRT, [ceracoder](https://github.com/CERALIVE/ceracoder) (built from source), [srtla_send](https://github.com/irlserver/srtla_send) (prebuilt arm64 .deb), and udev rules for belaUI audio — so `client/backend/client.ts --role encoder` runs out of the box.
 
@@ -196,9 +196,9 @@ The image ships with the whole streaming chain — GStreamer (incl. `gstreamer1.
 docker compose up -d --build
 ```
 
--   **server** — `server/backend/server.ts`, the control server (`Dockerfile`, image `majkl/irlctrl-control`), UI on `:8090`.
+-   **server** — `server/backend/server.ts`, the control server (`Dockerfile`, image `majkl/ctrlirl-control`), UI on `:8090`.
 -   **obs-client** — the standard `client/backend/client.ts --role obs` process with the `obs` module enabled; connects to host OBS at `ws://host.docker.internal:4455`.
--   **relay** — `client/backend/client.ts --role relay`, bonds SRT out via `srtla_send` (`Dockerfile.device`, image `majkl/irlctrl-device`).
+-   **relay** — `client/backend/client.ts --role relay`, bonds SRT out via `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
 -   **encoder** — `client/backend/client.ts --role encoder`, runs `ceracoder`/GStreamer and sends SRT to the relay; same device image, different role + `ENCODER_BIN`.
 -   **broadcaster** — `client/backend/client.ts --role broadcaster` runs the `client/modules/broadcaster` receiver and publisher with ffmpeg; configure destinations in the device settings and expose SRTLA UDP port `5001`.
 

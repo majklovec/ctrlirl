@@ -20,7 +20,7 @@ const STUN_SERVER: RTCIceServer = { urls: "stun:stun.l.google.com:19302" };
 
 /**
  * MINTED TURN credentials. The deployment runs coturn with `use-auth-secret`
- * (a shared secret, no static users — see `irlctrl.nomad`), so there is no fixed
+ * (a shared secret, no static users — see `ctrlirl.nomad`), so there is no fixed
  * username/password to type into the element. When `TURN_HOST` (or `DOMAIN`) and
  * `TURN_SECRET` are set in the environment, the server mints a time-limited
  * username/credential pair (username = expiry timestamp, credential =

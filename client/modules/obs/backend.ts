@@ -1,7 +1,7 @@
 /*
  * obs module: owns the ObsClient connection to the paired OBS
  * Studio, answers the obs.* API methods (raw obs-websocket passthrough) and
- * forwards OBS events into the irlctrl event stream (pushed with a
+ * forwards OBS events into the ctrlirl event stream (pushed with a
  * `module: "obs"` tag). The low-bitrate switcher rides on the same
  * client and lives in this module's settings slice.
  *
