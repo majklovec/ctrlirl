@@ -2,7 +2,7 @@
  *
  * The library is a transport primitive: it moves UDP payloads between a TUN on
  * one host and a bound UDP socket on another. It knows nothing about SRTLA,
- * Moblink, auth, discovery, or configuration.
+ * Ctrlink, auth, discovery, or configuration.
  */
 
 /** A network endpoint: a host (IP or resolvable name) and a UDP port. */

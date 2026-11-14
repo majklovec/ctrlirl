@@ -17,7 +17,7 @@ import type {
 	Params,
 } from "../../../shared/contracts/backend_module";
 import type {
-	MoblinkDiscoveredRelay,
+	CtrlinkDiscoveredRelay,
 	UplinkEntry,
 } from "../../../shared/contracts/module_capabilities";
 import { t } from "../../../shared/i18n";
@@ -57,11 +57,11 @@ let core: ModuleCore;
 let modemSource: ModemSource;
 
 /**
- * The Moblink relays this device (encoder) has learned about, keyed by host.
- * Written by the `moblink_streamer` module as it discovers/configures relays;
+ * The Ctrlink relays this device (encoder) has learned about, keyed by host.
+ * Written by the `ctrlink_streamer` module as it discovers/configures relays;
  * surfaced on the network card grouped per-relay. In-memory (TTL'd upstream).
  */
-const moblinkRelays = new Map<string, MoblinkDiscoveredRelay>();
+const ctrlinkRelays = new Map<string, CtrlinkDiscoveredRelay>();
 
 /** The interfaces chosen for the bond, enriched with the modem details from the modems module. */
 async function modemStatus(): Promise<{
@@ -109,10 +109,10 @@ async function toggleModem(p: Params) {
 		throw new ApiError(`Unknown interface: ${name}`, 404);
 	const names = new Set(resolveSelection(all).map((iface) => iface.iface));
 	if (!names.delete(name)) names.add(name);
-	// A MobLink TUN leaving the bond drops its auto-registered programmatic
-	// uplink (moblink_streamer, id `moblink:<tun>`) too — otherwise
+	// A CtrLink TUN leaving the bond drops its auto-registered programmatic
+	// uplink (ctrlink_streamer, id `ctrlink:<tun>`) too — otherwise
 	// srtla_send would keep using the path the user just excluded.
-	const uplinkId = `moblink:${name}`;
+	const uplinkId = `ctrlink:${name}`;
 	if (
 		!names.has(name) &&
 		listProgrammaticUplinks().some((e) => e.id === uplinkId)
@@ -204,7 +204,7 @@ const registration: BackendModule<ModuleCore> = {
 		return {
 			...modem,
 			selection: selection(),
-			registeredRelays: [...moblinkRelays.values()],
+			registeredRelays: [...ctrlinkRelays.values()],
 			defaultRouteInterface: defaultRoute?.iface ?? null,
 			defaultRouteSourceIp: defaultRoute?.ip ?? null,
 			uplinksFile: UPLINKS_FILE,
@@ -230,14 +230,14 @@ const registration: BackendModule<ModuleCore> = {
 					startInterfaceMonitor();
 				},
 			},
-			"network.moblink": {
-				upsertRelay: (r: MoblinkDiscoveredRelay) => {
-					moblinkRelays.set(r.host, r);
+			"network.ctrlink": {
+				upsertRelay: (r: CtrlinkDiscoveredRelay) => {
+					ctrlinkRelays.set(r.host, r);
 				},
 				dropRelay: (host: string) => {
-					moblinkRelays.delete(host);
+					ctrlinkRelays.delete(host);
 				},
-				listRelays: () => [...moblinkRelays.values()],
+				listRelays: () => [...ctrlinkRelays.values()],
 			},
 		},
 	},

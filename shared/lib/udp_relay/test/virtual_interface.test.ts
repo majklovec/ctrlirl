@@ -65,7 +65,7 @@ const enc = new TextEncoder();
 
 describe("virtual_interface.ts — factory validation", () => {
     const base = {
-        name: "moblink0",
+        name: "ctrlink0",
         localIp: "10.3.3.1",
         prefixLength: 24,
         relay: { host: "127.0.0.1", port: 58901 },
@@ -100,7 +100,7 @@ describe("virtual_interface.ts — factory validation", () => {
         try {
             await expect(
                 createVirtualInterface({
-                    name: "moblink0",
+                    name: "ctrlink0",
                     localIp: "10.3.3.1",
                     prefixLength: 24,
                     relay: { host: "127.0.0.1", port: 58901 },

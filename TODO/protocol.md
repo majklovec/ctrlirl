@@ -110,7 +110,7 @@ registration is logged once per relay, not on every refresh:
       last-discovery timestamp — and the relay card shows it per encoder
       (`via UDP 3s · mDNS 2m`).
     - The control-server path canonicalizes the entry id on the encoder's
-      OWN id (`moblink_streamer.encoderInfo.encoderId`, i.e. its hostname)
+      OWN id (`ctrlink_streamer.encoderInfo.encoderId`, i.e. its hostname)
       rather than the control server's device label, so one physical
       encoder never appears twice under two ids.
 
@@ -182,11 +182,11 @@ only needed for the initial dial. Additionally:
 
 ---
 
-### 6. Alignment with Moblink
+### 6. Alignment with Ctrlink
 
-The design matches Moblink as follows:
+The design matches Ctrlink as follows:
 
--   Moblink relay-service creates a relay instance per interface.
+-   Ctrlink relay-service creates a relay instance per interface.
 -   Each relay instance has its own UDP socket bound to a specific interface.
 -   The encoder acts as a WebSocket server; the relay acts as a WebSocket client.
 -   The relay sends interface information to the encoder over WebSocket.
@@ -194,7 +194,7 @@ The design matches Moblink as follows:
 -   **Key clarification**: The encoder creates a **TUN interface** to aggregate all relay paths into a single virtual network adapter. Local applications see one interface, not multiple physical paths.
 -   The control server can be used as an alternative to UDP discovery.
 
-Items that need to be made explicit or added compared with standard Moblink behavior:
+Items that need to be made explicit or added compared with standard Ctrlink behavior:
 
 -   The rule **“no port reindexing”** and allocation by `max_assigned + 1`.
 -   UI marking of uplink interfaces with an uplink icon.

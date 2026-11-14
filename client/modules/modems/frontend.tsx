@@ -487,7 +487,7 @@ const modemsDashboardWidgets: DeviceDashboardWidget[] = [
 		available: (device) =>
 			device.role === "relay" ||
 			device.role === "encoder" ||
-			device.role === "moblink_relay" ||
+			device.role === "ctrlink_relay" ||
 			device.role === undefined,
 		defaultSize: { w: 4, h: 4 },
 		minSize: { w: 3, h: 3 },
@@ -505,7 +505,7 @@ const modemsModule: FrontendModule = {
 	available: (status) =>
 		status.role === "relay" ||
 		status.role === "encoder" ||
-		status.role === "moblink_relay",
+		status.role === "ctrlink_relay",
 	dashboardWidgets: modemsDashboardWidgets,
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },

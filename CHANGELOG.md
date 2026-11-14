@@ -3,7 +3,7 @@
 
 ### Features
 
-* **moblink:** show live WebSocket links ([7360c79](https://github.com/majklovec/irlctrl/commit/7360c793a514e02469ccb3ddbc5f7b6dff5b7bad))
+* **ctrlink:** show live WebSocket links ([7360c79](https://github.com/majklovec/irlctrl/commit/7360c793a514e02469ccb3ddbc5f7b6dff5b7bad))
 
 # [7.9.0](https://github.com/majklovec/irlctrl/compare/v7.8.0...v7.9.0) (2026-11-12)
 
@@ -17,15 +17,15 @@
 
 ### Features
 
-* **moblink:** show throughput and announce times ([c1d86f1](https://github.com/majklovec/irlctrl/commit/c1d86f18b2ad521251e850720be32167e7044079))
+* **ctrlink:** show throughput and announce times ([c1d86f1](https://github.com/majklovec/irlctrl/commit/c1d86f18b2ad521251e850720be32167e7044079))
 
 ## [7.7.1](https://github.com/majklovec/irlctrl/compare/v7.7.0...v7.7.1) (2026-11-12)
 
 
 ### Bug Fixes
 
-* **moblink:** keepalive so a live WS channel outlives discovery silence ([b5c23e0](https://github.com/majklovec/irlctrl/commit/b5c23e0e27615762875e39109e883e125774859c))
-* **moblink:** relay unicasts announces to known encoders ([15113e0](https://github.com/majklovec/irlctrl/commit/15113e05472bfb84d73049daae4dde34f9c95a30))
+* **ctrlink:** keepalive so a live WS channel outlives discovery silence ([b5c23e0](https://github.com/majklovec/irlctrl/commit/b5c23e0e27615762875e39109e883e125774859c))
+* **ctrlink:** relay unicasts announces to known encoders ([15113e0](https://github.com/majklovec/irlctrl/commit/15113e05472bfb84d73049daae4dde34f9c95a30))
 
 # [7.7.0](https://github.com/majklovec/irlctrl/compare/v7.6.0...v7.7.0) (2026-11-12)
 
@@ -37,14 +37,14 @@
 
 ### Features
 
-* **moblink:** add mDNS discovery path ([5f06687](https://github.com/majklovec/irlctrl/commit/5f0668773bdc156ed6a798cc4293659037fbc2c5))
+* **ctrlink:** add mDNS discovery path ([5f06687](https://github.com/majklovec/irlctrl/commit/5f0668773bdc156ed6a798cc4293659037fbc2c5))
 
 # [7.6.0](https://github.com/majklovec/irlctrl/compare/v7.5.0...v7.6.0) (2026-11-12)
 
 
 ### Features
 
-* **moblink:** add NAT (SNAT) mode to the UDP relay ([5f50b85](https://github.com/majklovec/irlctrl/commit/5f50b855a4692e6f50cea6593a982edfed54992d))
+* **ctrlink:** add NAT (SNAT) mode to the UDP relay ([5f50b85](https://github.com/majklovec/irlctrl/commit/5f50b855a4692e6f50cea6593a982edfed54992d))
 * **relay:** implement relay-encoder protocol ([bfe1ae5](https://github.com/majklovec/irlctrl/commit/bfe1ae5235276c31cd870aa7e1ab4d15316217b6)), closes [hi#water-mark](https://github.com/hi/issues/water-mark)
 
 # [7.5.0](https://github.com/majklovec/irlctrl/compare/v7.4.1...v7.5.0) (2026-11-11)

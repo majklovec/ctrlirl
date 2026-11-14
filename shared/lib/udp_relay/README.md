@@ -2,7 +2,7 @@
 
 A transport primitive for irlctrl: move UDP payloads between a Linux **TUN**
 device on one host and a bound **UDP socket** on another. It knows nothing
-about SRTLA, Moblink, authentication, or configuration.
+about SRTLA, CtrLink, authentication, or configuration.
 
 Two sides, one wire protocol:
 
@@ -34,7 +34,7 @@ import {
 
 // Encoder side — creates a TUN, bridges it to the relay.
 const vif = await createVirtualInterface({
-    name: "moblink0",        // 1..15 chars
+    name: "ctrlink0",        // 1..15 chars
     localIp: "10.3.3.1",
     prefixLength: 24,
     relay: { host, port },   // the relay box's listen socket
@@ -91,7 +91,7 @@ bun test shared/lib/udp-relay/test
 - `integration.test.ts` — full pipe on loopback + a real-TUN test gated by
   `IRLCTRL_TEST_NET_ADMIN=1` (needs root + NET_ADMIN).
 
-## Pitfalls (from 100-moblink.md §12)
+## Pitfalls (from 100-ctrlink.md §12)
 
 - **Never bind `0.0.0.0`** — packets leak out the default route.
 - **`IFF_NO_PI` is mandatory** — without it the kernel prepends 4 bytes and
@@ -99,4 +99,4 @@ bun test shared/lib/udp-relay/test
 - `ip link del` while the fd is open is fine (Linux removes the interface on
   the last close); the library closes the fd first.
 - Both sockets must not share a port (encoder `listenPort`, outbound `0`).
-- There is no WebSocket Moblink relay protocol — UDP only.
+- There is no WebSocket CtrLink relay protocol — UDP only.

@@ -13,10 +13,10 @@ import {
 
 describe("tun_linux.ts — TUNSETIFF struct layout", () => {
     test("buildTunsetName pads to 16 bytes with a NUL terminator", () => {
-        const buf = buildTunsetName("moblink0");
+        const buf = buildTunsetName("ctrlink0");
         expect(buf.length).toBe(IF_NAME_LEN);
         // First bytes spell the name, then NUL, then zeros.
-        expect(new TextDecoder().decode(buf.subarray(0, 8))).toBe("moblink0");
+        expect(new TextDecoder().decode(buf.subarray(0, 8))).toBe("ctrlink0");
         expect(buf[8]).toBe(0);
         // Every byte after the name is zero.
         for (let i = 8; i < IF_NAME_LEN; i++) expect(buf[i]).toBe(0);
@@ -30,7 +30,7 @@ describe("tun_linux.ts — TUNSETIFF struct layout", () => {
     });
 
     test("readTunsetName round-trips buildTunsetName", () => {
-        for (const name of ["moblink0", "eth0", "vif10", "a"])
+        for (const name of ["ctrlink0", "eth0", "vif10", "a"])
             expect(readTunsetName(buildTunsetName(name))).toBe(name);
     });
 
@@ -65,7 +65,7 @@ describe("tun_linux.ts — openTun guard", () => {
             configurable: true,
         });
         try {
-            await expect(openTun("moblink0")).rejects.toThrow(/Linux/);
+            await expect(openTun("ctrlink0")).rejects.toThrow(/Linux/);
         } finally {
             Object.defineProperty(process, "platform", desc);
         }
@@ -88,8 +88,8 @@ describe("tun_linux.ts — runCmd / resolveBinary (spawn never hangs)", () => {
     });
 
     test("runCmd resolves with stdout on exit 0", async () => {
-        const out = await runCmd("echo", ["hello-moblink"]);
-        expect(out.trim()).toBe("hello-moblink");
+        const out = await runCmd("echo", ["hello-ctrlink"]);
+        expect(out.trim()).toBe("hello-ctrlink");
     });
 
     test("runCmd rejects (does not hang) when the binary cannot be spawned", async () => {

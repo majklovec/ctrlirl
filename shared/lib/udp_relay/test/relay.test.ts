@@ -13,7 +13,7 @@ import { makeMockIfaceRawSocket } from "../src/net_linux";
 const enc = new TextEncoder();
 const VIF_IP = "10.0.0.2";
 const REC_IP = "203.0.113.10";
-const msgStr = "hello-moblink";
+const msgStr = "hello-ctrlink";
 
 describe("relay.ts — decideEncoderFrame", () => {
     test("valid data frame → forward with packet + vifIp", () => {

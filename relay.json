@@ -19,7 +19,7 @@
     "encoder": {
       "enabled": false
     },
-    "moblink_relay": {
+    "ctrlink_relay": {
       "enabled": false,
       "listenPortBase": 4000,
       "logLevel": "info",
@@ -30,7 +30,7 @@
       ],
       "interfaceNameOverrides": {}
     },
-    "moblink_streamer": {
+    "ctrlink_streamer": {
       "enabled": false
     },
     "modems": {
