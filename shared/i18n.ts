@@ -2,16 +2,17 @@
 // built on i18next.
 //
 // A language's catalog is the merge of the core catalog (`i18n/<lang>.json`,
-// English in i18n/en.json is the source of truth) and every module's own
-// catalog (`modules/<id>/i18n/<lang>.json`): modules ship their translations
-// next to their code and the core never names a module. Keys are flat and
-// disjoint by construction (test/i18n.test.ts pins it). Only the default
+// English in i18n/en.json is the source of truth), every module's own catalog
+// (`modules/<id>/i18n/<lang>.json`) and every role's catalog
+// (`client/roles/<id>/i18n/<lang>.json`): modules and roles ship their
+// translations next to their code and the core never names them. Keys are flat
+// and disjoint by construction (test/i18n.test.ts pins it). Only the default
 // language is loaded eagerly; every other language is read on demand the
 // first time it is requested and cached.
 //
 // The catalogs are resolved in two ways:
 //   * unbundled (bun server/main.ts, dev, tests): read from disk —
-//     the core file plus a scan of modules/*/i18n/;
+//     the core file plus a scan of modules/*/i18n/ and client/roles/*/i18n/;
 //   * compiled binaries (bun build --compile): the build-time manifest
 //     generated/i18n.ts (scripts/gen_modules.ts) inlines every catalog, as a
 //     flat binary cannot scan a directory.
@@ -34,7 +35,7 @@ import {
     type Language,
 } from "./languages";
 import { setLogTranslator } from "./log_messages";
-import { appPath, CORE_I18N_DIR, MODULE_ROOTS } from "./paths";
+import { appPath, CORE_I18N_DIR, MODULE_ROOTS, ROLE_ROOT } from "./paths";
 import { isCompiledBinary } from "./util";
 
 export type { Language } from "./languages";
@@ -51,7 +52,7 @@ const i18n = i18next.createInstance();
 
 type Catalog = Record<string, string>;
 
-/** The core catalog file plus every module's catalog for `lng` (unbundled). */
+/** The core catalog file plus every module's and role's catalog for `lng` (unbundled). */
 function catalogFiles(lng: Language): string[] {
     const files = [appPath(`${CORE_I18N_DIR}/${lng}.json`)];
     for (const root of MODULE_ROOTS)
@@ -59,6 +60,10 @@ function catalogFiles(lng: Language): string[] {
             const file = appPath(`${root}/${entry}/i18n/${lng}.json`);
             if (existsSync(file)) files.push(file);
         }
+    for (const entry of readdirSync(appPath(ROLE_ROOT)).sort()) {
+        const file = appPath(`${ROLE_ROOT}/${entry}/i18n/${lng}.json`);
+        if (existsSync(file)) files.push(file);
+    }
     return files;
 }
 

@@ -1,0 +1,4 @@
+{
+    "role.relay": "リレー",
+    "setup.role.relay_tag": "ストリームを受信し、SRTLA で転送します"
+}

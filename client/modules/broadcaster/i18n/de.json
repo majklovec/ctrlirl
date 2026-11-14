@@ -23,7 +23,5 @@
     "set.service_group_other": "Weitere",
     "set.broadcaster": "RTMP-Ausgaben",
     "set.broadcaster_desc": "Streamingdienst, URL und Key für jedes Ziel, an das der Stream gesendet wird — alle nutzen dasselbe ffmpeg-Profil. Stream-Keys sind nur schreibbar. Der Stream wird nach dem Speichern neu gestartet.",
-    "set.broadcaster_profile": "Ausgabeprofil",
-    "role.broadcaster": "broadcaster",
-    "setup.role.broadcaster_tag": "Sendet an RTMP-Ziele"
+    "set.broadcaster_profile": "Ausgabeprofil"
 }

@@ -95,7 +95,5 @@
     "act.encoder.start": "Start encoder",
     "act.encoder.stream_stop": "Stop stream",
     "act.encoder.reload": "Reload SRTLA",
-    "role.encoder": "encoder",
-    "setup.role.encoder": "Encoder",
-    "setup.role.encoder_tag": "Captures video and sends it over SRT"
+    "setup.role.encoder": "Encoder"
 }

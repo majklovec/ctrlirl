@@ -30,6 +30,7 @@ import { confirmDialog } from "@ui/components/confirm";
 import { Icon } from "@ui/components/icons";
 import { t } from "@ui/i18n";
 import m from "mithril";
+import { roleServes } from "../../../shared/ui/role_view";
 import type { ModuleContext, ModuleDef } from "../../frontend/modules";
 import "./styles.css";
 import type { EncoderSettings, Pipeline } from "./types";
@@ -205,7 +206,7 @@ export const def: ModuleDef = {
 	// wrapper, so titleKey is unused here.
 	titleKey: "set.repos",
 	selfCards: true,
-	visible: (ctx) => ctx.role === "encoder",
+	visible: (ctx) => roleServes(ctx.role, "encoder"),
 	refresh: (ctx) => {
 		state.repositories = repositoryList(
 			(ctx.settings as EncoderSettings).pipelineRepositories,

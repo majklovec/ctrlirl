@@ -1,0 +1,4 @@
+{
+    "role.ctrlink_relay": "Relay",
+    "setup.role.ctrlink_relay_tag": "Bridges the LAN to the encoder (transparent IP forwarding)"
+}

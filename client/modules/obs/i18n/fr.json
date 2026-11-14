@@ -61,7 +61,5 @@
     "act.obs.stream_start": "OBS : démarrer le direct",
     "act.obs.stream_stop": "OBS : arrêter le direct",
     "act.obs.record_start": "OBS : démarrer l’enregistrement",
-    "act.obs.record_stop": "OBS : arrêter l’enregistrement",
-    "role.obs": "obs",
-    "setup.role.obs_tag": "Pilote OBS Studio"
+    "act.obs.record_stop": "OBS : arrêter l’enregistrement"
 }

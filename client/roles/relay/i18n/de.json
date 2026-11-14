@@ -1,0 +1,4 @@
+{
+    "role.relay": "Relay",
+    "setup.role.relay_tag": "Empfängt Streams und leitet sie mit SRTLA weiter"
+}

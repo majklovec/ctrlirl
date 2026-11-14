@@ -24,7 +24,6 @@ import {
 	Options,
 	Select,
 } from "@ui/components/";
-import { OutlineIcon } from "@ui/components/icons";
 import { card, type DeviceCard } from "@ui/device/store";
 import { t } from "@ui/i18n";
 import type { MithrilJSXComponent } from "@ui/jsx";
@@ -38,6 +37,7 @@ import type {
 } from "../../../shared/contracts/frontend_module";
 import type { Role, SetupInfo } from "../../../shared/contracts/wire";
 import { attemptedSteps } from "../../../shared/setup_progress";
+import { roleServesOrLegacy } from "../../../shared/ui/role_view";
 import {
 	loadForm,
 	nameOptions,
@@ -1029,7 +1029,6 @@ const obsSetupStep: ModuleSetupStep = {
 	id: "obs",
 	title: "set.obs",
 	subtitle: "set.obs_desc",
-	roles: ["obs"],
 	isValid: () => isObsUrl(setupFields.obsUrl),
 	render(_role: Role, info: SetupInfo) {
 		if (!setupFieldsInitialized) {
@@ -1079,7 +1078,7 @@ const obsDashboardWidgets: DeviceDashboardWidget[] = [
 	{
 		type: "obs",
 		available: (device) =>
-			(device.role === "obs" || device.role === undefined) &&
+			roleServesOrLegacy(device.role, "obs") &&
 			device.modules?.["obs"]?.enabled === true,
 		defaultSize: { w: 6, h: 13 },
 		minSize: { w: 4, h: 4 },
@@ -1117,15 +1116,6 @@ const obsControllerModule: FrontendModule = (() => {
 	return {
 		id: "obs",
 		kind: "device-card",
-		roleIcons: {
-			obs: () => (
-				<OutlineIcon class="role-icon role-icon-obs">
-					<rect x="2" y="3" width="20" height="14" rx="2" />
-					<path d="m9 7 5 3.5L9 14z" />
-					<path d="M8 21h8M12 17v4" />
-				</OutlineIcon>
-			),
-		},
 		title: "OBS",
 		order: 30,
 		setupSteps: [obsSetupStep],

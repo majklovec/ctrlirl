@@ -61,7 +61,5 @@
     "act.obs.stream_start": "OBS：开始推流",
     "act.obs.stream_stop": "OBS：停止推流",
     "act.obs.record_start": "OBS：开始录制",
-    "act.obs.record_stop": "OBS：停止录制",
-    "role.obs": "obs",
-    "setup.role.obs_tag": "控制 OBS Studio"
+    "act.obs.record_stop": "OBS：停止录制"
 }

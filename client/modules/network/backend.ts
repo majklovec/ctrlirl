@@ -135,7 +135,6 @@ const registration: BackendModule<ModuleCore> = {
 	kind: "device",
 	id: "network",
 	title: "Network",
-	roles: ["relay", "encoder"],
 	dependencies: ["modems"],
 	methods: ["interfaces.list", "reconfigure", "modems.select", "modems.toggle"],
 	events: [],
@@ -240,6 +239,7 @@ const registration: BackendModule<ModuleCore> = {
 				listRelays: () => [...ctrlinkRelays.values()],
 			},
 		},
+		consumes: ["modems.source"],
 	},
 };
 

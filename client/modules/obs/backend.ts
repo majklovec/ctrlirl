@@ -595,16 +595,6 @@ const registration: BackendModule<ModuleCore> = {
     id: MODULE_ID,
     title: "OBS",
     legacyConfigKeys: ["obs-controller"],
-    roleDefinitions: [
-        {
-            id: "obs",
-            titleKey: "role.obs",
-            taglineKey: "setup.role.obs_tag",
-            order: 40,
-            setupSelectable: true,
-        },
-    ],
-    enabledByDefaultRoles: ["obs"],
     requireEnabled: true,
     configDefaults: {
         obsUrl: process.env.OBS_URL?.trim() ?? "",
@@ -647,9 +637,9 @@ const registration: BackendModule<ModuleCore> = {
                 "ws://127.0.0.1:4455",
         };
     },
-    /** Setup wizard: collect the connection owned by this OBS device. */
+    /** Setup wizard: collect the connection owned by this OBS device.
+     * The core only invokes `setup` for a role that runs this module. */
     async setup(params, role) {
-        if (role !== "obs") return undefined;
         const obsUrl = validObsUrl(params.obsUrl);
         if (
             params.obsPassword !== undefined &&

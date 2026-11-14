@@ -7,10 +7,10 @@ import m from "mithril";
 import type { MithrilJSXComponent } from "../jsx";
 
 /** Single source of every icon in the app: raw 24×24 SVG contents, stroked with
- * the current text colour. Role pictograms are not here: the modules that
- * provide the roles contribute them (`roleIcons` on their frontend
- * registration, drawn with `OutlineIcon`) and components/role_tag.tsx
- * resolves them through the module registry. */
+ * the current text colour. Role pictograms are not here: each role owns its own
+ * in client/roles/<id>/icon.tsx (drawn with `OutlineIcon`, emitted to
+ * generated/role_icons.ts) and components/role_tag.tsx resolves them through
+ * the module registry's role icon map. */
 export const SHAPES = {
 	info: (
 		<>

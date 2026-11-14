@@ -23,7 +23,5 @@
     "set.service_group_other": "Iné",
     "set.broadcaster": "RTMP výstupy",
     "set.broadcaster_desc": "Služba, URL a kľúč pre každý cieľ, do ktorého sa stream publikuje — všetky používajú ten istý ffmpeg profil. Kľúče streamu sú len na zápis. Po uložení sa stream reštartuje.",
-    "set.broadcaster_profile": "Výstupný profil",
-    "role.broadcaster": "broadcaster",
-    "setup.role.broadcaster_tag": "Vysiela do cieľov RTMP"
+    "set.broadcaster_profile": "Výstupný profil"
 }

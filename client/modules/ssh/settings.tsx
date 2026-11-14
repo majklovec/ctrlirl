@@ -20,6 +20,7 @@ import { Actions, Button, Field, Input } from "@ui/components/";
 import { confirmDialog } from "@ui/components/confirm";
 import { t } from "@ui/i18n";
 import m from "mithril";
+import { roleServes } from "../../../shared/ui/role_view";
 import type { ModuleContext, ModuleDef } from "../../frontend/modules";
 import log from "./log";
 import "./styles.css";
@@ -121,7 +122,7 @@ export const def: ModuleDef = {
 	id: "ssh",
 	titleKey: "set.ssh",
 	log,
-	visible: (ctx) => ctx.role === "relay" || ctx.role === "encoder",
+	visible: (ctx) => roleServes(ctx.role, "ssh"),
 	refresh: (ctx) => {
 		const s = ctx.modules.ssh as SshSliceView;
 		draft.user = s.user ?? "root";

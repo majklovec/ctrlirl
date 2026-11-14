@@ -16,7 +16,13 @@ cases.
 ├── client/                   # the device process
 │   ├── backend/              # device core (client.ts, state, module lifecycle, RPC)
 │   ├── frontend/             # device web UI (index / setup / settings pages)
-│   └── modules/              # device modules (run on the box, serve a role)
+│   ├── roles/                # the roles: each declares the modules + capabilities it runs
+│   │   ├── relay/            #   role.ts, icon.tsx, diagram.svg, i18n/<lang>.json
+│   │   ├── encoder/
+│   │   ├── obs/
+│   │   ├── broadcaster/
+│   │   └── ctrlink_relay/
+│   └── modules/              # device modules (run on the box; a module never names a role)
 │       ├── README.md         # this file
 │       ├── encoder/
 │       ├── modems/
@@ -39,6 +45,9 @@ cases.
 └── generated/                # gitignored generated manifests / embedded assets
     ├── frontend-assets.ts
     ├── i18n.ts
+    ├── roles.ts              # the role definitions (one import per client/roles/<id>/role.ts)
+    ├── role_icons.ts         # each role's pictogram (client/roles/<id>/icon.tsx)
+    ├── role_diagrams.ts      # each role's architecture diagram (client/roles/<id>/diagram.svg)
     ├── modules.backend.ts
     ├── modules.frontend.ts
     └── modules.settings.ts
@@ -47,7 +56,7 @@ cases.
 The control server loads **both** roots (it validates dashboards against the
 device modules' widgets and resolves their dashboard actions); the device
 process loads both too but only starts the `kind: "device"` registrations
-that serve its role.
+that its role runs.
 
 A module ships:
 -   `backend.ts` — default-exports a `BackendModule` (see
@@ -74,14 +83,9 @@ A module ships:
     `settings.tsx`.
 -   optional `settings.tsx` — a settings-page card (`ModuleDef`, see
     `shared/contracts/frontend_module.ts`).
--   optional role contributions — `roleDefinitions` on the backend
-    registration. The registry validates role IDs, picks the declared
-    default, and sends setup-selectable metadata to the frontend so the role
-    selector has one source of truth.
--   optional `role_<id>.svg` — the role's architecture diagram. The manifest
-    generator exposes it as a URL asset via `generated/role_diagrams.ts` and
-    the device setup wizard shows it in the role's card, so the diagram ships
-    with the module that owns the role.
+-   optional `services` — the capability names the module registers (via the
+    bus) and the capability names it resolves; the roles use these to validate
+    their `provides`/`requires.capabilities` (see [Roles](#roles)).
 -   optional `log.ts` — the module's log wording, imported by both sides.
 -   optional `i18n/<lang>.json` — the module's translations (one file per
     supported language, same keys in each). They are merged over the core
@@ -108,11 +112,6 @@ beyond the contracts, components, store, i18n and util helpers a card needs.
 | field                              | purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `kind`, `id`, `title`              | identity (`id` = directory name; `kind` is `device` or `widget`)                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `roleDefinitions?`                 | roles provided by this module (stable id, translation keys, ordering, and default/setup metadata)                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `roles?`                           | roles the module serves: its methods are rejected (409) on other roles, its status/settings/setup hooks only run on them, and its slice starts `enabled` on them. Omit for "every role".                                                                                                                                                                                                                                                                                                                  |
-| `methodRoles?`                     | per-method role override (`{ "relay.start": ["relay"] }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `enabledByDefault?`                | `false` keeps the slice disabled on a fresh device even on its roles (opt-in modules)                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `enabledByDefaultRoles?`           | roles that receive an enabled default when the module serves multiple roles                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `requireEnabled?`                  | reject the methods (409) while the slice is disabled                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `configKey?`                       | key of the slice under `settings.modules` (default `id`)                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `legacyConfigKeys?`                | former slice keys of a renamed module; a stored legacy slice is adopted under `configKey` on load                                                                                                                                                                                                                                                                                                                                                                    |
@@ -153,8 +152,9 @@ top-level key verbatim as a module section in `core.state.data`. A module reads
 and mutates its own sections (`data.relay`, `data.encoder`, …)
 and calls `core.saveState()`; runtime state (pids, counters) stays in module
 variables. The per-module settings slices (`settings.modules[<configKey>]`)
-are seeded from `roles` + `configDefaults` when setup completes and backfilled
-at every load.
+are seeded from the role's module list (a module is `enabled` by default when
+the role lists it in `requires.modules`, see [Roles](#roles)) + `configDefaults`
+when setup completes and backfilled at every load.
 
 ### Pushes
 
@@ -200,8 +200,8 @@ device it names — one widget (offered once per dashboard) can drive any number
 of the user's devices. The widget never names a module — it reads each
 device's **action catalogue** off `status.actions`, which the control server
 merges from the registrations of every module that is enabled on that device
-and serves its role (`server/backend/devices/device_registry.ts` → `dashboardActionsFor` in
-`shared/registry.ts`).
+and which its role runs (`server/backend/devices/device_registry.ts` →
+`dashboardActionsFor` in `shared/registry.ts`).
 
 Declare actions on the backend registration; nothing else is needed:
 
@@ -239,10 +239,10 @@ const registration: BackendModule<ModuleCore> = {
     so a method that needs operator-specific input (`encoder.start` needs
     `pipeline`, `host`, `port`) can still be a button.
 -   `confirm: true` asks before firing.
--   `roles` scopes the action to device roles; it defaults to
-    `methodRoles[method]`, then the module's `roles`. There is no user-level
-    role model beyond device ownership — a dashboard only ever shows the
-    user's own devices.
+-   An action is offered only when the device's role runs its module — the
+    role's own `requires` decides, the module never names a role. There is no
+    user-level role model beyond device ownership — a dashboard only ever
+    shows the user's own devices.
 -   An action whose module gets disabled disappears from the catalogue on the
     next status; the widget shows such buttons (and buttons of a device that
     is no longer the user's) as unavailable and refuses to fire them. A
@@ -300,6 +300,46 @@ frontend pages must stay free of module feature branches.
 Capabilities are looked up by name; providers and consumers remain isolated
 and depend only on the runtime methods they use.
 
+## Roles
+
+A **role** is a named device profile (the setup wizard's "what is this box?"
+choice) — a `relay`, `encoder`, `obs`, `broadcaster` or `ctrlink_relay`. Roles
+own the knowledge of *which modules run on them and which capabilities those
+modules consume and register*; a **module never names a role**. Roles live in
+`client/roles/<id>/`, one directory per role:
+
+-   `role.ts` — a `RoleDefinition` (see `shared/contracts/roles.ts`)
+-   `icon.tsx` — the role's pictogram (rendered on role tags, the setup wizard
+    and the device list)
+-   `diagram.svg` — the role's architecture diagram (shown in the setup wizard)
+-   `i18n/<lang>.json` — the `role.<id>` + `setup.role.<id>_tag` strings
+
+A `RoleDefinition` declares:
+
+-   `requires.modules` — the modules **enabled by default** on this role; their
+    slices seed `enabled: true` on a fresh device.
+-   `requires.optionalModules` — modules the role can run but that start
+    disabled (opt-in).
+-   `requires.capabilities` — the capability names the role's modules
+    `services.consumes`; validated to equal the sorted union of `consumes`
+    across the role's modules.
+-   `provides.capabilities` — the capability names the role's modules
+    register on the bus; validated to equal the sorted union of their
+    `services.capabilities` keys.
+
+Discovery and validation mirror the modules: `shared/registry.ts`
+`discoverRoles()` imports each `client/roles/<id>/role.ts` (a compiled binary
+uses the generated `generated/roles.ts`), and `validateRole` fails the boot if
+a role lists a module it doesn't provide, requires a module the role doesn't
+run, or has capabilities that don't match. The manifest generator also emits
+`generated/role_icons.ts` and `generated/role_diagrams.ts` keyed by role id.
+
+Frontend gating is the inverse of the old "module lists its roles": a module
+gates its own card / widgets / columns / settings with
+`roleServes(role, "<its own id>")` from `shared/ui/role_view.ts` — "does the
+live role run me?" — so no module file names a role (pinned by
+`test/boundaries.test.ts`).
+
 ## Ordering
 
 `resolveOrder` (in `shared/registry.ts`) topologically sorts modules by their
@@ -316,13 +356,15 @@ and depend only on the runtime methods they use.
    has a device card, a dashboard widget or a setup step) and/or
    `settings.tsx` (a settings-page `ModuleDef`), plus `types.ts`,
    `styles.css`.
-2. Declare `roleDefinitions`, applicable `roles`, `methods`, `events`, the hooks you need, `log` wording,
-   `pages` / `dashboardWidgets` / `dashboardActions`, and `dependencies` if
-   it must start after another module.
+2. Declare `methods`, `events`, the hooks you need, `log` wording, `pages` /
+   `dashboardWidgets` / `dashboardActions`, and `dependencies` if it must start
+   after another module. A module never names a role; to make it run on a role,
+   add its id to that role's `requires.modules` (or `optionalModules`) in
+   `client/roles/<role>/role.ts` (see [Roles](#roles)).
 3. Put the module's translations in `modules/<id>/i18n/<lang>.json` (all
    languages in `shared/languages.ts`) and its wire types in `types.ts`.
-4. **No core edits** — the backend scan picks it up and `predev` regenerates
-   the frontend, settings and i18n manifests.
+4. **No core edits** — the backend scan picks up the module, and `predev`
+   regenerates the modules, roles, icons, diagrams and i18n manifests.
 
 Module method and event names are frozen: renaming one is a breaking API
 change.

@@ -20,6 +20,8 @@ import {
 import { logEvent } from "./eventlog";
 import { run } from "./exec";
 import { writeFileAtomic } from "./files";
+import { ROLES } from "../../shared/registry";
+import { rolesWithModule } from "../../shared/roles";
 import { listDevices, requestDevice } from "./remote";
 import {
     notifyStateChange,
@@ -60,6 +62,9 @@ export interface ModuleCore {
     listDevices: typeof listDevices;
     /** Request a method on another registered device (server-mediated). */
     requestDevice: typeof requestDevice;
+    /** The roles on which `moduleId` runs (from the roles' own module lists —
+     * a module never names a role to find out where it runs). */
+    roleRuns(moduleId: string): readonly Role[];
 }
 
 export function buildModuleCore(
@@ -82,5 +87,6 @@ export function buildModuleCore(
         hasCapability,
         listDevices,
         requestDevice,
+        roleRuns: (moduleId) => rolesWithModule(ROLES, moduleId),
     };
 }

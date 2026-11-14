@@ -14,10 +14,12 @@ import type {
 import { argFail } from "../../shared/args";
 import {
     ALL_MODULES,
+    ROLES,
     isRegisteredRole,
     moduleById,
     roleDefinitions,
 } from "../../shared/registry";
+import { roleEnablesModule, roleServesModule } from "../../shared/roles";
 import { deepMerge } from "../../shared/util";
 import type { Role } from "../../shared/validate";
 import { runAutostart as runAutostartWith } from "./autostart";
@@ -65,19 +67,15 @@ export const moduleEnabled = (id: string): boolean => {
     return mod ? moduleSlice(mod)?.enabled === true : false;
 };
 
+/** A role runs `mod` when it lists the module in its own `requires` (the role
+ * owns the knowledge; the module never names a role). */
 const servesRole = (mod: BackendModule, role: Role): boolean =>
-    !mod.roles || mod.roles.includes(role);
+    roleServesModule(ROLES, role, mod.id);
 
 /** The slice a fresh device gets for `mod` on `role`. */
 const defaultSlice = (mod: BackendModule, role: Role): ModuleSlice =>
     deepMerge(
-        {
-            enabled:
-                servesRole(mod, role) &&
-                (mod.enabledByDefaultRoles
-                    ? mod.enabledByDefaultRoles.includes(role)
-                    : mod.enabledByDefault !== false),
-        },
+        { enabled: roleEnablesModule(ROLES, role, mod.id) },
         mod.configDefaults,
     );
 
@@ -252,7 +250,7 @@ export async function setupModules(
 ): Promise<() => Promise<void>> {
     const applies: (() => void | Promise<void>)[] = [];
     for (const mod of DEVICE_MODULES) {
-        if (!servesRole(mod, role) || !mod.setup) continue;
+        if (!roleEnablesModule(ROLES, role, mod.id) || !mod.setup) continue;
         const apply = await mod.setup(params, role);
         if (apply) applies.push(apply);
     }
@@ -282,8 +280,7 @@ export const methodOwner = (method: string): Module | undefined =>
 export function methodAllowed(method: string): boolean {
     const mod = METHOD_OWNER.get(method);
     if (!mod) return true;
-    const roles = mod.methodRoles?.[method] ?? mod.roles;
-    if (roles && !roles.includes(effectiveRole())) return false;
+    if (!servesRole(mod, effectiveRole())) return false;
     if (mod.requireEnabled && moduleSlice(mod)?.enabled !== true) return false;
     return true;
 }

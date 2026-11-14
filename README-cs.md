@@ -19,7 +19,8 @@
 
 ## Role
 
-Jeden klient zařízení, role dodávané moduly se vybírají pomocí `--role`:
+Jeden klient zařízení; role jsou definované v `client/roles/` (každá deklaruje
+moduly a capability, které spouští) a vybírají se pomocí `--role`:
 
 | Role              | Funkce                                                                                                                                                                                                                                                         |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -27,6 +28,7 @@ Jeden klient zařízení, role dodávané moduly se vybírají pomocí `--role`:
 | `encoder`         | Spouští [belacoder](https://github.com/BELABOX/belacoder) nebo [ceracoder](https://github.com/CERALIVE/ceracoder) s GStreamer pipeline a odesílá SRTLA do relé (výchozí `relay:6000`) přes lokální `srtla_send`. Nezajišťuje směrování ani správu modemů — nepotřebuje oprávnění uživatele root. |
 | `obs`             | Připojuje OBS Studio, předává jeho události a spouští přepínač scén podle datového toku.                                                                                                                                                                       |
 | `broadcaster`     | Přijímá SRTLA přes `srtla_rec` a pomocí ffmpeg publikuje jeden či více RTMP výstupů.                                                                                                                                                                            |
+| `ctrlink_relay`   | Průzračně mostuje L3 provoz sdílených LAN rozhraní k enkodéru (per-rozhraní UDP relé); cíl SRTLA je na enkodéru, takže zde není co nastavovat.                                                                                                          |
 
 ```text
 encoder ──SRTLA──▶ relay ──SRTLA (agregovaný stream)──▶ SRTLA přijímač
@@ -75,7 +77,7 @@ Každý parametr má protějšek v podobě proměnné prostředí. Řešení: **
 
 | Parametr                  | Proměnná prostředí                | Výchozí hodnota                  | Poznámka                                                                                                                              |
 | ------------------------- | --------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `‑‑role`                  | `ROLE`                            | `relay`                          | Role dodaná registrovaným modulem (`relay`, `encoder`, `obs`, `broadcaster`)                                             |
+| `‑‑role`                  | `ROLE`                            | `relay`                          | Role definovaná v `client/roles/` (`relay`, `encoder`, `obs`, `broadcaster`, `ctrlink_relay`)                                             |
 | `‑‑host`, `‑‑port`        | `API_HOST`, `API_PORT`            | `127.0.0.1`, `8085`              | Lokální webové rozhraní a WebSocket API (`/ws`), vždy aktivní                                                                         |
 | `‑‑allow‑origin`          | `ALLOWED_ORIGINS`                 |                                  | Další povolené originy pro `/ws` (oddělené čárkami, `*` = libovolný)                                                                  |
 | `‑‑config`                | `CONFIG_FILE`                     | `$TMPDIR/config.json`            | Konfigurace zařízení — nastavení jádra a sekce modulů. **V produkčním provozu použijte trvalou cestu.**                              |

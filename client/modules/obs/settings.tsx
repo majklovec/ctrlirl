@@ -3,6 +3,7 @@
 import { Actions, Break, Button, Field, Form, Input } from "@ui/components/";
 import { t } from "@ui/i18n";
 import m from "mithril";
+import { roleServes } from "../../../shared/ui/role_view";
 import type { ModuleContext, ModuleDef } from "../../frontend/modules";
 import type { ObsModuleView } from "./types";
 
@@ -34,7 +35,7 @@ async function save(ctx: ModuleContext): Promise<void> {
 export const def: ModuleDef = {
 	id: "obs",
 	titleKey: "set.obs",
-	visible: (ctx) => ctx.role === "obs",
+	visible: (ctx) => roleServes(ctx.role, "obs"),
 	refresh: (ctx) => {
 		// A status push while a save is in flight must not clobber the user's
 		// edits — the in-flight save already carries them.

@@ -61,7 +61,5 @@
     "act.obs.stream_start": "OBS: 配信開始",
     "act.obs.stream_stop": "OBS: 配信停止",
     "act.obs.record_start": "OBS: 録画開始",
-    "act.obs.record_stop": "OBS: 録画停止",
-    "role.obs": "obs",
-    "setup.role.obs_tag": "OBS Studioを制御します"
+    "act.obs.record_stop": "OBS: 録画停止"
 }

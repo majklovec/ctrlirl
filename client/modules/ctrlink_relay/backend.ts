@@ -1199,8 +1199,13 @@ async function ensureControlServerEncoders(): Promise<void> {
 	if (core.config.DRY_RUN) return;
 	try {
 		const devs = await core.listDevices();
+		// The bridge target runs the ctrlink_streamer module; the roles that
+		// run it come from the roles' own module lists (the module never names
+		// a role).
+		const streamerRoles = new Set(core.roleRuns("ctrlink_streamer"));
 		for (const d of devs) {
-			if (d.role !== "encoder" || !d.online) continue;
+			if (d.role === undefined || !streamerRoles.has(d.role) || !d.online)
+				continue;
 			const info = (await core.requestDevice(
 				d.id,
 				"ctrlink_streamer.encoderInfo",
@@ -1410,19 +1415,6 @@ const registration: BackendModule<ModuleCore> = {
 	kind: "device",
 	id: "ctrlink_relay",
 	title: "Ctrlink Relay",
-	roleDefinitions: [
-		{
-			id: "ctrlink_relay",
-			titleKey: "role.ctrlink_relay",
-			taglineKey: "setup.role.ctrlink_relay_tag",
-			order: 50,
-			default: false,
-			setupSelectable: true,
-		},
-	],
-	roles: ["ctrlink_relay"],
-	/** Opt-in: never auto-forward on devices upgrading (spec §7.4). */
-	enabledByDefault: false,
 	/** Depends on the network module for the interface list + uplinks file. */
 	dependencies: ["network"],
 	methods: [
@@ -1625,6 +1617,7 @@ const registration: BackendModule<ModuleCore> = {
 				throw new ApiError(`unknown method ${method}`, 404);
 		}
 	},
+	services: { consumes: ["network.interfaces", "network.uplinks"] },
 };
 
 export default registration;

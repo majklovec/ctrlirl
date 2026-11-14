@@ -19,11 +19,12 @@ import type {
 import type { DeviceCard } from "../ui/device/store";
 import type { RpcClient } from "../ui/services/rpc";
 
+/** The step runs on every role whose module set includes the module that
+ * contributes it — the step never names a role. */
 export interface ModuleSetupStep {
     id: string;
     title: string;
     subtitle: string;
-    roles: readonly Role[];
     isValid(role: Role): boolean;
     render(role: Role, info: SetupInfo): m.Children;
     config(role: Role): Record<string, unknown>;
@@ -94,18 +95,6 @@ export interface FrontendModuleContributions {
     handleEvent?(event: string, data: unknown, host?: DeviceCard): void;
     /** Log wording for the module's methods (browser-side failure messages, labels). */
     log?: LogWording;
-    /** Pictograms of the roles this module provides (`roleDefinitions`), as
-     * 24×24 outline SVG contents; the core's role tags, setup wizard and
-     * device list render them (no role id is drawn in core code). */
-    roleIcons?: Readonly<Record<Role, () => m.Vnode>>;
-}
-
-/** A card-less registration: a module that only contributes (role icons,
- * log wording) — e.g. a module that exists to own a role. */
-export interface ContributionsModule
-    extends Pick<FrontendModuleContributions, "roleIcons" | "log"> {
-    kind: "contributions";
-    id: string;
 }
 
 /** A device-card registration: the module's card on the device page plus its contributions. */
@@ -192,8 +181,7 @@ export interface DashboardWidgetModule {
 export type FrontendRegistration =
     | FrontendModule
     | ChannelWidgetModule
-    | DashboardWidgetModule
-    | ContributionsModule;
+    | DashboardWidgetModule;
 
 /** State and actions supplied to a module's settings-page contribution. */
 export interface ModuleContext {

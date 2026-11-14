@@ -3,12 +3,12 @@
  * profile are edited on the Settings page (this card shows them). */
 
 import { Actions, Badge, Button, Card, DefinitionList } from "@ui/components/";
-import { OutlineIcon } from "@ui/components/icons";
 import { card, type DeviceCard } from "@ui/device/store";
 import { t } from "@ui/i18n";
 import m from "mithril";
 import type { FrontendModule } from "../../../shared/contracts/frontend_module";
 import type { DeviceSummary } from "../../../shared/contracts/wire";
+import { roleServes } from "../../../shared/ui/role_view";
 import log from "./log";
 import { SRTLA_CUSTOM_SERVICE, srtlaService } from "./services";
 import "./styles.css";
@@ -175,7 +175,8 @@ const broadcasterSummaryColumns = [
 	{
 		id: "stream",
 		order: 0,
-		available: (device: DeviceSummary) => device.role === "broadcaster",
+		available: (device: DeviceSummary) =>
+			roleServes(device.role, "broadcaster"),
 		header: () => t("mgmt.th.stream"),
 		cell: (device: DeviceSummary) => {
 			if (!device.online) return "—";
@@ -193,19 +194,8 @@ const broadcasterModule: FrontendModule = {
 	id: "broadcaster",
 	kind: "device-card",
 	title: "SRTLA → RTMP",
-	roleIcons: {
-		broadcaster: () => (
-			<OutlineIcon class="role-icon role-icon-broadcaster">
-				<path d="M12 3v18" />
-				<path d="m7 21 5-16 5 16" />
-				<path d="M8.25 17h7.5" />
-				<path d="M5.5 3a9.5 9.5 0 0 0 0 14" />
-				<path d="M18.5 3a9.5 9.5 0 0 1 0 14" />
-			</OutlineIcon>
-		),
-	},
 	order: 20,
-	available: (status) => status.role === "broadcaster",
+	available: (status) => roleServes(status.role, "broadcaster"),
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },
 	component: (status) => broadcasterCardBody(card, status as BroadcasterStatus),

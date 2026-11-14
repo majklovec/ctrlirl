@@ -1,0 +1,4 @@
+{
+    "role.encoder": "encoder",
+    "setup.role.encoder_tag": "Captures video and sends it over SRT"
+}

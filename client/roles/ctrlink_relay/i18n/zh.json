@@ -1,0 +1,4 @@
+{
+    "role.ctrlink_relay": "Relay",
+    "setup.role.ctrlink_relay_tag": "将 LAN 设备桥接到共享 SRTLA uplink"
+}

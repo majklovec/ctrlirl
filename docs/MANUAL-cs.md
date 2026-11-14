@@ -77,7 +77,10 @@ encoder ──SRTLA──▶ relay ──SRTLA (bonded)──▶ SRTLA receiver
 
 ### Role zařízení
 
-Jeden klient zařízení, role dodávají moduly — vyberte ji přepínačem `--role` nebo v průvodci prvním spuštěním / na stránce nastavení. **UI zobrazuje pouze to, co se týká aktivní role.**
+Jeden klient zařízení; role jsou definované v `client/roles/` (každá deklaruje
+moduly a capability, které spouští) — vyberte ji přepínačem `--role` nebo v
+průvodci prvním spuštěním / na stránce nastavení. **UI zobrazuje pouze to, co
+se týká aktivní role.**
 
 | Role          | Výchozí? | Co dělá                                                                                                                                                                                                                                           | Vyžaduje root?                     |
 | ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
@@ -85,6 +88,7 @@ Jeden klient zařízení, role dodávají moduly — vyberte ji přepínačem `-
 | `encoder`     | ne       | Spouští [belacoder](https://github.com/BELABOX/belacoder) nebo [ceracoder](https://github.com/CERALIVE/ceracoder) s pipeline GStreamer a odesílá SRTLA do relay (výchozí `relay:6000`) přes lokální `srtla_send`. Nepoužívá směrování ani modemy. | ne                                 |
 | `obs`         | ne       | Modul `obs` se připojí k OBS Studio, předává jeho události a spouští přepínač scén podle datového toku.                                                                                                                                           | ne                                 |
 | `broadcaster` | ne       | Modul `broadcaster` přijímá SRTLA přes `srtla_rec` a publikuje RTMP výstupy pomocí ffmpeg.                                                                                                                                                        | ne                                 |
+| `ctrlink_relay` | ne   | Modul `ctrlink_relay` průzračně mostuje L3 provoz sdílených LAN rozhraní k enkodéru (per-rozhraní UDP relé); cíl SRTLA je na enkodéru.                                                                                                          | ne                                 |
 
 ### Uživatelské role (ovládací server)
 
@@ -220,11 +224,12 @@ Vyberte jazyk rozhraní (k dispozici je 12 jazyků). Lze ho kdykoli změnit v ja
 
 ### Krok 2 — Role zařízení
 
-Zvolte jednu z rolí dodávaných nainstalovanými moduly:
+Zvolte jednu z rolí zařízení (definované v `client/roles/`):
 - **Relay** — přijímá streamy a odesílá je pomocí SRTLA.
 - **Encoder** — zachytává obraz přes GStreamer pipeline a odesílá jej přes SRT.
 - **OBS** — připojuje se k OBS Studio a aktivuje jeho řídicí modul.
 - **Broadcaster** — přijímá SRTLA a publikuje RTMP výstupy.
+- **CtrLink Relay** — mostuje sdílená LAN rozhraní k enkodéru.
 
 Výběrem možnosti _Encoder_ se do průvodce přidá krok Kodér (jak je vidět na snímku).
 
@@ -567,7 +572,7 @@ Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI 
 
 | Volba                     | Proměnná                        | Výchozí                          | Co dělá                                                                                                                                                                          |
 | ------------------------- | ------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--role`                  | `ROLE`                          | `relay`                          | Role dodaná registrovaným modulem zařízení (`relay`, `encoder`, `obs`, `broadcaster`).                                                                                           |
+| `--role`                  | `ROLE`                          | `relay`                          | Role definovaná v `client/roles/` (`relay`, `encoder`, `obs`, `broadcaster`, `ctrlink_relay`).                                                                                           |
 | `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Lokální web UI a WebSocket API (`/ws`), vždy zapnuto.                                                                                                                            |
 | `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Další povolené zdroje požadavků prohlížeče pro `/ws` (oddělené čárkami, `*` = libovolný zdroj).                                                                                  |
 | `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Konfigurační soubor zařízení: základní nastavení a konfigurace vlastněné moduly. **V produkci použijte trvalou cestu**, protože ji automatické spuštění potřebuje i po restartu. |

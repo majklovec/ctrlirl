@@ -61,7 +61,5 @@
     "act.obs.stream_start": "OBS: spustiť vysielanie",
     "act.obs.stream_stop": "OBS: zastaviť vysielanie",
     "act.obs.record_start": "OBS: spustiť nahrávanie",
-    "act.obs.record_stop": "OBS: zastaviť nahrávanie",
-    "role.obs": "obs",
-    "setup.role.obs_tag": "Riadi OBS Studio"
+    "act.obs.record_stop": "OBS: zastaviť nahrávanie"
 }

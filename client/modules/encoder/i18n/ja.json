@@ -95,7 +95,5 @@
     "act.encoder.start": "エンコーダー開始",
     "act.encoder.stream_stop": "ストリーム停止",
     "act.encoder.reload": "SRTLA を再読み込み",
-    "role.encoder": "エンコーダー",
-    "setup.role.encoder": "エンコーダー",
-    "setup.role.encoder_tag": "GStreamer パイプラインをキャプチャし、SRT で送信します"
+    "setup.role.encoder": "エンコーダー"
 }

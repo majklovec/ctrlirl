@@ -6,13 +6,16 @@ import {
 } from "../client/backend/modules";
 import { state } from "../client/backend/state";
 import obsModule from "../client/modules/obs/backend";
+import { ROLES } from "../shared/registry";
+import { roleEnablesModule } from "../shared/roles";
 
 const OBS = "obs";
 
 describe("OBS module role and settings", () => {
     test("defaults enabled on obs while remaining available on other roles", () => {
-        expect(obsModule.roles).toBeUndefined();
-        expect(obsModule.enabledByDefaultRoles).toEqual(["obs"]);
+        expect(roleEnablesModule(ROLES, "obs", OBS)).toBe(true);
+        for (const role of ["relay", "encoder"] as const)
+            expect(roleEnablesModule(ROLES, role, OBS)).toBe(false);
         expect(defaultModules("obs")[OBS].enabled).toBe(true);
         for (const role of ["relay", "encoder"])
             expect(defaultModules(role)[OBS].enabled).toBe(false);
@@ -41,8 +44,9 @@ describe("OBS module role and settings", () => {
         await expect(
             obsModule.setup?.({ obsUrl: "https://obs.example" }, "obs"),
         ).rejects.toThrow("ws:// or wss://");
-        expect(await obsModule.setup?.({ obsUrl: "ws://localhost:4455" }, "relay"))
-            .toBeUndefined();
+        // Role gating lives in the core (`setupModules` runs `setup` only for
+        // a role that serves the module), so `setup` itself no longer returns
+        // undefined for other roles.
 
         const saved = state.settings.modules;
         try {

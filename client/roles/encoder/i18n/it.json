@@ -1,0 +1,4 @@
+{
+    "role.encoder": "encoder",
+    "setup.role.encoder_tag": "Acquisisce una pipeline GStreamer e la invia su SRT"
+}

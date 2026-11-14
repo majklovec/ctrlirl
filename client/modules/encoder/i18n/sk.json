@@ -95,7 +95,5 @@
     "act.encoder.start": "Spustiť enkodér",
     "act.encoder.stream_stop": "Zastaviť stream",
     "act.encoder.reload": "Obnoviť SRTLA",
-    "role.encoder": "enkodér",
-    "setup.role.encoder": "Enkodér",
-    "setup.role.encoder_tag": "Zachytáva GStreamer pipeline a odosiela ho cez SRT"
+    "setup.role.encoder": "Enkodér"
 }

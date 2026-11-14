@@ -77,14 +77,17 @@ The encoder sends SRTLA to the relay (default `relay:6000`); the relay is a full
 
 ### Device roles
 
-One device client, with roles contributed by modules — choose one with `--role` or the first-run wizard / settings page. **The UI only shows what applies to the active role.**
+One device client, with roles defined in `client/roles/` (each declares the
+modules and capabilities it runs) — choose one with `--role` or the first-run
+wizard / settings page. **The UI only shows what applies to the active role.**
 
-| Role       | Default? | What it does                                                                                                                                                                                             | Needs root?             |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `relay`    | **yes**  | A full SRTLA→SRTLA bridge: `srtla_rec` receives SRTLA from an encoder (UDP 6000 by default) and `srtla_send` bonds it out over all uplinks. Manages source routing, the uplinks file, and modems (ModemManager). | yes (bonding / routing) |
-| `encoder`  | no       | Runs [belacoder](https://github.com/BELABOX/belacoder) or [ceracoder](https://github.com/CERALIVE/ceracoder) with a GStreamer pipeline and sends SRTLA to a relay (default `relay:6000`) through a local `srtla_send`. No routing, no modems. | no                      |
-| `obs`      | no       | The `obs` module connects to OBS Studio, forwards events, and runs the low-bitrate scene switcher.                                                                                             | no                      |
+| Role          | Default? | What it does                                                                                                                                                                                             | Needs root?             |
+| ------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `relay`       | **yes**  | A full SRTLA→SRTLA bridge: `srtla_rec` receives SRTLA from an encoder (UDP 6000 by default) and `srtla_send` bonds it out over all uplinks. Manages source routing, the uplinks file, and modems (ModemManager). | yes (bonding / routing) |
+| `encoder`     | no       | Runs [belacoder](https://github.com/BELABOX/belacoder) or [ceracoder](https://github.com/CERALIVE/ceracoder) with a GStreamer pipeline and sends SRTLA to a relay (default `relay:6000`) through a local `srtla_send`. No routing, no modems. | no                      |
+| `obs`         | no       | The `obs` module connects to OBS Studio, forwards events, and runs the low-bitrate scene switcher.                                                                                             | no                      |
 | `broadcaster` | no    | The `broadcaster` module receives SRTLA with `srtla_rec` and publishes RTMP outputs through ffmpeg.                                                                                                      | no                      |
+| `ctrlink_relay` | no   | The `ctrlink_relay` module bridges the shared LAN interfaces' L3 traffic transparently to the encoder (per-interface UDP relays); the SRTLA destination lives on the encoder. | no                      |
 
 ### User roles (control server)
 
@@ -219,11 +222,12 @@ Pick the interface language (12 languages are available). It can be changed at a
 
 ### Step 2 — Device role
 
-Choose one of the roles contributed by the installed modules:
+Choose one of the device roles (defined in `client/roles/`):
 - **Relay** — "Receives SRTLA streams and forwards them with SRTLA"
 - **Encoder** — "Captures a GStreamer pipeline and sends it over SRTLA"
 - **OBS** — connects to OBS Studio and enables the OBS controller.
 - **Broadcaster** — receives SRTLA and publishes RTMP outputs.
+- **CtrLink Relay** — bridges the shared LAN interfaces to the encoder.
 
 Selecting _Encoder_ inserts the Encoder step into the wizard (as in the screenshot).
 
@@ -572,7 +576,7 @@ Every flag has an environment-variable counterpart. Resolution order: **CLI flag
 
 | Option                    | Env                             | Default                          | What it does                                                                                                                                          |
 | ------------------------- | ------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--role`                  | `ROLE`                          | `relay`                          | A role contributed by a registered device module (`relay`, `encoder`, `obs`, `broadcaster`).                                                             |
+| `--role`                  | `ROLE`                          | `relay`                          | A role defined in `client/roles/` (`relay`, `encoder`, `obs`, `broadcaster`, `ctrlink_relay`).                                                             |
 | `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on.                                                                                                    |
 | `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Extra browser origins for `/ws` (comma-separated, `*` = any).                                                                                         |
 | `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Device config — core settings and module-owned slices. **Use a persistent path in production** (autostart needs it to survive a reboot).               |

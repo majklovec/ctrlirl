@@ -14,6 +14,7 @@ import { t } from "@ui/i18n";
 import type { MithrilJSXComponent } from "@ui/jsx";
 import m from "mithril";
 import type { ModuleSliceView } from "../../../shared/contracts/wire";
+import { roleServes } from "../../../shared/ui/role_view";
 import type { ModuleContext, ModuleDef } from "../../frontend/modules";
 import {
 	SRTLA_CUSTOM_SERVICE,
@@ -165,7 +166,7 @@ const ServerOptions = {
 export const def: ModuleDef = {
 	id: "broadcaster",
 	titleKey: "set.broadcaster",
-	visible: (ctx) => ctx.role === "broadcaster",
+	visible: (ctx) => roleServes(ctx.role, "broadcaster"),
 	refresh: (ctx) => {
 		// A status push while a save is in flight must not clobber the
 		// operator's edits — the in-flight save already carries them.

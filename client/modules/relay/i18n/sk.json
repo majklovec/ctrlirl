@@ -11,8 +11,6 @@
     "mgmt.th.links": "Linky",
     "mlog.action.bond_selection": "Výber bondu",
     "mlog.action.bond_toggle": "Prepnutie bondu",
-    "role.relay": "relay",
-    "setup.role.relay_tag": "Prijíma streamy a preposiela ich pomocou SRTLA",
     "setup.step.relay_sub": "Nastavenia SRTLA",
     "ui.off": "vypnuté",
     "wtype.relay": "Relay"

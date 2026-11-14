@@ -235,7 +235,6 @@ const registration: BackendModule<ModuleCore> = {
     id: "ssh",
     title: "SSH",
     // Every box but an obs-only one has an sshd to manage.
-    roles: ["relay", "encoder"],
     // No secret fields — the generated password is intentionally visible in
     // the status so the operator can always read it from the UI.
     methods: [

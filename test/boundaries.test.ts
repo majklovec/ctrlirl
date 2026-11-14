@@ -22,6 +22,7 @@
 import { describe, expect, test } from "bun:test";
 import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { registeredRoleIds } from "../shared/registry";
 
 const ROOT = resolve(import.meta.dir, "..");
 
@@ -164,6 +165,34 @@ describe("architectural boundaries", () => {
 				const other = moduleOf(imp.target);
 				if (other && other !== own) offenders.push(describeOffender(file, imp));
 			}
+		}
+		expect(offenders).toEqual([]);
+	});
+
+	test("a module never names a role (the role→module knowledge lives in client/roles)", () => {
+		// The inversion under test: a module must gate its own UI on
+		// `roleServes(role, <its own id>)` (shared/ui/role_view), never list or
+		// compare the roles it belongs to. The role owns that mapping.
+		const roleIds = registeredRoleIds();
+		const literal = roleIds.join("|");
+		const patterns: Array<{ name: string; re: RegExp }> = [
+			{ name: "a roleIcons contribution", re: /\broleIcons\b/ },
+			{ name: "a setup-step roles: field", re: /\broles:\s*["'{[]/ },
+			{
+				name: `a comparison of a device role against a role id (${[
+					...roleIds,
+				].join(", ")})`,
+				re: new RegExp(
+					`(\\.role|role\\(\\))\\s*[!=]==?\\s*["'](?:${literal})["']`,
+				),
+			},
+		];
+		const offenders: string[] = [];
+		for (const file of sourcesUnder(LAYOUT.moduleRoots)) {
+			const src = stripComments(readFileSync(file, "utf8"));
+			for (const { name, re } of patterns)
+				if (re.test(src))
+					offenders.push(`${relative(ROOT, file)}: ${name}`);
 		}
 		expect(offenders).toEqual([]);
 	});

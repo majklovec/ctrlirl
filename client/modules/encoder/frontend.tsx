@@ -36,6 +36,7 @@ import type {
 	Status,
 } from "../../../shared/contracts/wire";
 import { attemptedSteps } from "../../../shared/setup_progress";
+import { roleServes, roleServesOrLegacy } from "../../../shared/ui/role_view";
 import log from "./log";
 import type {
 	CeraBalancer,
@@ -246,7 +247,6 @@ const encoderSetupStep: ModuleSetupStep = {
 	id: "encoder",
 	title: "wtype.encoder",
 	subtitle: "setup.step.encoder_sub",
-	roles: ["encoder"],
 	isValid(_role: Status["role"]) {
 		return (
 			!!setupFields.pipeline &&
@@ -406,8 +406,7 @@ const encoderSetupStep: ModuleSetupStep = {
 const encoderDashboardWidgets: DeviceDashboardWidget[] = [
 	{
 		type: "encoder",
-		available: (device) =>
-			device.role === "encoder" || device.role === undefined,
+		available: (device) => roleServesOrLegacy(device.role, "encoder"),
 		defaultSize: { w: 6, h: 5 },
 		minSize: { w: 4, h: 4 },
 		body: ({ card: host, status }) =>
@@ -439,7 +438,7 @@ const encoderSummaryColumns = [
 	{
 		id: "stream",
 		order: 0,
-		available: (device: DeviceSummary) => device.role === "encoder",
+		available: (device: DeviceSummary) => roleServes(device.role, "encoder"),
 		header: () => t("mgmt.th.stream"),
 		cell: (device: DeviceSummary) => {
 			if (!device.online) return "—";
@@ -478,7 +477,8 @@ const encoderSummaryColumns = [
 	{
 		id: "encoder",
 		order: 30,
-		available: (device: DeviceSummary) => device.role === "encoder",
+		available: (device: DeviceSummary) =>
+			roleServes(device.role, "encoder"),
 		header: () => [encoderIcon(), ` ${t("wtype.encoder")}`],
 		cell: (device: DeviceSummary) => {
 			const { encoder } = device as EncoderDeviceSummary;
@@ -606,7 +606,8 @@ async function loadPipelines(host: DeviceCard): Promise<void> {
 	m.redraw();
 }
 
-const hasEncoderRole = (status: EncoderStatus) => status.role === "encoder";
+const hasEncoderRole = (status: EncoderStatus) =>
+	roleServes(status.role, "encoder");
 
 // ----------------------------------------------------------------------
 // Stream control (owns the encoder + stream start logic, shared with SRTLA)
@@ -1074,9 +1075,8 @@ const encoderModule: FrontendModule = {
 	id: "encoder",
 	kind: "device-card",
 	title: "Encoder",
-	roleIcons: { encoder: encoderIcon },
 	order: 10,
-	available: (status) => status.role === "encoder",
+	available: (status) => roleServes(status.role, "encoder"),
 	dashboardWidgets: encoderDashboardWidgets,
 	setupSteps: [encoderSetupStep],
 	deviceSummaryColumns: encoderSummaryColumns,

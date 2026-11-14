@@ -25,6 +25,7 @@ import type {
 	DeviceDashboardWidget,
 	FrontendModule,
 } from "../../../shared/contracts/frontend_module";
+import { roleServes, roleServesOrLegacy } from "../../../shared/ui/role_view";
 import log from "./log";
 import type { GsmProfile } from "./modems";
 import { ratLabel } from "./modems";
@@ -484,11 +485,7 @@ function modemsCard(host: DeviceCard, status: ModemsStatus): m.Vnode {
 const modemsDashboardWidgets: DeviceDashboardWidget[] = [
 	{
 		type: "modems",
-		available: (device) =>
-			device.role === "relay" ||
-			device.role === "encoder" ||
-			device.role === "ctrlink_relay" ||
-			device.role === undefined,
+		available: (device) => roleServesOrLegacy(device.role, "modems"),
 		defaultSize: { w: 4, h: 4 },
 		minSize: { w: 3, h: 3 },
 		body: ({ card: host, status }) =>
@@ -502,10 +499,7 @@ const modemsModule: FrontendModule = {
 	title: "Modems",
 	order: 25,
 	log,
-	available: (status) =>
-		status.role === "relay" ||
-		status.role === "encoder" ||
-		status.role === "ctrlink_relay",
+	available: (status) => roleServes(status.role, "modems"),
 	dashboardWidgets: modemsDashboardWidgets,
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },

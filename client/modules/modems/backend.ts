@@ -50,7 +50,6 @@ const registration: BackendModule<ModuleCore> = {
     kind: "device",
     id: "modems",
     title: "Modems",
-    roles: ["relay", "encoder", "ctrlink_relay"],
     dependencies: [],
     methods: [
         "modems.list",
