@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="logo-ctrlirl.png" alt="CTRLIRL" width="240" />
+<img src="logo-ctrlirl.png" alt="Ctrl-IRL" width="240" />
 
-# CTRLIRL
+# Ctrl-IRL
 
 Bun-based controller for [BELABOX](https://belabox.net/)-style bonded streaming. One module-driven device client runs the selected role, and an optional control server manages a fleet from a browser.
 
@@ -166,7 +166,7 @@ Run the compiled binaries (`bun run build:client` / `bun run build:server`) as a
 
 ```ini
 [Unit]
-Description=CTRLIRL device
+Description=Ctrl-IRL device
 After=network-online.target
 Wants=network-online.target
 

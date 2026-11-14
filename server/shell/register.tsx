@@ -115,7 +115,7 @@ const App: m.Component = {
 	view: () => (
 		<div class="login-page">
 			<Card>
-				<img class="login-logo" src={logoUrl} alt="CTRLIRL" />
+				<img class="login-logo" src={logoUrl} alt="Ctrl-IRL" />
 				<div class="login-head">
 					<h2>{t("register.title")}</h2>
 					<LanguageSelect />

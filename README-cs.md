@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="logo-ctrlirl.png" alt="CTRLIRL" width="240" />
+<img src="logo-ctrlirl.png" alt="Ctrl-IRL" width="240" />
 
 </div>
 
-# CTRLIRL
+# Ctrl-IRL
 
 Řídicí aplikace založená na Bun pro streamování s agregací připojení ve stylu [BELABOX](https://belabox.net/). Jeden modulární klient zařízení spouští zvolenou roli a volitelný řídicí server umožňuje spravovat celou skupinu zařízení prostřednictvím webového prohlížeče.
 
@@ -177,7 +177,7 @@ Spouštějte zkompilované binární soubory (`bun run build:client` / `bun run 
 
 ```ini
 [Unit]
-Description=CTRLIRL device
+Description=Ctrl-IRL device
 After=network-online.target
 Wants=network-online.target
 

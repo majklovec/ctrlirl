@@ -1,4 +1,4 @@
-// CTRLIRL service worker — served at the origin root (/sw.js, scope "/") by
+// Ctrl-IRL service worker — served at the origin root (/sw.js, scope "/") by
 // shared/pwa.ts so it can control the whole UI (control server and device).
 //
 // Strategy:

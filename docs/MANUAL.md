@@ -1,6 +1,6 @@
-# CTRLIRL — User Operations Manual
+# Ctrl-IRL — User Operations Manual
 
-This manual explains how to **turn on**, **operate**, and **configure** CTRLIRL — a Bun-based controller for [BELABOX](https://belabox.net/)-style bonded streaming. One module-driven device client runs the selected role, and an optional control server manages the fleet from a browser.
+This manual explains how to **turn on**, **operate**, and **configure** Ctrl-IRL — a Bun-based controller for [BELABOX](https://belabox.net/)-style bonded streaming. One module-driven device client runs the selected role, and an optional control server manages the fleet from a browser.
 
 All screenshots in this manual were captured from a real running instance and are in [`docs/screenshots/`](screenshots/).
 
@@ -26,7 +26,7 @@ All screenshots in this manual were captured from a real running instance and ar
 
 ## 1. Overview
 
-CTRLIRL captures a livestream on an **encoder** box and bonds it out over several network uplinks (multiple modems / Wi-Fi / Ethernet) with [`srtla_send`](https://github.com/irlserver/srtla_send) so that no single weak link can kill the stream. An optional **control server** ties everything together in a browser.
+Ctrl-IRL captures a livestream on an **encoder** box and bonds it out over several network uplinks (multiple modems / Wi-Fi / Ethernet) with [`srtla_send`](https://github.com/irlserver/srtla_send) so that no single weak link can kill the stream. An optional **control server** ties everything together in a browser.
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,7 @@ flowchart LR
     end
 
     subgraph control server
-        C[CTRLIRL control server]
+        C[Ctrl-IRL control server]
         D[Dashboards]
     end
     E -. WebSocket .-> C
@@ -171,7 +171,7 @@ Run the compiled binaries (`bun run build:client` / `bun run build:server`) as a
 
 ```ini
 [Unit]
-Description=CTRLIRL device
+Description=Ctrl-IRL device
 After=network-online.target
 Wants=network-online.target
 
