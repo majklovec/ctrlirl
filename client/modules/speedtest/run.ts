@@ -96,7 +96,7 @@ export class SpeedtestRunManager {
             proc = spawn(
                 bin,
                 argv,
-                { IRLCTRL_SPEEDTEST: "1" },
+                { CTRLIRL_SPEEDTEST: "1" },
             );
         } catch (err) {
             throw new ApiError(
@@ -189,7 +189,7 @@ export class SpeedtestRunManager {
                 reason === "cancelled"
                     ? "Run cancelled"
                     : reason === "shutdown"
-                        ? "irlctrl is shutting down"
+                        ? "ctrlirl is shutting down"
                         : "Run timed out",
             exitCode: null,
             stderrTail: run.stderrTail,
@@ -325,8 +325,8 @@ function defaultSpawn(
 const trimTail = (s: string) => s.trim().split("\n").slice(-3).join(" | ").slice(0, 400);
 
 /**
- * Kill stale orphans: children of a previous irlctrl process tagged with
- * IRLCTRL_SPEEDTEST=1 in their env (Linux /proc scan, best-effort).
+ * Kill stale orphans: children of a previous ctrlirl process tagged with
+ * CTRLIRL_SPEEDTEST=1 in their env (Linux /proc scan, best-effort).
  */
 export async function killStaleSpeedtestChildren(
     log: (message: string) => void,
@@ -342,7 +342,7 @@ export async function killStaleSpeedtestChildren(
                 await fh.read(buf);
                 await fh.close();
                 const env = new TextDecoder().decode(buf);
-                if (env.includes("IRLCTRL_SPEEDTEST=1")) {
+                if (env.includes("CTRLIRL_SPEEDTEST=1")) {
                     process.kill(Number(entry), "SIGKILL");
                     log(`Killed stale speedtest child pid ${entry}`);
                 }

@@ -4,7 +4,7 @@ Encoder is on: ssh pi@192.168.10.101
 
 root@rpi4:/home/pi/app# ENCODER_BIN=./ceracoder ./client-arm --config ./enc.json --host 0.0.0.0 --pipelines ./pipeline
 
-relay is here (local host): majkl@bigcml:~/Documents/Software/irlctrl/app$ sudo bun run dev:client
+relay is here (local host): majkl@bigcml:~/Documents/Software/ctrlirl/app$ sudo bun run dev:client
 
 OBS SRTLA ingress is on: 83.208.44.38:5000
 

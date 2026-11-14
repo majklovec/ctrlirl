@@ -1,5 +1,5 @@
 {
-    "name": "@irlctrl/gretap-relay",
+    "name": "@ctrlirl/gretap-relay",
     "version": "0.1.0",
     "private": true,
     "description": "Transport primitive: L2 tunnel between two boxes over a direct GRE (GRETAP) link, bridged into the local LAN by the kernel. No userspace packet path.",

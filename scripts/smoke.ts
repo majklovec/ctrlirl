@@ -87,7 +87,7 @@ async function check(base: string, paths: string[], failures: string[]) {
 	}
 }
 
-const tmp = await mkdtemp(join(tmpdir(), "irlctrl-smoke-"));
+const tmp = await mkdtemp(join(tmpdir(), "ctrlirl-smoke-"));
 const serverPort = await freePort();
 const clientPort = await freePort();
 const procs: ReturnType<typeof Bun.spawn>[] = [];

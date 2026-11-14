@@ -2,7 +2,7 @@
 /* Page skeleton: header (brand, title, nav, optional language selector,
  * actions), optional toolbar strip, main content and the version footer. */
 import m from "mithril";
-import logoUrl from "../../assets/img/logo-irlctrl-64.png";
+import logoUrl from "../../assets/img/logo-ctrlirl-64.png";
 import { APP_VERSION } from "../../../generated/version";
 import { LanguageSelect } from "../i18n";
 import type { MithrilJSXComponent } from "../jsx";
@@ -11,7 +11,7 @@ import type { MithrilJSXComponent } from "../jsx";
 const FooterComponent: m.Component = {
 	view: () => (
 		<footer class="page-footer muted">
-			IRLCTRL <span class="app-version">v{APP_VERSION}</span>
+			CTRLIRL <span class="app-version">v{APP_VERSION}</span>
 		</footer>
 	),
 };
@@ -25,11 +25,11 @@ export const Footer = FooterComponent as MithrilJSXComponent;
 export const Page = {
 	view: (v) => [
 		<header>
-			<a class="brand" href="/" aria-label="IRLCTRL">
+			<a class="brand" href="/" aria-label="CTRLIRL">
 				<img
 					class="brand-logo"
 					src={logoUrl}
-					alt="IRLCTRL"
+					alt="CTRLIRL"
 					width={32}
 					height={32}
 				/>

@@ -1,7 +1,7 @@
 /* The tunnel side (both boxes): a kernel GRETAP tunnel bridged into the
  * local LAN.
  *
- * Replaces the legacy `@irlctrl/udp-relay` virtual interface: where one side
+ * Replaces the legacy `@ctrlirl/udp-relay` virtual interface: where one side
  * used to open a TUN and pump framed IP packets over UDP to a relay process,
  * each side now asks the kernel for a GRETAP device (`gretap<name>`), a
  * bridge (`br-<name>`) and attaches both the tunnel and the local LAN NIC to
@@ -83,7 +83,7 @@ export async function createVirtualInterface(
 ): Promise<VirtualInterface> {
     if (process.platform !== "linux")
         throw new Error(
-            `@irlctrl/gretap-relay requires Linux (running on ${
+            `@ctrlirl/gretap-relay requires Linux (running on ${
                 process.platform
             })`,
         );

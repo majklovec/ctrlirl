@@ -1,4 +1,4 @@
-// IRLCTRL service worker — served at the origin root (/sw.js, scope "/") by
+// CTRLIRL service worker — served at the origin root (/sw.js, scope "/") by
 // shared/pwa.ts so it can control the whole UI (control server and device).
 //
 // Strategy:
@@ -12,7 +12,7 @@
 //    page websockets) is never intercepted and never cached.
 // Bump on every sw change so activate() drops the previous cache, including
 // its now-orphaned /assets/* chunks.
-const CACHE = "irlctrl-shell-v2";
+const CACHE = "ctrlirl-shell-v2";
 const PRECACHE = ["/icons/icon-192.png", "/icons/icon-512.png"];
 
 const isLive = (url) =>

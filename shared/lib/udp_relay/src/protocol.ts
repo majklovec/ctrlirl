@@ -1,4 +1,4 @@
-/* Wire framing for the @irlctrl/udp-relay UDP datagrams.
+/* Wire framing for the @ctrlirl/udp-relay UDP datagrams.
  *
  * v2 — transparent L3 bridge. Big-endian. Two message types.
  *

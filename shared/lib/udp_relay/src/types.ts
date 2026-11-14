@@ -1,4 +1,4 @@
-/* Shared types for @irlctrl/udp-relay.
+/* Shared types for @ctrlirl/udp-relay.
  *
  * The library is a transport primitive: it moves UDP payloads between a TUN on
  * one host and a bound UDP socket on another. It knows nothing about SRTLA,

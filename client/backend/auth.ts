@@ -65,7 +65,7 @@ export function authenticate(username: string, password: string): boolean {
 
 // Opaque cookie sessions: the browser stores a session id (HttpOnly), the
 // password never does.
-const SESSION_COOKIE = "irlctrl_device_session";
+const SESSION_COOKIE = "ctrlirl_device_session";
 const sessions = new Set<string>();
 
 function sessionCookie(req: Request): string | null {

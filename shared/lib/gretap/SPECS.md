@@ -2,7 +2,7 @@
 
 | Field                 | Value                                                                                                |
 | :-------------------- | :--------------------------------------------------------------------------------------------------- |
-| **Project**           | `irlctrl` / `ctrlink` shared libraries                                                               |
+| **Project**           | `ctrlirl` / `ctrlink` shared libraries                                                               |
 | **Scope**             | Replace `shared/lib/udp_relay` (userspace TUN + UDP relay) with a kernel‑level GRETAP tunnel library |
 | **Target deployment** | Two Ubuntu boxes connected via a **Loco M5 WDS bridge** (point‑to‑point, direct L2 link, no NAT)     |
 | **Status**            | Design + reference implementation complete; integration pending                                      |
@@ -380,7 +380,7 @@ The old library is **not deleted until §7 soak passes**, so rollback is a singl
 
 ## 11. References
 
--   **Original library:** `shared/lib/udp_relay` — https://github.com/majklovec/irlctrl/tree/main/shared/lib/udp_relay
+-   **Original library:** `shared/lib/udp_relay` — https://github.com/majklovec/ctrlirl/tree/main/shared/lib/udp_relay
 -   **Reference for the relay pattern:** `ctrlink-rust` — https://github.com/datagutt/ctrlink-rust
 -   **Kernel GRETAP docs:** https://www.kernel.org/doc/Documentation/networking/ip-tunnel.txt (see “GRETAP”)
 -   **`ip link` manpage (gretap section):** `man ip-link`

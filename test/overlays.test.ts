@@ -238,7 +238,7 @@ function nextFrame(
 
 describe("overlays (OBS overlay editor) HTTP + WS contracts", () => {
     beforeAll(async () => {
-        tempDir = await mkdtemp(join(tmpdir(), "irlctrl-overlays-"));
+        tempDir = await mkdtemp(join(tmpdir(), "ctrlirl-overlays-"));
         databasePath = join(tempDir, "users.sqlite");
         storagePath = join(tempDir, "storage");
         port = await availablePort();

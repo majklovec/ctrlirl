@@ -86,12 +86,12 @@ registration is logged once per relay, not on every refresh:
 2. **mDNS (DNS-SD over multicast `224.0.0.251:5353`)** (path added 2025 —
    overrides the original "no mDNS" constraint)
 
-    - The relay advertises the instance `_irlctrl-relay._udp.local`
+    - The relay advertises the instance `_ctrlirl-relay._udp.local`
       (`instance.hostname.local`, SRV → discovery port) with a compact TXT
       record: `h=<hostname>;ip=<primary host>;i=<iface=addr:port;…>` (truncated
       at the 255-byte TXT limit; the encoder keeps the _longer_ endpoint set
       across sources, so truncation never shrinks a WS-learned list).
-        - The encoder advertises `_irlctrl-encoder._udp.local`
+        - The encoder advertises `_ctrlirl-encoder._udp.local`
           (`instance.hostname.local`, SRV → its WebSocket port) with TXT
           `id=;ip=;port=;proto=;tok=`.
             - Both sides run a browser for the _other_ service (re-query + re-advertise

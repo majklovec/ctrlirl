@@ -97,7 +97,7 @@
     "dev.scheduler_classic": "Classico",
     "dev.scheduler_enhanced": "Avanzato",
     "dev.signal": "Segnale",
-    "dev.title": "IRLCTRL",
+    "dev.title": "CTRLIRL",
     "dev.unit_gbs": "{{value}} Gb/s",
     "dev.unit_kbps": "kbps",
     "dev.unit_mbps": "Mbps",
@@ -147,7 +147,7 @@
     "mgmt.th.status": "Stato",
     "mgmt.th.stream": "Stream",
     "mgmt.th_bitrate": "Bitrate / max",
-    "mgmt.title": "Controllo IRLCTRL",
+    "mgmt.title": "Controllo CTRLIRL",
     "mlog.action.activate": "Attivato",
     "mlog.action.configuration": "Configurazione",
     "mlog.action.create": "Creazione",
@@ -358,9 +358,9 @@
     "setup.step.language_sub": "Scegli la lingua dell'interfaccia.",
     "setup.step.relay": "Relay",
     "setup.step.review": "Revisione",
-    "setup.step.role_sub": "Scegli come questo IRLCTRL si unirà alla rete.",
+    "setup.step.role_sub": "Scegli come questo CTRLIRL si unirà alla rete.",
     "setup.step_invalid": "Compila i campi evidenziati per continuare.",
-    "setup.title": "Configurazione IRLCTRL",
+    "setup.title": "Configurazione CTRLIRL",
     "setup.username_title": "Nome utente",
     "srv.offline": "Dispositivo offline ({{reason}})",
     "srv.online": "Dispositivo online ({{address}})",
@@ -413,5 +413,5 @@
     "ui.save": "Salva",
     "ui.start": "Avvia",
     "ui.stop": "Arresta",
-    "ui.title_suffix": "- IRLCTRL"
+    "ui.title_suffix": "- CTRLIRL"
 }

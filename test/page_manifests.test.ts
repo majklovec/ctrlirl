@@ -7,7 +7,7 @@ const projectRoot = join(import.meta.dir, "..");
 
 for (const separator of ["/", "\\"]) {
     test(`page manifests resolve imports with ${JSON.stringify(separator)} scan separators`, async () => {
-        const tree = mkdtempSync(join(tmpdir(), "irlctrl-page-manifests-"));
+        const tree = mkdtempSync(join(tmpdir(), "ctrlirl-page-manifests-"));
         try {
             for (const dir of ["scripts", "shared"])
                 mkdirSync(join(tree, dir), { recursive: true });

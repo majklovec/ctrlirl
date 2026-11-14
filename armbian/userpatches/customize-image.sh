@@ -11,7 +11,7 @@ export DEBIAN_FRONTEND=noninteractive
 # Configuration
 # ============================================================
 
-HOSTNAME="irlctrl"
+HOSTNAME="ctrlirl"
 
 # Versions / sources for the streaming dependency chain
 CERACODER_REPO="CERALIVE/ceracoder"
@@ -178,10 +178,10 @@ curl -fsSL https://bun.sh/install | bash
 export BUN_INSTALL="/root/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-# --- 13. Install irlctrl ---
-echo "Installing irlctrl..."
-git clone https://github.com/majklovec/irlctrl.git /opt/irlctrl
-cd /opt/irlctrl
+# --- 13. Install ctrlirl ---
+echo "Installing ctrlirl..."
+git clone https://github.com/majklovec/ctrlirl.git /opt/ctrlirl
+cd /opt/ctrlirl
 if [ -f "package.json" ]; then
 	bun install
 fi
@@ -197,13 +197,13 @@ done
 if [[ "${BUILD_VARIANT}" == "emmc" ]]; then
 	echo "Installing first-boot eMMC installer..."
 
-	install -m 0755 /tmp/overlay/usr/local/sbin/irlctrl-emmc-install.sh \
-		/usr/local/sbin/irlctrl-emmc-install.sh
+	install -m 0755 /tmp/overlay/usr/local/sbin/ctrlirl-emmc-install.sh \
+		/usr/local/sbin/ctrlirl-emmc-install.sh
 
-	install -m 0644 /tmp/overlay/etc/systemd/system/irlctrl-emmc-install.service \
-		/etc/systemd/system/irlctrl-emmc-install.service
+	install -m 0644 /tmp/overlay/etc/systemd/system/ctrlirl-emmc-install.service \
+		/etc/systemd/system/ctrlirl-emmc-install.service
 
-	systemctl enable irlctrl-emmc-install.service 2>/dev/null || true
+	systemctl enable ctrlirl-emmc-install.service 2>/dev/null || true
 fi
 
 echo "Customization complete (hostname: ${HOSTNAME}, variant: ${BUILD_VARIANT:-sd})."

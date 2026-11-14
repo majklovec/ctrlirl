@@ -130,7 +130,7 @@ let aliceId: number;
 let bobId: number;
 
 beforeAll(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "irlctrl-projects-"));
+    tempDir = await mkdtemp(join(tmpdir(), "ctrlirl-projects-"));
     databasePath = join(tempDir, "users.sqlite");
     port = await availablePort();
     await startServer();

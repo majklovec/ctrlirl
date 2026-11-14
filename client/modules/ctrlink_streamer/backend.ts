@@ -1,6 +1,6 @@
 /*
  * ctrlink_streamer module (encoder side). Creates one TUN per registered
- * shared relay interface (`createVirtualInterface` from @irlctrl/gretap-relay),
+ * shared relay interface (`createVirtualInterface` from @ctrlirl/gretap-relay),
  * and, with `autoRegisterUplink` on, registers each TUN IP as a
  * `network.uplinks` entry so `srtla_send` picks the extra paths up without
  * user intervention (spec 100-ctrlink §6, §7.2, §8.3, §6.3 multi-relay
@@ -35,7 +35,7 @@ import {
 	egressIface,
 	greKeyForEndpoints,
 	type VirtualInterface,
-} from "@irlctrl/gretap-relay";
+} from "@ctrlirl/gretap-relay";
 import { requireCapability } from "../../../shared/capabilities";
 import type {
 	BackendModule,
@@ -611,7 +611,7 @@ export function encoderInfo(): EncoderInfo | null {
 	const ip = defaultSourceIp() ?? undefined;
 	if (!ip) return null;
 	return {
-		encoderId: hostname() || "irlctrl-encoder",
+		encoderId: hostname() || "ctrlirl-encoder",
 		ip,
 		wsPort: c.wsPort,
 		proto: CTRLINK_RELAY_WS_PROTOCOL,
@@ -661,7 +661,7 @@ function ensureControlPlane(): void {
 	// mDNS advertise (protocol.md §3): relays browse for us.
 	mdnsAdvertiseStop?.();
 	mdnsAdvertiseStop = startMdnsAdvertiser({
-		instance: hostname() || "irlctrl-encoder",
+		instance: hostname() || "ctrlirl-encoder",
 		service: MDNS_ENCODER_SERVICE,
 		servicePort: c.wsPort,
 		dryRun: core.config.DRY_RUN,

@@ -29,7 +29,7 @@ async function main(): Promise<void> {
 	}
 
 	await i18nReady;
-	console.log(`=== irlctrl device (Bun) — role: ${ROLE} ===\n`);
+	console.log(`=== ctrlirl device (Bun) — role: ${ROLE} ===\n`);
 
 	let shuttingDown = false;
 	const shutdown = async (signal: string) => {

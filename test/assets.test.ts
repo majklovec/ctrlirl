@@ -136,7 +136,7 @@ let bob: string;
 let root: Folder;
 
 beforeAll(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "irlctrl-assets-"));
+    tempDir = await mkdtemp(join(tmpdir(), "ctrlirl-assets-"));
     databasePath = join(tempDir, "users.db");
     storagePath = join(tempDir, "storage");
     port = await availablePort();

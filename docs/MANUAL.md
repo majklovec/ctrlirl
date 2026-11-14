@@ -1,6 +1,6 @@
-# IRLCTRL — User Operations Manual
+# CTRLIRL — User Operations Manual
 
-This manual explains how to **turn on**, **operate**, and **configure** IRLCTRL — a Bun-based controller for [BELABOX](https://belabox.net/)-style bonded streaming. One module-driven device client runs the selected role, and an optional control server manages the fleet from a browser.
+This manual explains how to **turn on**, **operate**, and **configure** CTRLIRL — a Bun-based controller for [BELABOX](https://belabox.net/)-style bonded streaming. One module-driven device client runs the selected role, and an optional control server manages the fleet from a browser.
 
 All screenshots in this manual were captured from a real running instance and are in [`docs/screenshots/`](screenshots/).
 
@@ -26,7 +26,7 @@ All screenshots in this manual were captured from a real running instance and ar
 
 ## 1. Overview
 
-IRLCTRL captures a livestream on an **encoder** box and bonds it out over several network uplinks (multiple modems / Wi-Fi / Ethernet) with [`srtla_send`](https://github.com/irlserver/srtla_send) so that no single weak link can kill the stream. An optional **control server** ties everything together in a browser.
+CTRLIRL captures a livestream on an **encoder** box and bonds it out over several network uplinks (multiple modems / Wi-Fi / Ethernet) with [`srtla_send`](https://github.com/irlserver/srtla_send) so that no single weak link can kill the stream. An optional **control server** ties everything together in a browser.
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,7 @@ flowchart LR
     end
 
     subgraph control server
-        C[IRLCTRL control server]
+        C[CTRLIRL control server]
         D[Dashboards]
     end
     E -. WebSocket .-> C
@@ -164,16 +164,16 @@ CONTROL_SERVER_TOKEN=tok-alice-1 bun client/backend/client.ts --role encoder --r
 
 #### systemd
 
-Run the compiled binaries (`bun run build:client` / `bun run build:server`) as a service. Example device unit (`/etc/systemd/system/irlctrl.service`):
+Run the compiled binaries (`bun run build:client` / `bun run build:server`) as a service. Example device unit (`/etc/systemd/system/ctrlirl.service`):
 
 ```ini
 [Unit]
-Description=IRLCTRL device
+Description=CTRLIRL device
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/bun /opt/irlctrl/client --config /var/lib/irlctrl/config.json
+ExecStart=/usr/local/bin/bun /opt/ctrlirl/client --config /var/lib/ctrlirl/config.json
 Restart=always
 User=root
 
@@ -191,9 +191,9 @@ The control server uses the same pattern with `server` (no `root` needed). Put r
 docker compose up -d --build
 ```
 
-- **server** — the control server (`Dockerfile`, image `majkl/irlctrl-control`), UI on `:8090`.
+- **server** — the control server (`Dockerfile`, image `majkl/ctrlirl-control`), UI on `:8090`.
 - **obs-client** — `client.ts --role obs`, using the `obs` module to connect to host OBS (`ws://host.docker.internal:4455`).
-- **relay** — `client.ts --role relay`, bonds SRT out via `srtla_send` (`Dockerfile.device`, image `majkl/irlctrl-device`).
+- **relay** — `client.ts --role relay`, bonds SRT out via `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
 - **encoder** — `client.ts --role encoder`, runs `ceracoder`/GStreamer and sends SRT to the relay; same device image, different role + `ENCODER_BIN`.
 - **broadcaster** — `client.ts --role broadcaster`, runs the `client/modules/broadcaster` receiver/publisher; configure RTMP destinations in device settings and expose its SRTLA receiver on UDP `5001`.
 

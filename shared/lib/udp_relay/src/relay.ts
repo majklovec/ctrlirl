@@ -165,7 +165,7 @@ export function decideIfacePacket(
 export async function createUdpRelay(opts: UdpRelayOptions): Promise<UdpRelay> {
     if (process.platform !== "linux")
         throw new Error(
-            `@irlctrl/udp-relay requires Linux (running on ${process.platform})`,
+            `@ctrlirl/udp-relay requires Linux (running on ${process.platform})`,
         );
     if (!InterfaceRe.test(opts.interfaceName))
         throw new Error(`bad interfaceName ${JSON.stringify(opts.interfaceName)}`);

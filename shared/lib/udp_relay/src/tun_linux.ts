@@ -262,7 +262,7 @@ function loadLibcIoctl(): LibcIoctl | null {
 export async function openTun(name: string): Promise<TunDevice> {
     if (process.platform !== "linux")
         throw new Error(
-            `@irlctrl/udp-relay TUN support requires Linux (running on ${process.platform})`,
+            `@ctrlirl/udp-relay TUN support requires Linux (running on ${process.platform})`,
         );
     if (name.length > IF_NAME_LEN - 1)
         throw new Error(

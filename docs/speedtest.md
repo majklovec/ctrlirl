@@ -29,8 +29,8 @@ only — so a stale binary is rejected up front with a diagnostic naming the
 path, instead of dying mid-run with an unparsable
 `flag provided but not defined`. Downloads and extraction are single-flight;
 the binary is marked `0755`.
-On startup, stale children of a previous irlctrl process are killed (a
-`/proc` env scan for `IRLCTRL_SPEEDTEST=1`, which the module sets on every
+On startup, stale children of a previous ctrlirl process are killed (a
+`/proc` env scan for `CTRLIRL_SPEEDTEST=1`, which the module sets on every
 spawn).
 
 ## Server list

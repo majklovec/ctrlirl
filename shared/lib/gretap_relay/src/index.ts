@@ -1,7 +1,7 @@
 /*
- * @irlctrl/gretap-relay — transport primitive public API.
+ * @ctrlirl/gretap-relay — transport primitive public API.
  *
- * Kernel GRETAP (L2-over-GRE) tunnel replacing the legacy `@irlctrl/udp-relay`
+ * Kernel GRETAP (L2-over-GRE) tunnel replacing the legacy `@ctrlirl/udp-relay`
  * userspace TUN + UDP transport. Same public surface, so callers compile
  * unchanged: `createVirtualInterface` now brings up the tunnel + bridge;
  * `createUdpRelay` is a no-op (the kernel owns the data path).

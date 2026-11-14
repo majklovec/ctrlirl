@@ -10,7 +10,7 @@
  * This module is the relay-box side of the Ctrlink transport. It enumerates
  * the machine's eligible network interfaces (via the `network.interfaces`
  * capability, filtered by the `interfaceAllow` / `interfaceIgnore` config),
- * and for each one starts a `createUdpRelay()` from `@irlctrl/gretap-relay`
+ * and for each one starts a `createUdpRelay()` from `@ctrlirl/gretap-relay`
  * (a no-op slot holder since the GRETAP cutover) for that interface's IP.
  * It owns no TUN, no routing, and no config
  * file beyond `ctx.state.ctrlink`: the relay IDs live in
@@ -1023,7 +1023,7 @@ async function onNetworkChange(): Promise<void> {
 // ----------------------------------------------------------------------
 /** The relay identity sent in the WS hello (hostnames change when the
  * box is renamed; that is acceptable — encoders track the session, not us). */
-const RELAY_ID = hostname() || "irlctrl-relay";
+const RELAY_ID = hostname() || "ctrlirl-relay";
 
 /** Reconnect backoff for a dropped relay → encoder WebSocket. */
 const ENCODER_WS_RECONNECT_MS = 5_000;
@@ -1323,7 +1323,7 @@ function startDiscovery(): void {
 	startListeningForEncoders(onEncoderAnnounced, {
 		dryRun: core.config.DRY_RUN,
 	});
-	// mDNS path: encoders advertise `_irlctrl-encoder._udp.local`.
+	// mDNS path: encoders advertise `_ctrlirl-encoder._udp.local`.
 	mdnsBrowseStop?.();
 	mdnsBrowseStop = startMdnsBrowser({
 		service: MDNS_ENCODER_SERVICE,
@@ -1357,7 +1357,7 @@ function stopDiscovery(): void {
 
 /**
  * Advertise this relay to encoders via BOTH paths (protocol.md §3): UDP
- * broadcasts on 10333 AND the mDNS `_irlctrl-relay._udp.local` service. mDNS
+ * broadcasts on 10333 AND the mDNS `_ctrlirl-relay._udp.local` service. mDNS
  * TXT is compact (`h`; `ip`; `i=name=addr:port;...`), so the endpoint list is
  * truncated at 255 B — the encoder keeps the longer set across sources (the
  * full list comes back with the next WS hello).
@@ -1375,7 +1375,7 @@ function startAdvertiseAll(): void {
 	});
 	mdnsAdvertiseStop?.();
 	mdnsAdvertiseStop = startMdnsAdvertiser({
-		instance: hostname() || "irlctrl-relay",
+		instance: hostname() || "ctrlirl-relay",
 		service: MDNS_RELAY_SERVICE,
 		servicePort: CTRLINK_DISCOVERY_PORT,
 		dryRun: core.config.DRY_RUN,

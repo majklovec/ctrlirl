@@ -1,6 +1,6 @@
-# IRLCTRL — Uživatelská provozní příručka
+# CTRLIRL — Uživatelská provozní příručka
 
-Tato příručka vysvětluje, jak IRLCTRL **spustit**, **obsluhovat** a **nastavit**. IRLCTRL je nástroj postavený na Bun pro streamování ve stylu [BELABOX](https://belabox.net/) s agregací více síťových připojení. Jeden modulární klient zařízení spouští zvolenou roli a volitelný ovládací server umožňuje spravovat celou skupinu zařízení v prohlížeči.
+Tato příručka vysvětluje, jak CTRLIRL **spustit**, **obsluhovat** a **nastavit**. CTRLIRL je nástroj postavený na Bun pro streamování ve stylu [BELABOX](https://belabox.net/) s agregací více síťových připojení. Jeden modulární klient zařízení spouští zvolenou roli a volitelný ovládací server umožňuje spravovat celou skupinu zařízení v prohlížeči.
 
 Všechny snímky obrazovky v této příručce byly pořízeny ze skutečně běžící instance a nacházejí se ve [`docs/screenshots/`](screenshots/).
 
@@ -26,7 +26,7 @@ Všechny snímky obrazovky v této příručce byly pořízeny ze skutečně bě
 
 ## 1. Přehled
 
-IRLCTRL zachycuje živý přenos na zařízení s rolí **encoder** a pomocí [`srtla_send`](https://github.com/irlserver/srtla_send) jej odesílá přes několik síťových připojení (modemy, Wi‑Fi nebo Ethernet). Díky tomu výpadek jednoho slabého připojení nemusí přenos přerušit. Volitelný **ovládací server** propojuje a spravuje zařízení z webového prohlížeče.
+CTRLIRL zachycuje živý přenos na zařízení s rolí **encoder** a pomocí [`srtla_send`](https://github.com/irlserver/srtla_send) jej odesílá přes několik síťových připojení (modemy, Wi‑Fi nebo Ethernet). Díky tomu výpadek jednoho slabého připojení nemusí přenos přerušit. Volitelný **ovládací server** propojuje a spravuje zařízení z webového prohlížeče.
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,7 @@ flowchart LR
     end
 
     subgraph ovládací server
-        C[IRLCTRL ovládací server]
+        C[CTRLIRL ovládací server]
         D[Dashboardy]
     end
     E -. WebSocket .-> C
@@ -165,16 +165,16 @@ CONTROL_SERVER_TOKEN=tok-alice-1 bun client/backend/client.ts --role encoder --r
 
 #### systemd
 
-Běhejte zkompilované binárky (`bun run build:client` / `bun run build:server`) jako službu. Příklad unit souboru zařízení (`/etc/systemd/system/irlctrl.service`):
+Běhejte zkompilované binárky (`bun run build:client` / `bun run build:server`) jako službu. Příklad unit souboru zařízení (`/etc/systemd/system/ctrlirl.service`):
 
 ```ini
 [Unit]
-Description=IRLCTRL device
+Description=CTRLIRL device
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/bun /opt/irlctrl/client --config /var/lib/irlctrl/config.json
+ExecStart=/usr/local/bin/bun /opt/ctrlirl/client --config /var/lib/ctrlirl/config.json
 Restart=always
 User=root
 
@@ -192,9 +192,9 @@ Ovládací server používá tentýž vzorec s `server` (root není potřeba). R
 docker compose up -d --build
 ```
 
-- **server** — ovládací server (`Dockerfile`, image `majkl/irlctrl-control`), UI na `:8090`.
+- **server** — ovládací server (`Dockerfile`, image `majkl/ctrlirl-control`), UI na `:8090`.
 - **obs-client** — `client.ts --role obs`, modul `obs` se připojuje k OBS na hostiteli (`ws://host.docker.internal:4455`).
-- **relay** — `client.ts --role relay`, bonduje SRT ven přes `srtla_send` (`Dockerfile.device`, image `majkl/irlctrl-device`).
+- **relay** — `client.ts --role relay`, bonduje SRT ven přes `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
 - **encoder** — `client.ts --role encoder`, běží `ceracoder`/GStreamer a posílá SRT do relay; stejný device image, jiná role + `ENCODER_BIN`.
 - **broadcaster** — `client.ts --role broadcaster` spouští přijímač a publikační modul `client/modules/broadcaster`; cíle RTMP se konfigurují v nastavení zařízení a SRTLA přijímač naslouchá na UDP portu `5001`.
 

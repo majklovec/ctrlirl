@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: majkl/irlctrl-control:latest
-    container_name: irlctrl-server
+    image: majkl/ctrlirl-control:latest
+    container_name: ctrlirl-server
     restart: unless-stopped
     user: "1000:1000"
     environment:
@@ -29,8 +29,8 @@ services:
       retries: 5
 
   obs-client:
-    image: majkl/irlctrl-device:latest
-    container_name: irlctrl-obs-client
+    image: majkl/ctrlirl-device:latest
+    container_name: ctrlirl-obs-client
     restart: unless-stopped
     user: "1000:1000"
     ports:
@@ -61,8 +61,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.device
-    image: majkl/irlctrl-device:latest
-    container_name: irlctrl-relay
+    image: majkl/ctrlirl-device:latest
+    container_name: ctrlirl-relay
     restart: unless-stopped
     # mDNS discovery (224.0.0.251:5353) is not forwarded by the bridge
     # driver: under `network_mode: host` the relay's mDNS advertising and
@@ -102,8 +102,8 @@ services:
         condition: service_healthy
 
   encoder:
-    image: majkl/irlctrl-device:latest
-    container_name: irlctrl-encoder
+    image: majkl/ctrlirl-device:latest
+    container_name: ctrlirl-encoder
     restart: unless-stopped
     # Runs as root (like the relay): the ssh module needs root for
     # sshd (port 22, root logins) and chpasswd (password reset).
@@ -150,8 +150,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.device
-    image: majkl/irlctrl-device:latest
-    container_name: irlctrl-broadcaster
+    image: majkl/ctrlirl-device:latest
+    container_name: ctrlirl-broadcaster
     restart: unless-stopped
     user: "1000:1000"
     # 5001/udp is the externally-facing SRTLA receiver port. 5002 is the

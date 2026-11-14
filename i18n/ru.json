@@ -97,7 +97,7 @@
     "dev.scheduler_classic": "Классический",
     "dev.scheduler_enhanced": "Улучшенный",
     "dev.signal": "Сигнал",
-    "dev.title": "IRLCTRL",
+    "dev.title": "CTRLIRL",
     "dev.unit_gbs": "{{value}} Gb/s",
     "dev.unit_kbps": "kbps",
     "dev.unit_mbps": "Mbps",
@@ -147,7 +147,7 @@
     "mgmt.th.status": "Статус",
     "mgmt.th.stream": "Стрим",
     "mgmt.th_bitrate": "Битрейт / макс.",
-    "mgmt.title": "Управление IRLCTRL",
+    "mgmt.title": "Управление CTRLIRL",
     "mlog.action.activate": "Активация",
     "mlog.action.configuration": "Конфигурация",
     "mlog.action.create": "Создание",
@@ -358,9 +358,9 @@
     "setup.step.language_sub": "Выберите язык интерфейса.",
     "setup.step.relay": "Ретранслятор",
     "setup.step.review": "Проверка",
-    "setup.step.role_sub": "Выберите, как этот IRLCTRL подключится к сети.",
+    "setup.step.role_sub": "Выберите, как этот CTRLIRL подключится к сети.",
     "setup.step_invalid": "Заполните выделенные поля, чтобы продолжить.",
-    "setup.title": "Настройка IRLCTRL",
+    "setup.title": "Настройка CTRLIRL",
     "setup.username_title": "Имя пользователя",
     "srv.offline": "Устройство офлайн ({{reason}})",
     "srv.online": "Устройство онлайн ({{address}})",
@@ -413,5 +413,5 @@
     "ui.save": "Сохранить",
     "ui.start": "Запустить",
     "ui.stop": "Остановить",
-    "ui.title_suffix": "- IRLCTRL"
+    "ui.title_suffix": "- CTRLIRL"
 }

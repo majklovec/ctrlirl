@@ -59,7 +59,7 @@ export const DEFAULT_WEATHER_PROPS: Required<WeatherProps> = {
 
 const MET_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact";
 /** MET Norway's terms require a User-Agent that identifies the app. */
-const MET_UA = "irlctrl-overlay/1.0 (contact: local)";
+const MET_UA = "ctrlirl-overlay/1.0 (contact: local)";
 
 /** A WMO weather code → [glyph, human label]. */
 const WMO: Record<number, [string, string]> = {

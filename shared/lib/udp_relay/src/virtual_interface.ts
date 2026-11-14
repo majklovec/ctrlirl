@@ -83,7 +83,7 @@ export async function createVirtualInterface(
     // A mock device means "test mode" — allow the factory to run off-Linux.
     if (!opts.tunDevice && process.platform !== "linux")
         throw new Error(
-            `@irlctrl/udp-relay requires Linux (running on ${
+            `@ctrlirl/udp-relay requires Linux (running on ${
                 process.platform
             }) — pass a mock tunDevice for unit tests`,
         );
