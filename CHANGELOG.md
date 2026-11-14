@@ -1,3 +1,11 @@
+## [7.11.1](https://github.com/majklovec/ctrlirl/compare/v7.11.0...v7.11.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **config:** avoid spurious config rewrites ([2af1963](https://github.com/majklovec/ctrlirl/commit/2af196337d0e626483918fb51f685c14c8615c31))
+* **files:** remove in-flight tmps on exit ([a0c1237](https://github.com/majklovec/ctrlirl/commit/a0c12373b73db4ebc3965ba1941dc7446dbe47ea))
+
 # [7.10.0](https://github.com/majklovec/ctrlirl/compare/v7.9.0...v7.10.0) (2026-11-12)
 
 ### Features
