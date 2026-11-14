@@ -73,7 +73,7 @@
     },
     "speedtest": {
       "enabled": true,
-      "interface": "wwan0",
+      "interface": "wwx001e101f0000",
       "serverId": 85
     },
     "ssh": {
