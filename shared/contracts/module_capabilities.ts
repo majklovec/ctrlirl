@@ -61,7 +61,7 @@ export interface ModemSource {
 
 /** The `network.interfaces` capability (network module): enumerate the
  * machine's IPv4 interfaces and observe changes, so per-interface consumers
- * (moblink-relay) keep their per-interface state in sync with the OS. */
+ * (ctrlink-relay) keep their per-interface state in sync with the OS. */
 export interface NetworkInterfaces {
 	/** Every non-loopback interface with at least one IPv4 address. */
 	list(): Array<{ name: string; addresses: string[] }>;
@@ -74,8 +74,8 @@ export interface NetworkInterfaces {
 	ensureMonitoring(): Promise<void>;
 }
 
-/** A tunnel interface a MobLink relay offers (see shared/moblink_discovery). */
-export interface MoblinkSharedEndpoint {
+/** A tunnel interface a CtrLink relay offers (see shared/ctrlink_discovery). */
+export interface CtrlinkSharedEndpoint {
 	/** The relay-side TUN name. */
 	name: string;
 	/** The relay LAN address the UDP relay binds to. */
@@ -85,11 +85,11 @@ export interface MoblinkSharedEndpoint {
 }
 
 /** A relay the encoder has learned about (via UDP announce). */
-export interface MoblinkDiscoveredRelay {
+export interface CtrlinkDiscoveredRelay {
 	/** The relay's primary LAN address (stable identity; the registry key). */
 	host: string;
 	hostname?: string;
-	interfaces: MoblinkSharedEndpoint[];
+	interfaces: CtrlinkSharedEndpoint[];
 	/** Epoch ms we last heard from this relay (shown as "last discovered"). */
 	lastSeen?: number;
 	/**
@@ -101,23 +101,23 @@ export interface MoblinkDiscoveredRelay {
 	wsConnected?: boolean;
 }
 
-/** The `network.moblink` capability (network module): the small registry of
+/** The `network.ctrlink` capability (network module): the small registry of
  * relays the encoder has learned about, surfaced on the network card's
- * interface list grouped per-relay. The encoder's `moblink_streamer` module
+ * interface list grouped per-relay. The encoder's `ctrlink_streamer` module
  * writes to it as relays discover themselves (UDP announce); the network card
  * reads it to render the grouped "shared interfaces" sections. */
-export interface MoblinkRegistry {
+export interface CtrlinkRegistry {
 	/** Upsert a relay entry (by host). */
-	upsertRelay(relay: MoblinkDiscoveredRelay): void;
+	upsertRelay(relay: CtrlinkDiscoveredRelay): void;
 	/** Drop a relay that is no longer heard. */
 	dropRelay(host: string): void;
 	/** The currently-registered relays. */
-	listRelays(): MoblinkDiscoveredRelay[];
+	listRelays(): CtrlinkDiscoveredRelay[];
 }
 
-/** A programmatically registered uplink (e.g. a Moblink TUN interface IP). */
+/** A programmatically registered uplink (e.g. a Ctrlink TUN interface IP). */
 export interface UplinkEntry {
-	/** Stable unique id (e.g. `moblink:moblink0`). */
+	/** Stable unique id (e.g. `ctrlink:ctrlink0`). */
 	id: string;
 	/** The source IP to add to the uplinks file. */
 	source: string;

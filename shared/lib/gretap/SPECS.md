@@ -2,7 +2,7 @@
 
 | Field                 | Value                                                                                                |
 | :-------------------- | :--------------------------------------------------------------------------------------------------- |
-| **Project**           | `irlctrl` / `moblink` shared libraries                                                               |
+| **Project**           | `irlctrl` / `ctrlink` shared libraries                                                               |
 | **Scope**             | Replace `shared/lib/udp_relay` (userspace TUN + UDP relay) with a kernel‑level GRETAP tunnel library |
 | **Target deployment** | Two Ubuntu boxes connected via a **Loco M5 WDS bridge** (point‑to‑point, direct L2 link, no NAT)     |
 | **Status**            | Design + reference implementation complete; integration pending                                      |
@@ -286,8 +286,8 @@ Record concrete values for each installation.
 | WDS‑link IP (this side) | `192.168.1.___/24`                | `192.168.1.___/24`                |
 | Local LAN interface     | `eth1`                            | `eth1`                            |
 | LAN subnet (bridged)    | `10.3.3.0/24`                     | `10.3.3.0/24`                     |
-| `gretap` interface name | `moblink0`                        | `moblink0`                        |
-| Bridge name             | `br-moblink0`                     | `br-moblink0`                     |
+| `gretap` interface name | `ctrlink0`                        | `ctrlink0`                        |
+| Bridge name             | `br-ctrlink0`                     | `br-ctrlink0`                     |
 | Tunnel MTU              | 1500                              | 1500                              |
 | Outer (WDS) MTU         | 1600                              | 1600                              |
 | GRE firewall rule       | `ufw allow proto gre from <peer>` | `ufw allow proto gre from <peer>` |
@@ -381,7 +381,7 @@ The old library is **not deleted until §7 soak passes**, so rollback is a singl
 ## 11. References
 
 -   **Original library:** `shared/lib/udp_relay` — https://github.com/majklovec/irlctrl/tree/main/shared/lib/udp_relay
--   **Reference for the relay pattern:** `moblink-rust` — https://github.com/datagutt/moblink-rust
+-   **Reference for the relay pattern:** `ctrlink-rust` — https://github.com/datagutt/ctrlink-rust
 -   **Kernel GRETAP docs:** https://www.kernel.org/doc/Documentation/networking/ip-tunnel.txt (see “GRETAP”)
 -   **`ip link` manpage (gretap section):** `man ip-link`
 -   **MTU / Loco M5 notes:** see accompanying analysis document (GRETAP vs. VXLAN, MTU 1600/1500 recommendation)

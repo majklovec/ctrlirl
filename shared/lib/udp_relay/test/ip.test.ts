@@ -44,9 +44,9 @@ describe("ip.ts — internet checksum", () => {
 
 describe("ip.ts — buildUdpIpPacket (byte-exact)", () => {
     // Reference packet produced independently (RFC 1071 / RFC 768 checksums):
-    //   src 10.3.3.1:50001 -> dst 203.0.113.10:5000, payload "MOBLINK-TEST-PAYLOAD"
+    //   src 10.3.3.1:50001 -> dst 203.0.113.10:5000, payload "CTRLINK-TEST-PAYLOAD"
     const REF_HEX =
-        "4500003000000000401131af0a030301cb00710ac3511388001c17e04d4f424c" +
+        "4500003000000000401131af0a030301cb00710ac3511388001c11db4354524c" +
         "494e4b2d544553542d5041594c4f4144";
 
     test("matches a hard-coded reference packet exactly", () => {
@@ -55,7 +55,7 @@ describe("ip.ts — buildUdpIpPacket (byte-exact)", () => {
             dstIp: "203.0.113.10",
             srcPort: 50001,
             dstPort: 5000,
-            payload: enc.encode("MOBLINK-TEST-PAYLOAD"),
+            payload: enc.encode("CTRLINK-TEST-PAYLOAD"),
         });
         const hex = [...pkt].map((b) => b.toString(16).padStart(2, "0")).join("");
         expect(hex).toBe(REF_HEX);
@@ -84,7 +84,7 @@ describe("ip.ts — buildUdpIpPacket (byte-exact)", () => {
             dstIp: "203.0.113.10",
             srcPort: 50001,
             dstPort: 5000,
-            payload: enc.encode("MOBLINK-TEST-PAYLOAD"),
+            payload: enc.encode("CTRLINK-TEST-PAYLOAD"),
         });
         // Pseudo-header: srcIp(4) + dstIp(4) + 0(1) + protocol(1) + udpLen(2).
         const pseudo = new Uint8Array(12);
@@ -108,7 +108,7 @@ function udpConcat(a: Uint8Array, b: Uint8Array): Uint8Array {
 describe("ip.ts — parseUdpPacket", () => {
     test("parse the reference packet and rebuild it identically", () => {
         const bytes = hexToBytes(
-            "4500003000000000401131af0a030301cb00710ac3511388001c17e04d4f424c" +
+            "4500003000000000401131af0a030301cb00710ac3511388001c11db4354524c" +
                 "494e4b2d544553542d5041594c4f4144",
         );
         const parsed = parseUdpPacket(bytes)!;
@@ -118,7 +118,7 @@ describe("ip.ts — parseUdpPacket", () => {
         expect(parsed.srcPort).toBe(50001);
         expect(parsed.dstPort).toBe(5000);
         expect(new TextDecoder().decode(parsed.payload)).toBe(
-            "MOBLINK-TEST-PAYLOAD",
+            "CTRLINK-TEST-PAYLOAD",
         );
         expect(parsed.ihl).toBe(20);
         expect(parsed.protocol).toBe(17);

@@ -35,9 +35,9 @@ const DEVICE_ORDER = [
     "broadcaster",
     "modems",
     "network",
+    "ctrlink_relay",
+    "ctrlink_streamer",
     "encoder",
-    "moblink_relay",
-    "moblink_streamer",
     "obs",
     "relay",
     "speedtest",
@@ -374,20 +374,20 @@ describe("role presets from the registrations", () => {
             "ssh",
             "systeminfo",
         ]);
-        // The MobLink streamer runs always on encoders (no start/stop).
+        // The CtrLink streamer runs always on encoders (no start/stop).
         expect(on("encoder")).toEqual([
+            "ctrlink_streamer",
             "encoder",
-            "moblink_streamer",
             "modems",
             "network",
             "speedtest",
             "ssh",
             "systeminfo",
         ]);
-        // The relay box keeps its modem uplinks dialled (the MobLink relay
+        // The relay box keeps its modem uplinks dialled (the CtrLink relay
         // itself is opt-in).
         // speedtest serves every role (no `roles` field) → enabled everywhere.
-        expect(on("moblink_relay")).toEqual(["modems", "speedtest", "systeminfo"]);
+        expect(on("ctrlink_relay")).toEqual(["modems", "speedtest", "systeminfo"]);
         expect(on("obs")).toEqual(["obs", "speedtest", "systeminfo"]);
     });
 

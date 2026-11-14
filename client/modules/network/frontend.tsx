@@ -15,11 +15,11 @@ import type {
 	DeviceDashboardWidget,
 	FrontendModule,
 } from "../../../shared/contracts/frontend_module";
-import { isMoblinkTun } from "../../../shared/moblink_discovery";
+import { isCtrlinkTun } from "../../../shared/ctrlink_discovery";
 import type {
-	MoblinkStreamerTunnelStatus,
-	MoblinkStreamerView,
-} from "../moblink_streamer/types";
+	CtrlinkStreamerTunnelStatus,
+	CtrlinkStreamerView,
+} from "../ctrlink_streamer/types";
 import log from "./log";
 import { defaultRouteRowIndex } from "./route_view";
 import type { Iface, NetworkStatus, SrtlaLinkStats } from "./types";
@@ -161,7 +161,7 @@ function linkHeader(): m.Vnode {
 }
 
 /**
- * One MobLink TUN (an encoder tunnel to a shared relay interface) as a row in
+ * One CtrLink TUN (an encoder tunnel to a shared relay interface) as a row in
  * the same 11-column design as the device's own interfaces. Like the own
  * interfaces it is bondable (`modems.toggle` by TUN name — the TUN is a
  * regular interface to the routing layer); the SRTLA link columns resolve
@@ -171,7 +171,7 @@ function linkHeader(): m.Vnode {
 function tunnelRow(
 	host: DeviceCard,
 	selected: Set<string>,
-	tun: MoblinkStreamerTunnelStatus,
+	tun: CtrlinkStreamerTunnelStatus,
 	links: Map<string, SrtlaLinkStats>,
 	total: number,
 ): m.Vnode {
@@ -206,7 +206,7 @@ function tunnelRow(
 	);
 }
 
-/** The interfaces + per-relay MobLink TUN table. The streamer runs
+/** The interfaces + per-relay CtrLink TUN table. The streamer runs
  * permanently on encoders (no start/stop controls): the TUN rows reflect its
  * live state and reconcile automatically as relays announce. */
 function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
@@ -224,23 +224,23 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 		status.defaultRouteInterface,
 		status.defaultRouteSourceIp,
 	);
-	// The encoder's MobLink TUNs publish their live view on
-	// `status.state.moblinkStreamer` (the streamer backend's `status()`), which
+	// The encoder's CtrLink TUNs publish their live view on
+	// `status.state.ctrlinkStreamer` (the streamer backend's `status()`), which
 	// is merged into every card's live status. Their TUN interfaces (e.g.
 	// `relay0_wg0`) are tunnels to a relay's shared uplink, not the machine's
 	// own interfaces — they also appear in the OS `status.interfaces` list, so
 	// we list each one under its relay group (below) and hide it from "Own
-	// interfaces". The name rule (`isMoblinkTun`) catches them even when the
+	// interfaces". The name rule (`isCtrlinkTun`) catches them even when the
 	// streamer isn't reporting them live yet; `tunnelIfaceNames` additionally
 	// hides whatever the streamer currently reports, by exact name.
-	const streamer = host.st.status?.state?.moblinkStreamer as
-		| MoblinkStreamerView
+	const streamer = host.st.status?.state?.ctrlinkStreamer as
+		| CtrlinkStreamerView
 		| undefined;
 	const tunnelIfaceNames = new Set(
 		(streamer?.runtime?.tunnels ?? []).map((t) => t.interfaceName),
 	);
 	const rows = status.interfaces.flatMap((i, index) => {
-		if (isMoblinkTun(i.iface) || tunnelIfaceNames.has(i.iface)) return [];
+		if (isCtrlinkTun(i.iface) || tunnelIfaceNames.has(i.iface)) return [];
 		const isDefaultRoute = index === defaultRouteRow;
 		const sub = [
 			i.cidr,
@@ -308,7 +308,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 				relayEndpointHosts.set(addr, r.host);
 		}
 	}
-	const tunnelsByRelay = new Map<string, MoblinkStreamerTunnelStatus[]>();
+	const tunnelsByRelay = new Map<string, CtrlinkStreamerTunnelStatus[]>();
 	for (const tun of streamer?.runtime?.tunnels ?? []) {
 		const relayHost = relayEndpointHosts.get(tun.relayHost) ?? tun.relayHost;
 		const list = tunnelsByRelay.get(relayHost) ?? [];

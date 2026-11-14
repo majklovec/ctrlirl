@@ -1,5 +1,5 @@
 /**
- * udp_bothways_relay.ts — start a MobLink UDP relay on the relay host (bigcml)
+ * udp_bothways_relay.ts — start a CtrLink UDP relay on the relay host (bigcml)
  * bound to the encoder-reachable ingress IP, egressing via the mobile NIC, and
  * keep it alive for a fixed window so the RPi4 → (relay) → server round-trip can
  * be observed. Prints relay stats at the end.

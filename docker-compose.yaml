@@ -76,7 +76,7 @@ services:
       # The loopback SRT port (5000) between srtla_rec and srtla_send is
       # internal and never published.
       - "6000:6000/udp"
-      # 10333/udp is the MobLink discovery port: encoders unicast/broadcast
+      # 10333/udp is the CtrLink discovery port: encoders unicast/broadcast
       # their announces here (TODO/protocol.md §2). Without this the
       # encoder's UDP discovery can't reach the bridge NAT.
       - "10333:10333/udp"

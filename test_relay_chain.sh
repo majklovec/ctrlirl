@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test_relay_chain.sh — 3-part test for the MobLink UDP relay chain.
+# test_relay_chain.sh — 3-part test for the CtrLink UDP relay chain.
 #
 # Topology:
 #   rpi4 (encoder) 192.168.10.101
@@ -247,7 +247,7 @@ s.sendto(b'$tag', ('$VPS_IP', $VPS_PORT))
 # Main
 # ---------------------------------------------------------------------------
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  MobLink UDP Relay Chain — Test Suite                   ║"
+echo "║  CtrLink UDP Relay Chain — Test Suite                   ║"
 echo "║  $(date)                                          ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 

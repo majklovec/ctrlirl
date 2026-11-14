@@ -91,7 +91,7 @@
     "remoteHost": "192.168.1.136",
     "remotePort": "5000"
   },
-  "moblink": {
+  "ctrlink": {
     "interfaceIgnore": [
       "docker.*",
       "veth.*",

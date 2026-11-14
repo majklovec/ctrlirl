@@ -40,7 +40,7 @@ describe("uplinks file rewrite", () => {
         const saved = await Bun.file(file).text().catch(() => null);
         let written: string | null = null;
         try {
-            writeFileSync(file, "192.168.1.136\nmoblink:relay0_eno2\n");
+            writeFileSync(file, "192.168.1.136\nctrlink:relay0_eno2\n");
             bindRouting(
                 {
                     config: { DRY_RUN: false },
@@ -54,12 +54,12 @@ describe("uplinks file rewrite", () => {
                 { detect: async () => [], modemIface: async () => null },
             );
             await addProgrammaticUplink(
-                "moblink:relay0_eno2",
+                "ctrlink:relay0_eno2",
                 "10.90.0.1",
             );
             expect(written).toContain("192.168.1.136");
             expect(written).toContain("10.90.0.1");
-            expect(written).not.toContain("moblink:");
+            expect(written).not.toContain("ctrlink:");
         } finally {
             if (saved === null) rmSync(file, { force: true });
             else writeFileSync(file, saved);
@@ -122,7 +122,7 @@ describe("uplinks file lines", () => {
             } as unknown as ModuleCore,
             { detect: async () => [], modemIface: async () => null },
         );
-        await addProgrammaticUplink("moblink:relay0_eno2", "10.90.0.1");
+        await addProgrammaticUplink("ctrlink:relay0_eno2", "10.90.0.1");
         try {
             expect(uplinksLines(["192.168.8.153"])).toEqual([
                 "192.168.8.153",
@@ -132,7 +132,7 @@ describe("uplinks file lines", () => {
             expect(uplinksLines(["10.90.0.1"])).toEqual(["10.90.0.1"]);
         } finally {
             // Drop the test's uplink so later tests see a clean registry.
-            await removeProgrammaticUplink("moblink:relay0_eno2");
+            await removeProgrammaticUplink("ctrlink:relay0_eno2");
         }
     });
 });
@@ -142,7 +142,7 @@ describe("lease-less uplink gateway", () => {
         expect(leaselessGateway("192.168.8.153", 24)).toBe("192.168.8.1");
     });
 
-    test("has no via-address for a MobLink TUN (its IP is the first host)", () => {
+    test("has no via-address for a CtrLink TUN (its IP is the first host)", () => {
         // TUN local IPs are 10.{90+x}.{y}.1 — the first host of their /24.
         expect(leaselessGateway("10.90.0.1", 24)).toBeNull();
         expect(leaselessGateway("10.91.3.1", 24)).toBeNull();

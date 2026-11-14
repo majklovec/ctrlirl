@@ -5,7 +5,7 @@ Receives UDP datagrams on 0.0.0.0:PORT and echoes each one back to the sender
 with a transformation ("ECHO:" + reversed payload) so a round-trip can be
 distinguished from a loopback. Logs every receipt with source ip:port + hex.
 
-Used as the stand-in for the OBS SRTLA ingress so the MobLink UDP relay can be
+Used as the stand-in for the OBS SRTLA ingress so the CtrLink UDP relay can be
 proven to carry traffic both ways over the real mobile uplink.
 
   python3 udp_bothways_responder.py [port] [duration_seconds]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """UDP both-ways ENCODER-SIDE CLIENT (run on the RPi4 at 192.168.10.101).
 
-Builds a MobLink relay *data frame* containing a full IPv4/UDP packet and sends
+Builds a CtrLink relay *data frame* containing a full IPv4/UDP packet and sends
 it to the relay's vif ingress (192.168.10.1:4150). Then listens (bound to
 0.0.0.0) for the *returned* frame — the server's echo — which comes back via the
 relay de-SNATed to the vif IP. Verifies the payload round-tripped.

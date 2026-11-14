@@ -4,4 +4,4 @@ Architectural change
 
 -   rename project from irlctrl to crtlirl - update all references, documentation, and scripts accordingly. DOD: all instances of "irlctrl" are replaced with "crtlirl" in code, documentation, and scripts.
 
--   rename moblink to ctrlink - update all references, documentation, and scripts accordingly. DOD: all instances of "moblink" are replaced with "ctrlink" in code, documentation, and scripts.
+-   rename ctrlink to ctrlink - update all references, documentation, and scripts accordingly. DOD: all instances of "ctrlink" are replaced with "ctrlink" in code, documentation, and scripts.

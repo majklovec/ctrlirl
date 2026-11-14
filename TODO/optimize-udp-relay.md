@@ -4,7 +4,7 @@
 **Author of handoff:** Previous analysis pass
 **Repository:** `https://github.com/majklovec/irlctrl`
 **Target path:** `shared/lib/udp_relay`
-**Reference project:** `https://github.com/datagutt/moblink-rust`
+**Reference project:** `https://github.com/datagutt/ctrlink-rust`
 
 ---
 
@@ -13,7 +13,7 @@
 You are being asked to **rewrite the `udp_relay` library** in TypeScript/Bun. Read this handoff top to bottom before touching code. Then:
 
 1. **Clone** `https://github.com/majklovec/irlctrl` locally.
-2. **Clone** `https://github.com/datagutt/moblink-rust` as read-only reference.
+2. **Clone** `https://github.com/datagutt/ctrlink-rust` as read-only reference.
 3. **Read every file** in `shared/lib/udp_relay` and every consumer of it (search the repo for imports from `udp_relay`).
 4. **Reconcile this handoff against the actual source.** This document was written from an architectural analysis, not line-by-line source. If any claim here contradicts the source, **trust the source** and update your plan — then flag the discrepancy in your final report.
 5. Follow the **Implementation plan (§7)** in the given order. Do not batch changes; commit after each numbered step and run the acceptance tests (§11).
@@ -32,7 +32,7 @@ Today the relay works as follows (verify against source):
 -   **Relay side:** terminates the tunnel, decompresses the framed payload, and forwards the inner IPv4 packet out of a physical interface.
 -   **Relay also:** reads inbound packets from the physical interface (raw `AF_INET` socket), performs user-space DNAT/SNAT, and re-frames them for the encoder.
 
-The `moblink-rust` project does the same job with **a single UDP socket bound to the interface** and lets the **kernel's netfilter** handle NAT. That's the model we're adopting.
+The `ctrlink-rust` project does the same job with **a single UDP socket bound to the interface** and lets the **kernel's netfilter** handle NAT. That's the model we're adopting.
 
 ---
 
@@ -63,9 +63,9 @@ Measured acceptance targets (see §11 for how to measure):
 
 ---
 
-## 4. Reference implementation — what to learn from `moblink-rust`
+## 4. Reference implementation — what to learn from `ctrlink-rust`
 
-Open and read these files in `datagutt/moblink-rust`:
+Open and read these files in `datagutt/ctrlink-rust`:
 
 -   `src/main.rs` — socket setup, bind address, socket lifecycle
 -   `src/relay.rs` (or equivalent) — packet loop
@@ -349,7 +349,7 @@ Add to `shared/lib/udp_relay/`:
 
 -   **`README.md`** — public API, deployment requirements (iptables/nftables), performance tuning notes, how to enable workers, how to verify with the bench.
 -   **`NAT.md`** — the actual rules for iptables and nftables, with explanation.
--   **`REFERENCE_NOTES.md`** — which moblink-rust patterns you adopted and where.
+-   **`REFERENCE_NOTES.md`** — which ctrlink-rust patterns you adopted and where.
 -   **`DECISIONS.md`** — anything ambiguous you had to decide, with rationale.
 -   **`bench/BASELINE.md`** — baseline vs final numbers from §11.2.
 
@@ -520,4 +520,4 @@ Do not mark the task complete without this report.
 
 ## 15. Summary for the implementing AI
 
-You are removing one socket and a lot of user-space packet mangling, and replacing them with a single `Bun.udpSocket`, kernel netfilter, pre-allocated buffers, direct `Uint8Array` reads, and a fully synchronous hot path. You are **not** changing the wire format or the encoder. The reference implementation (`moblink-rust`) proves this design is both simpler and faster. Ship it in small, benchmarked, committed steps. When in doubt, delete code.
+You are removing one socket and a lot of user-space packet mangling, and replacing them with a single `Bun.udpSocket`, kernel netfilter, pre-allocated buffers, direct `Uint8Array` reads, and a fully synchronous hot path. You are **not** changing the wire format or the encoder. The reference implementation (`ctrlink-rust`) proves this design is both simpler and faster. Ship it in small, benchmarked, committed steps. When in doubt, delete code.

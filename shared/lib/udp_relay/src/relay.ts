@@ -1,5 +1,5 @@
 /**
- * The relay-box side of the MobLink transparent L3 bridge.
+ * The relay-box side of the CtrLink transparent L3 bridge.
  *
  * The relay has **no destination** and does **not use SRT**. It forwards whole
  * IPv4 packets:

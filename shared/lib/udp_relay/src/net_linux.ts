@@ -3,7 +3,7 @@
  * for transparently forwarding whole IPv4 packets out a chosen physical
  * interface.
  *
- * The MobLink relay is a transparent L3 bridge: it receives whole IP packets
+ * The CtrLink relay is a transparent L3 bridge: it receives whole IP packets
  * from the encoder (over the wire-protocol UDP channel) and sends them out one
  * of its own physical interfaces, forcing egress with SO_BINDTODEVICE so the
  * packets leave that specific NIC with the *original* source address (the

@@ -16,7 +16,7 @@ import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { $ } from "bun";
 import { argEnv, intArgEnv } from "../../../shared/args";
-import { isMoblinkTun } from "../../../shared/moblink_discovery";
+import { isCtrlinkTun } from "../../../shared/ctrlink_discovery";
 import { errorMessage, readLines } from "../../../shared/util";
 import type { ModuleCore } from "../../backend/module_core";
 import type {
@@ -223,7 +223,7 @@ function getNetwork(ipAddr: string, prefix: number): string {
 /** Last-resort gateway for an interface that publishes no gateway anywhere
  * (no ModemManager bearer, main table, or DHCP lease): the subnet's first
  * host — e.g. 192.168.8.153/24 -> 192.168.8.1. `null` when that first host is
- * the interface's own address (a MobLink TUN, whose local IP is the first
+ * the interface's own address (a CtrLink TUN, whose local IP is the first
  * host of its /24): its source table gets a plain `default dev <tun>` route. */
 export function leaselessGateway(addr: string, prefix: number): string | null {
     const first = subnetFirstHost(addr, prefix);
@@ -747,7 +747,7 @@ export async function fireUplinksChanged(): Promise<void> {
 // Programmatic uplinks (the `add`/`remove`/`list` capability methods)
 // ----------------------------------------------------------------------
 type UplinkExtra = { source: string; label?: string };
-/** Programmatic uplinks keyed by stable id (e.g. `moblink:moblink0`). */
+/** Programmatic uplinks keyed by stable id (e.g. `ctrlink:ctrlink0`). */
 const extraUplinks = new Map<string, UplinkExtra>();
 
 /** The uplinks file line set = detected bond IPs + programmatic extras.
@@ -874,13 +874,13 @@ function carrierState(name: string): "up" | "down" {
 
 /** List the machine's own IPv4 interfaces. Filtered:
  * - loopback (never carries relay traffic)
- * - MobLink tunnel TUNs (`relay${slot}_${iface}`, e.g. `relay0_wg0`) —
+ * - CtrLink tunnel TUNs (`relay${slot}_${iface}`, e.g. `relay0_wg0`) —
  *   tunnels to a relay's shared uplinks, not own interfaces: selecting one
- *   would loop traffic back through the relay (see `isMoblinkTun`). */
+ *   would loop traffic back through the relay (see `isCtrlinkTun`). */
 export function listNetworkInterfaces(): NetworkInterfaceInfo[] {
     const out: NetworkInterfaceInfo[] = [];
     for (const [name, addrs] of Object.entries(networkInterfaces() ?? {})) {
-        if (isMoblinkTun(name)) continue;
+        if (isCtrlinkTun(name)) continue;
         const ipv4 = (addrs ?? [])
             .filter((a) => a.family === "IPv4" && !a.internal)
             .map((a) => a.address);
@@ -899,7 +899,7 @@ export function onInterfaceChange(handler: () => void): () => void {
  * Compare the current interface signature against the last observed one and
  * fire `onInterfaceChange` handlers when it differs. Called from the monitor
  * after a reconfigure (and once at start) so per-interface consumers
- * (moblink-relay) can recreate the relays attached to changed interfaces.
+ * (ctrlink-relay) can recreate the relays attached to changed interfaces.
  *
  * The signature includes the CARRIER state, not just the addresses: a pulled
  * cable (or dropped Wi-Fi) keeps its IP for a while, so without the carrier
@@ -956,7 +956,7 @@ async function runReconcile(reason: string): Promise<void> {
         }
         // The interface set (any interface, not only bonded ones) may have
         // changed without the uplinks file changing — notify the
-        // per-interface consumers (moblink-relay).
+        // per-interface consumers (ctrlink-relay).
         fireInterfaceChangeIfChanged();
     } catch (err: unknown) {
         console.error("[monitor] error:", errorMessage(err));
