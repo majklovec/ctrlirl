@@ -97,7 +97,7 @@
     "dev.scheduler_classic": "Klasický",
     "dev.scheduler_enhanced": "Rozšířený",
     "dev.signal": "Signál",
-    "dev.title": "CTRLIRL",
+    "dev.title": "Ctrl-IRL",
     "dev.unit_gbs": "{{value}} Gb/s",
     "dev.unit_kbps": "kbps",
     "dev.unit_mbps": "Mbps",
@@ -147,7 +147,7 @@
     "mgmt.th.status": "Stav",
     "mgmt.th.stream": "Stream",
     "mgmt.th_bitrate": "Bitrate / max",
-    "mgmt.title": "CTRLIRL server",
+    "mgmt.title": "Ctrl-IRL server",
     "mlog.action.activate": "Aktivovat",
     "mlog.action.configuration": "Nastavení",
     "mlog.action.create": "Vytvořit",
@@ -358,9 +358,9 @@
     "setup.step.language_sub": "Vyberte jazyk rozhraní.",
     "setup.step.relay": "Relay",
     "setup.step.review": "Přehled",
-    "setup.step.role_sub": "Vyberte, jak se toto CTRLIRL připojí k síti.",
+    "setup.step.role_sub": "Vyberte, jak se toto Ctrl-IRL připojí k síti.",
     "setup.step_invalid": "Vyplňte zvýrazněná pole, abyste mohli pokračovat.",
-    "setup.title": "Nastavení CTRLIRL",
+    "setup.title": "Nastavení Ctrl-IRL",
     "setup.username_title": "Uživatelské jméno",
     "srv.offline": "Zařízení offline ({{reason}})",
     "srv.online": "Zařízení online ({{address}})",
@@ -413,5 +413,5 @@
     "ui.save": "Uložit",
     "ui.start": "Spustit",
     "ui.stop": "Zastavit",
-    "ui.title_suffix": "- CTRLIRL"
+    "ui.title_suffix": "- Ctrl-IRL"
 }

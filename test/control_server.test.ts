@@ -220,7 +220,7 @@ describe("control server HTTP contracts", () => {
             "application/manifest+json",
         );
         expect(await manifest.json()).toMatchObject({
-            name: "CTRLIRL",
+            name: "Ctrl-IRL",
             scope: "/",
             start_url: "/",
             display: "standalone",

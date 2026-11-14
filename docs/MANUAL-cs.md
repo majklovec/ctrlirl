@@ -1,6 +1,6 @@
-# CTRLIRL — Uživatelská provozní příručka
+# Ctrl-IRL — Uživatelská provozní příručka
 
-Tato příručka vysvětluje, jak CTRLIRL **spustit**, **obsluhovat** a **nastavit**. CTRLIRL je nástroj postavený na Bun pro streamování ve stylu [BELABOX](https://belabox.net/) s agregací více síťových připojení. Jeden modulární klient zařízení spouští zvolenou roli a volitelný ovládací server umožňuje spravovat celou skupinu zařízení v prohlížeči.
+Tato příručka vysvětluje, jak Ctrl-IRL **spustit**, **obsluhovat** a **nastavit**. Ctrl-IRL je nástroj postavený na Bun pro streamování ve stylu [BELABOX](https://belabox.net/) s agregací více síťových připojení. Jeden modulární klient zařízení spouští zvolenou roli a volitelný ovládací server umožňuje spravovat celou skupinu zařízení v prohlížeči.
 
 Všechny snímky obrazovky v této příručce byly pořízeny ze skutečně běžící instance a nacházejí se ve [`docs/screenshots/`](screenshots/).
 
@@ -26,7 +26,7 @@ Všechny snímky obrazovky v této příručce byly pořízeny ze skutečně bě
 
 ## 1. Přehled
 
-CTRLIRL zachycuje živý přenos na zařízení s rolí **encoder** a pomocí [`srtla_send`](https://github.com/irlserver/srtla_send) jej odesílá přes několik síťových připojení (modemy, Wi‑Fi nebo Ethernet). Díky tomu výpadek jednoho slabého připojení nemusí přenos přerušit. Volitelný **ovládací server** propojuje a spravuje zařízení z webového prohlížeče.
+Ctrl-IRL zachycuje živý přenos na zařízení s rolí **encoder** a pomocí [`srtla_send`](https://github.com/irlserver/srtla_send) jej odesílá přes několik síťových připojení (modemy, Wi‑Fi nebo Ethernet). Díky tomu výpadek jednoho slabého připojení nemusí přenos přerušit. Volitelný **ovládací server** propojuje a spravuje zařízení z webového prohlížeče.
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,7 @@ flowchart LR
     end
 
     subgraph ovládací server
-        C[CTRLIRL ovládací server]
+        C[Ctrl-IRL ovládací server]
         D[Dashboardy]
     end
     E -. WebSocket .-> C
@@ -173,7 +173,7 @@ Běhejte zkompilované binárky (`bun run build:client` / `bun run build:server`
 
 ```ini
 [Unit]
-Description=CTRLIRL device
+Description=Ctrl-IRL device
 After=network-online.target
 Wants=network-online.target
 

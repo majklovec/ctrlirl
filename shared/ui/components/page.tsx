@@ -11,7 +11,7 @@ import type { MithrilJSXComponent } from "../jsx";
 const FooterComponent: m.Component = {
 	view: () => (
 		<footer class="page-footer muted">
-			CTRLIRL <span class="app-version">v{APP_VERSION}</span>
+			Ctrl-IRL <span class="app-version">v{APP_VERSION}</span>
 		</footer>
 	),
 };
@@ -25,11 +25,11 @@ export const Footer = FooterComponent as MithrilJSXComponent;
 export const Page = {
 	view: (v) => [
 		<header>
-			<a class="brand" href="/" aria-label="CTRLIRL">
+			<a class="brand" href="/" aria-label="Ctrl-IRL">
 				<img
 					class="brand-logo"
 					src={logoUrl}
-					alt="CTRLIRL"
+					alt="Ctrl-IRL"
 					width={32}
 					height={32}
 				/>

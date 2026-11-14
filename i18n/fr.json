@@ -97,7 +97,7 @@
     "dev.scheduler_classic": "Classique",
     "dev.scheduler_enhanced": "Amélioré",
     "dev.signal": "Signal",
-    "dev.title": "CTRLIRL",
+    "dev.title": "Ctrl-IRL",
     "dev.unit_gbs": "{{value}} Gb/s",
     "dev.unit_kbps": "kbps",
     "dev.unit_mbps": "Mbps",
@@ -147,7 +147,7 @@
     "mgmt.th.status": "État",
     "mgmt.th.stream": "Stream",
     "mgmt.th_bitrate": "Débit / max",
-    "mgmt.title": "Contrôle CTRLIRL",
+    "mgmt.title": "Contrôle Ctrl-IRL",
     "mlog.action.activate": "Activé",
     "mlog.action.configuration": "Configuration",
     "mlog.action.create": "Créé",
@@ -358,9 +358,9 @@
     "setup.step.language_sub": "Choisissez la langue de l'interface.",
     "setup.step.relay": "Relais",
     "setup.step.review": "Récapitulatif",
-    "setup.step.role_sub": "Choisissez comment cette CTRLIRL rejoindra le réseau.",
+    "setup.step.role_sub": "Choisissez comment cette Ctrl-IRL rejoindra le réseau.",
     "setup.step_invalid": "Veuillez remplir les champs surlignés pour continuer.",
-    "setup.title": "Configuration CTRLIRL",
+    "setup.title": "Configuration Ctrl-IRL",
     "setup.username_title": "Nom d'utilisateur",
     "srv.offline": "Appareil hors ligne ({{reason}})",
     "srv.online": "Appareil en ligne ({{address}})",
@@ -413,5 +413,5 @@
     "ui.save": "Enregistrer",
     "ui.start": "Démarrer",
     "ui.stop": "Arrêter",
-    "ui.title_suffix": "- CTRLIRL"
+    "ui.title_suffix": "- Ctrl-IRL"
 }
