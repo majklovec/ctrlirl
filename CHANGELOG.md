@@ -1,3 +1,10 @@
+## [7.11.2](https://github.com/majklovec/ctrlirl/compare/v7.11.1...v7.11.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* remove obsolete TODO and add Huawei quirk ([a0c9194](https://github.com/majklovec/ctrlirl/commit/a0c9194b86a21cea68c17dbb39608d0090adecdd))
+
 ## [7.11.1](https://github.com/majklovec/ctrlirl/compare/v7.11.0...v7.11.1) (2026-11-14)
 
 
