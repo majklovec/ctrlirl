@@ -61,7 +61,5 @@
     "act.obs.stream_start": "OBS: Streaming starten",
     "act.obs.stream_stop": "OBS: Streaming stoppen",
     "act.obs.record_start": "OBS: Aufnahme starten",
-    "act.obs.record_stop": "OBS: Aufnahme stoppen",
-    "role.obs": "obs",
-    "setup.role.obs_tag": "Steuert OBS Studio"
+    "act.obs.record_stop": "OBS: Aufnahme stoppen"
 }

@@ -809,10 +809,8 @@ const registration: BackendModule<ModuleCore> = {
 	kind: "device",
 	id: "ctrlink_streamer",
 	title: "Relay tunnels",
-	roles: ["encoder"],
 	/** Runs always on encoders: it must keep listening for relay interface
 	 * updates and reconciling TUNs without any manual start (spec §7.4). */
-	enabledByDefault: true,
 	/** TUN IPs register through the network module; relays through its registry. */
 	dependencies: ["network"],
 	methods: [
@@ -940,6 +938,7 @@ const registration: BackendModule<ModuleCore> = {
 	async status() {
 		return { state: { ctrlinkStreamer: view() } };
 	},
+	services: { consumes: ["network.ctrlink", "network.uplinks"] },
 };
 
 export default registration;

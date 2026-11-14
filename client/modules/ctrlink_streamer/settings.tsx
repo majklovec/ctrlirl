@@ -20,6 +20,7 @@ import {
 import { t } from "@ui/i18n";
 import m from "mithril";
 import type { ModulesView } from "../../../shared/contracts/wire";
+import { roleServes } from "../../../shared/ui/role_view";
 import type { ModuleContext, ModuleDef } from "../../frontend/modules";
 import type { CtrlinkStreamerView } from "./types";
 
@@ -58,7 +59,7 @@ async function save(ctx: ModuleContext): Promise<void> {
 const def: ModuleDef = {
 	id: "ctrlink_streamer",
 	titleKey: "dev.card.ctrlink_streamer",
-	visible: (ctx) => ctx.role === "encoder",
+	visible: (ctx) => roleServes(ctx.role, "ctrlink_streamer"),
 	refresh: (ctx) => {
 		if (ctx.busy) return;
 		// biome-ignore lint/complexity/useLiteralKeys: dynamic module-id key

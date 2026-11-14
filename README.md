@@ -19,7 +19,8 @@ Bun-based controller for [BELABOX](https://belabox.net/)-style bonded streaming.
 
 ## Roles
 
-One device client, module-contributed roles selected with `--role`:
+One device client; roles are defined in `client/roles/` (each declares the
+modules and capabilities it runs) and selected with `--role`:
 
 | Role              | What it does                                                                                                                                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -27,6 +28,7 @@ One device client, module-contributed roles selected with `--role`:
 | `encoder`         | Runs [belacoder](https://github.com/BELABOX/belacoder) or [ceracoder](https://github.com/CERALIVE/ceracoder) with a GStreamer pipeline and sends SRTLA to a relay (default `relay:6000`) through a local `srtla_send`. No routing or ModemManager — does not need root. |
 | `obs`             | Connects to a paired OBS Studio instance, forwards its events, and runs the low-bitrate scene switcher.                                                                                                                   |
 | `broadcaster`     | Receives SRTLA with `srtla_rec` and publishes one or more RTMP outputs through ffmpeg.                                                                                                                                    |
+| `ctrlink_relay`   | Bridges the shared LAN interfaces' L3 traffic transparently to the encoder (per-interface UDP relays); the SRTLA destination lives on the encoder, so there is no destination to configure here. |
 
 ```
 encoder ──SRTLA──▶ relay ──SRTLA (bonded)──▶ SRTLA receiver
@@ -75,7 +77,7 @@ Every flag has an environment-variable counterpart. Resolution order: **CLI flag
 
 | Option                    | Env                             | Default                          | Notes                                                                                                                |
 | ------------------------- | ------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `‑‑role`                  | `ROLE`                          | `relay`                          | A role contributed by a registered module (`relay`, `encoder`, `obs`, `broadcaster`)                                  |
+| `‑‑role`                  | `ROLE`                          | `relay`                          | A role defined in `client/roles/` (`relay`, `encoder`, `obs`, `broadcaster`, `ctrlink_relay`)                                  |
 | `‑‑host`, `‑‑port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on                                                                    |
 | `‑‑allow‑origin`          | `ALLOWED_ORIGINS`               |                                  | Extra browser origins for `/ws` (comma-separated, `*` = any)                                                         |
 | `‑‑config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Device config — core settings, module settings and state. **Use a persistent path in production**                 |

@@ -23,7 +23,5 @@
     "set.service_group_other": "Inne",
     "set.broadcaster": "Wyjścia RTMP",
     "set.broadcaster_desc": "Usługa, URL i klucz każdego destynacji, do której publikowany jest stream — wszystkie używają tego samego profilu ffmpeg. Klucze streamu są tylko do zapisu. Po zapisaniu strumień jest restartowany.",
-    "set.broadcaster_profile": "Profil wyjściowy",
-    "role.broadcaster": "broadcaster",
-    "setup.role.broadcaster_tag": "Transmituje do celów RTMP"
+    "set.broadcaster_profile": "Profil wyjściowy"
 }

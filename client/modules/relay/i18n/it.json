@@ -11,8 +11,6 @@
     "mgmt.th.links": "Link",
     "mlog.action.bond_selection": "Selezione bond",
     "mlog.action.bond_toggle": "Commutazione bond",
-    "role.relay": "relay",
-    "setup.role.relay_tag": "Riceve stream e li inoltra con SRTLA",
     "setup.step.relay_sub": "Impostazioni SRTLA",
     "ui.off": "spento",
     "wtype.relay": "Relay"

@@ -20,7 +20,6 @@ import {
     ALL_MODULES,
     allModules,
     defaultRole,
-    isRegisteredRole,
     registeredRoleIds,
     roleDefinitions,
 } from "../shared/registry";
@@ -146,7 +145,7 @@ describe("module registries", () => {
         expect(new Set(all).size).toBe(all.length);
     });
 
-    test("roles are contributed uniquely by modules with one default", () => {
+    test("roles are defined uniquely with one default and known modules", () => {
         const definitions = roleDefinitions();
         const roleIds = definitions.map((definition) => definition.id);
         expect(new Set(roleIds).size).toBe(roleIds.length);
@@ -154,9 +153,16 @@ describe("module registries", () => {
         expect(definitions.filter((definition) => definition.default)).toEqual([
             expect.objectContaining({ id: defaultRole() }),
         ]);
-        for (const module of ALL_MODULES)
-            for (const role of module.roles ?? [])
-                expect(isRegisteredRole(role)).toBe(true);
+        const moduleIds = new Set(ALL_MODULES.map((module) => module.id));
+        for (const definition of definitions)
+            for (const moduleId of [
+                ...definition.requires.modules,
+                ...(definition.requires.optionalModules ?? []),
+            ])
+                expect(
+                    moduleIds.has(moduleId),
+                    `${definition.id} references unknown module ${moduleId}`,
+                ).toBe(true);
     });
 
     test("frontend discovery: directory name matches a registration id", () => {
@@ -468,22 +474,25 @@ describe("module start on a fresh device (no config file, no slices)", () => {
     };
 
     test("startModules seeds default slices and wires every default-enabled module's emit", async () => {
+        // The stubs must name modules the `relay` role enables by default
+        // (its `requires.modules`), so the fresh-device seed turns them on:
+        // under the role model a module a role doesn't serve stays disabled.
         const a = { current: undefined as Emit | undefined };
         const b = { current: undefined as Emit | undefined };
         const saved = save();
         try {
             state.settings.role = "relay";
             state.settings.modules = undefined;
-            await startModules([makeStub("alpha", a), makeStub("beta", b)]);
+            await startModules([makeStub("relay", a), makeStub("network", b)]);
 
             // Slices are seeded with the role defaults.
-            expect(state.settings.modules?.["alpha"]).toEqual({ enabled: true });
-            expect(state.settings.modules?.["beta"]).toEqual({ enabled: true });
+            expect(state.settings.modules?.["relay"]).toEqual({ enabled: true });
+            expect(state.settings.modules?.["network"]).toEqual({ enabled: true });
             // Both modules started, and their start() captured the emit —
             // the regression: without the seed the slices were missing, the
             // modules never started, and every event was silently dropped.
-            expect(a.current, "alpha emit wired").toBeInstanceOf(Function);
-            expect(b.current, "beta emit wired").toBeInstanceOf(Function);
+            expect(a.current, "relay emit wired").toBeInstanceOf(Function);
+            expect(b.current, "network emit wired").toBeInstanceOf(Function);
         } finally {
             restore(saved);
         }
@@ -496,13 +505,13 @@ describe("module start on a fresh device (no config file, no slices)", () => {
         try {
             state.settings.role = "relay";
             state.settings.modules = {
-                "alpha": { enabled: false },
-                "beta": { enabled: true },
+                "relay": { enabled: false },
+                "network": { enabled: true },
             };
-            await startModules([makeStub("alpha", a), makeStub("beta", b)]);
+            await startModules([makeStub("relay", a), makeStub("network", b)]);
 
-            expect(a.current, "alpha stays stopped").toBeUndefined();
-            expect(b.current, "beta emit wired").toBeInstanceOf(Function);
+            expect(a.current, "relay stays stopped").toBeUndefined();
+            expect(b.current, "network emit wired").toBeInstanceOf(Function);
         } finally {
             restore(saved);
         }

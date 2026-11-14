@@ -18,6 +18,8 @@ import {
 	clearCapabilities,
 	provideCapability,
 } from "../../../../shared/capabilities";
+import { ROLES } from "../../../../shared/registry";
+import { rolesWithModule } from "../../../../shared/roles";
 import type {
 	NetworkInterfaces,
 	Uplinks,
@@ -101,6 +103,10 @@ function fakeCore(
 		notifyStateChange: () => {},
 		cancelAutostart: () => {},
 		logEvent: () => {},
+		// Mirrors the real core builder: the roles that run a given module come
+		// from the roles' own module lists (the bridge target is whichever role
+		// runs `ctrlink_streamer`).
+		roleRuns: (id: string) => rolesWithModule(ROLES, id),
 		// The control-server encoder lookup path: report which encoders the
 		// (fake) control server knows and what their `encoderInfo` says.
 		listDevices: async () =>

@@ -293,17 +293,6 @@ const registration: BackendModule<ModuleCore> = {
     kind: "device",
     id: "relay",
     title: "Relay",
-    roleDefinitions: [
-        {
-            id: "relay",
-            titleKey: "role.relay",
-            taglineKey: "setup.role.relay_tag",
-            order: 10,
-            default: true,
-            setupSelectable: true,
-        },
-    ],
-    roles: ["relay"],
     /** The srtla_send uplinks file lives in the network module. */
     dependencies: ["network"],
     methods: [
@@ -460,7 +449,7 @@ const registration: BackendModule<ModuleCore> = {
         };
     },
     dashboardWidgets: [{ type: "relay", defaultSize: { w: 4, h: 4 } }],
-    services: { capabilities: { "stream.relay": capability } },
+    services: { capabilities: { "stream.relay": capability }, consumes: ["network.uplinks"] },
 };
 
 export default registration;

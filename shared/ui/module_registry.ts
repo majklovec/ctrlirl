@@ -16,7 +16,11 @@
  */
 import type m from "mithril";
 import MANIFEST from "../../generated/modules.frontend";
+import ROLE_ICONS_MAP from "../../generated/role_icons";
+import ROLES from "../../generated/roles";
+import type { RoleDefinition } from "../contracts/roles";
 import { registerLogWording } from "../log_messages";
+import { roleEnablesModule } from "../roles";
 import type {
     DeviceSummary,
     Role,
@@ -107,14 +111,15 @@ export function destroyDeviceWidget(type: string, widgetId: string): void {
     fleetWidgetForType(type)?.destroy?.(widgetId);
 }
 
-/** Role pictograms, composed from the modules that provide the roles. */
-const ROLE_ICONS = new Map<Role, () => m.Vnode>();
-for (const mod of FRONTS)
-    if (mod.kind === "device-card" || mod.kind === "contributions")
-        for (const [role, icon] of Object.entries(mod.roleIcons ?? {}))
-            ROLE_ICONS.set(role, icon);
+/** Role pictograms, owned by the roles themselves (client/roles/<id>/icon.tsx,
+ * emitted to generated/role_icons.ts) — no module draws a role. */
+const ROLE_ICONS = new Map<Role, () => m.Vnode>(
+    Object.entries(
+        ROLE_ICONS_MAP as Record<string, () => m.Vnode>,
+    ),
+);
 
-/** The pictogram of a role, when its module contributes one. */
+/** The pictogram of a role, when it ships one. */
 export function roleIcon(role: Role): m.Vnode | undefined {
     return ROLE_ICONS.get(role)?.();
 }
@@ -148,9 +153,13 @@ export function deviceWidgetTypesFor(device: DeviceSummary): string[] {
     ];
 }
 
+/** The setup steps of the modules that a role runs (enabled by default) — the
+ * steps never name a role; the role's own module list decides. */
 export function setupStepsForRole(role: Role): ModuleSetupStep[] {
     return FRONTEND_MODULES.flatMap((module) =>
-        (module.setupSteps ?? []).filter((step) => step.roles.includes(role)),
+        roleEnablesModule(ROLES as readonly RoleDefinition[], role, module.id)
+            ? (module.setupSteps ?? [])
+            : [],
     );
 }
 

@@ -95,7 +95,5 @@
     "act.encoder.start": "Iniciar codificador",
     "act.encoder.stream_stop": "Parar transmissão",
     "act.encoder.reload": "Recarregar SRTLA",
-    "role.encoder": "codificador",
-    "setup.role.encoder": "Codificador",
-    "setup.role.encoder_tag": "Captura uma pipeline GStreamer e envia-a por SRT"
+    "setup.role.encoder": "Codificador"
 }

@@ -30,6 +30,14 @@ export const MODULE_ROOTS = [
     "server/pages/overlays/modules",
 ] as const;
 
+/**
+ * Directory whose immediate children are roles (`<root>/<id>/role.ts`).
+ *
+ * A role owns the knowledge of which modules and capabilities it requires
+ * and provides; modules never reference roles.
+ */
+export const ROLE_ROOT = "client/roles";
+
 /** Page entry points (`<dir>/<name>.html`) of each side's web UI. */
 export const PAGE_DIRS = {
     client: "client/frontend/pages",

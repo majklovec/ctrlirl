@@ -11,8 +11,6 @@
     "mgmt.th.links": "Ligações",
     "mlog.action.bond_selection": "Seleção do bond",
     "mlog.action.bond_toggle": "Alternar bond",
-    "role.relay": "relay",
-    "setup.role.relay_tag": "Recebe streams e reencaminha-os com SRTLA",
     "setup.step.relay_sub": "Definições SRTLA",
     "ui.off": "desligado",
     "wtype.relay": "Relay"

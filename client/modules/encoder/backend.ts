@@ -469,17 +469,7 @@ const encoderModule: BackendModule<ModuleCore> = {
     kind: "device",
     id: "encoder",
     title: "Encoder",
-    roleDefinitions: [
-        {
-            id: "encoder",
-            titleKey: "role.encoder",
-            taglineKey: "setup.role.encoder_tag",
-            order: 20,
-            setupSelectable: true,
-        },
-    ],
     secretFields: [],
-    roles: ["encoder"],
     /** srtla_send points at the network module's bonded uplinks file. */
     dependencies: ["network"],
     methods: [
@@ -588,9 +578,9 @@ const encoderModule: BackendModule<ModuleCore> = {
             audioSources: await listAudioSources(),
         };
     },
-    /** Setup wizard (encoder): the SRTLA destination and the local listen port. */
+    /** Setup wizard (encoder): the SRTLA destination and the local listen port.
+     * The core only invokes `setup` for a role that runs this module. */
     async setup(p: Params, role: Role) {
-        if (role !== "encoder") return undefined;
         const listenPort = String(optionalInt(p, "listenPort", 9000, 1, 65535));
         const cfg = parseEncoderConfig(p, "127.0.0.1", listenPort);
         const { remoteHost, remotePort } = encoderDestination(p);
@@ -657,6 +647,7 @@ const encoderModule: BackendModule<ModuleCore> = {
             method: "stream.reload",
         },
     ],
+    services: { consumes: ["network.uplinks"] },
 };
 
 export default encoderModule;

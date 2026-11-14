@@ -61,7 +61,5 @@
     "act.obs.stream_start": "OBS: начать трансляцию",
     "act.obs.stream_stop": "OBS: остановить трансляцию",
     "act.obs.record_start": "OBS: начать запись",
-    "act.obs.record_stop": "OBS: остановить запись",
-    "role.obs": "obs",
-    "setup.role.obs_tag": "Управляет OBS Studio"
+    "act.obs.record_stop": "OBS: остановить запись"
 }

@@ -923,16 +923,6 @@ const broadcasterModule: BackendModule<ModuleCore> = {
     kind: "device",
     id: ID,
     title: "SRTLA → RTMP",
-    roles: ["broadcaster"],
-    roleDefinitions: [
-        {
-            id: "broadcaster",
-            titleKey: "role.broadcaster",
-            taglineKey: "setup.role.broadcaster_tag",
-            order: 50,
-            setupSelectable: true,
-        },
-    ],
     configDefaults: {
         outputs: [],
         profile: DEFAULTS.profile,
@@ -967,7 +957,7 @@ const broadcasterModule: BackendModule<ModuleCore> = {
         await stopStream();
     },
     async resume() {
-        if (core.role() !== "broadcaster") return false;
+        if (!core.roleRuns("broadcaster").includes(core.role())) return false;
         runtime = readConfig();
         if (runtime.outputs.length === 0) return false;
         if (streamState !== "running") await startStream();

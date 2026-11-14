@@ -11,8 +11,6 @@
     "mgmt.th.links": "链路",
     "mlog.action.bond_selection": "聚合选择",
     "mlog.action.bond_toggle": "聚合切换",
-    "role.relay": "中继",
-    "setup.role.relay_tag": "接收流并使用 SRTLA 转发",
     "setup.step.relay_sub": "SRTLA 设置",
     "ui.off": "关闭",
     "wtype.relay": "Relay"

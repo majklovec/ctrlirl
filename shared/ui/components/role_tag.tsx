@@ -1,7 +1,7 @@
 /** @jsx m */
-/* Generic role marker with the translated role as tooltip; the pictogram
- * comes from the module that provides the role (`roleIcon` in the module
- * registry), so no role id is drawn in core code. */
+/* Generic role marker with the translated role as tooltip; the pictogram is
+ * owned by the role itself (client/roles/<id>/icon.tsx, via the role icon map
+ * in the module registry), so no role id is drawn in core code. */
 import m from "mithril";
 import type { Role } from "../../contracts/roles";
 import { t } from "../i18n";

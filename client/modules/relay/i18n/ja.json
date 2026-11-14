@@ -11,8 +11,6 @@
     "mgmt.th.links": "リンク",
     "mlog.action.bond_selection": "ボンド選択",
     "mlog.action.bond_toggle": "ボンド切替",
-    "role.relay": "リレー",
-    "setup.role.relay_tag": "ストリームを受信し、SRTLA で転送します",
     "setup.step.relay_sub": "SRTLA 設定",
     "ui.off": "オフ",
     "wtype.relay": "Relay"

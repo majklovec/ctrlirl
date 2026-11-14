@@ -10,6 +10,7 @@
  */
 import m from "mithril";
 import type { FrontendModule } from "../../../shared/contracts/frontend_module";
+import { roleServes } from "../../../shared/ui/role_view";
 import log from "./log";
 
 const ctrlinkStreamerModule: FrontendModule = {
@@ -18,7 +19,7 @@ const ctrlinkStreamerModule: FrontendModule = {
 	title: "Relay tunnels",
 	order: 52,
 	log,
-	available: (status) => status.role === "encoder",
+	available: (status) => roleServes(status.role, "ctrlink_streamer"),
 	// No card of its own — everything it used to show now lives in the
 	// Network card's tunnel rows.
 	component: () => m(""),

@@ -17,7 +17,9 @@ import {
     isFleetWidgetType,
     validateDeviceWidgetConfig,
     WIDGET_SIZES,
+    ROLES,
 } from "../shared/registry";
+import { rolesWithModule } from "../shared/roles";
 import type { Status } from "../shared/contracts/wire";
 
 const status = (
@@ -41,9 +43,10 @@ describe("dashboard action catalogue (status.actions)", () => {
             const actions =
                 typeof mod.dashboardActions === "function"
                     ? mod.dashboardActions(
-                          status(mod.roles?.[0] ?? "relay", {
-                              [mod.configKey ?? mod.id]: true,
-                          }),
+                          status(
+                              rolesWithModule(ROLES, mod.id)[0] ?? "relay",
+                              { [mod.configKey ?? mod.id]: true },
+                          ),
                       )
                     : mod.dashboardActions;
             for (const action of actions)

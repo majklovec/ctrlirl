@@ -22,6 +22,7 @@ import type {
 	ModuleDef,
 } from "../../../shared/contracts/frontend_module";
 import type { ModulesView } from "../../../shared/contracts/wire";
+import { roleServes } from "../../../shared/ui/role_view";
 import log from "./log";
 import "./styles.css";
 import type { CtrlinkRelayView } from "./types";
@@ -66,7 +67,7 @@ const def: ModuleDef = {
 	id: "ctrlink_relay",
 	titleKey: "dev.card.ctrlink_relay",
 	log,
-	visible: (ctx) => ctx.role === "ctrlink_relay",
+	visible: (ctx) => roleServes(ctx.role, "ctrlink_relay"),
 	refresh: (ctx) => {
 		// biome-ignore lint/complexity/useLiteralKeys: dynamic module-id key
 		const v = ctx.modules["ctrlink_relay"] as unknown as

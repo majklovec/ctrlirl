@@ -15,6 +15,7 @@ import type {
 	DeviceDashboardWidget,
 	FrontendModule,
 } from "../../../shared/contracts/frontend_module";
+import { roleServes, roleServesOrLegacy } from "../../../shared/ui/role_view";
 import { isCtrlinkTun } from "../../../shared/ctrlink_discovery";
 import type {
 	CtrlinkStreamerTunnelStatus,
@@ -421,10 +422,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 const networkDashboardWidgets: DeviceDashboardWidget[] = [
 	{
 		type: "network",
-		available: (device) =>
-			device.role === "relay" ||
-			device.role === "encoder" ||
-			device.role === undefined,
+		available: (device) => roleServesOrLegacy(device.role, "network"),
 		defaultSize: { w: 4, h: 5 },
 		minSize: { w: 3, h: 3 },
 		body: ({ card: host, status }) =>
@@ -438,7 +436,7 @@ const networkModule: FrontendModule = {
 	title: "Network",
 	order: 15,
 	log,
-	available: (status) => status.role === "relay" || status.role === "encoder",
+	available: (status) => roleServes(status.role, "network"),
 	dashboardWidgets: networkDashboardWidgets,
 	defaultSize: { w: 4, h: 5 },
 	minSize: { w: 3, h: 3 },

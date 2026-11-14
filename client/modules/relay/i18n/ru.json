@@ -11,8 +11,6 @@
     "mgmt.th.links": "Каналы",
     "mlog.action.bond_selection": "Выбор бондинга",
     "mlog.action.bond_toggle": "Переключение бондинга",
-    "role.relay": "ретранслятор",
-    "setup.role.relay_tag": "Принимает стримы и пересылает их через SRTLA",
     "setup.step.relay_sub": "Настройки SRTLA",
     "ui.off": "выкл.",
     "wtype.relay": "Relay"

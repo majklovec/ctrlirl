@@ -1,0 +1,4 @@
+{
+    "role.broadcaster": "broadcaster",
+    "setup.role.broadcaster_tag": "RTMP宛先に配信します"
+}

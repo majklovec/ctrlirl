@@ -1,0 +1,4 @@
+{
+    "role.encoder": "编码器",
+    "setup.role.encoder_tag": "采集 GStreamer 管线并通过 SRT 发送"
+}

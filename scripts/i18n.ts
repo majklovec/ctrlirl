@@ -38,7 +38,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_LANGUAGE, LANGUAGES } from "../shared/languages";
-import { MODULE_ROOTS } from "../shared/paths";
+import { MODULE_ROOTS, ROLE_ROOT } from "../shared/paths";
 
 type Catalog = Record<string, string>;
 type Export = Record<string, Record<string, Record<string, string | null>>>;
@@ -61,6 +61,10 @@ function catalogDirs(): string[] {
             const dir = `${root}/${entry}/i18n`;
             if (existsSync(join(ROOT, dir, `${EN}.json`))) dirs.push(dir);
         }
+    for (const entry of readdirSync(join(ROOT, ROLE_ROOT)).sort()) {
+        const dir = `${ROLE_ROOT}/${entry}/i18n`;
+        if (existsSync(join(ROOT, dir, `${EN}.json`))) dirs.push(dir);
+    }
     return dirs;
 }
 

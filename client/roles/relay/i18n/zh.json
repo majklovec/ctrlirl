@@ -1,0 +1,4 @@
+{
+    "role.relay": "中继",
+    "setup.role.relay_tag": "接收流并使用 SRTLA 转发"
+}

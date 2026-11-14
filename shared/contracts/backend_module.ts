@@ -13,7 +13,7 @@
 import type { LogWording } from "../log_messages";
 import type { AnyElysia } from "elysia";
 import type { ServerDashboard, Status, WidgetConfigField } from "./wire";
-import type { Role, RoleDefinition } from "./roles";
+import type { Role } from "./roles";
 
 export type Params = Record<string, unknown>;
 
@@ -36,8 +36,6 @@ export interface DashboardAction {
     params?: Record<string, unknown>;
     /** Ask the operator before firing. */
     confirm?: boolean;
-    /** Device roles the action applies on (default: `methodRoles[method]`, then the module's `roles`). */
-    roles?: readonly Role[];
 }
 
 /** A dashboard action as published in `status.actions`: tagged with its owning module. */
@@ -189,8 +187,6 @@ export interface BackendModule<TCore = unknown> {
     title: string;
     /** Optional control-server HTTP routes (not mounted on devices). */
     controlRoutes?(context: ControlRouteContext): AnyElysia;
-    /** Roles contributed by this module; ids remain stable on the wire and in persisted settings. */
-    roleDefinitions?: readonly RoleDefinition[];
 
     // --- settings slice -----------------------------------------------------
     /** Key under `settings.modules` (defaults to `id`; lets a renamed module keep its stored slice). */
@@ -205,21 +201,12 @@ export interface BackendModule<TCore = unknown> {
     configDefaults?: Record<string, unknown>;
     /** Slice fields the status view masks as `{ configured: boolean }`. */
     secretFields?: readonly string[];
-    /** Roles the module serves: its methods are rejected (409) on other roles and the
-     * slice starts `enabled` on these roles. Omit for "every role". */
-    roles?: readonly Role[];
-    /** Fresh devices start the module disabled even on its roles (default: enabled on its roles). */
-    enabledByDefault?: boolean;
-    /** Roles that receive an enabled default when the module serves multiple roles. */
-    enabledByDefaultRoles?: readonly Role[];
     /** Reject the module's methods (409) while its slice is disabled. */
     requireEnabled?: boolean;
 
     // --- RPC ------------------------------------------------------------------
     /** Ordered list of RPC methods this module answers (names are frozen API). */
     methods: readonly string[];
-    /** Per-method role override (e.g. a relay-only method of a module that also serves other roles). */
-    methodRoles?: Record<string, readonly Role[]>;
     /** Events the module emits. */
     events: readonly string[];
     /** Handle one RPC call: validate `params` (throw ApiError), act, return the result. */
@@ -264,8 +251,13 @@ export interface BackendModule<TCore = unknown> {
      * freshest status it holds.
      */
     dashboardActions?: DashboardActions;
-    /** Capabilities offered to other modules (looked up by name through the bus). */
-    services?: { capabilities?: Record<string, unknown> };
+    /** Capabilities offered to other modules (looked up by name through the bus) and the
+     * capability names this module resolves (`consumes`); both are declared statically so
+     * a role's `provides`/`requires.capabilities` can be validated against them. */
+    services?: {
+        capabilities?: Record<string, unknown>;
+        consumes?: readonly string[];
+    };
     /** Channel-widget hub (widget modules). */
     hub?: ModuleHub;
 }

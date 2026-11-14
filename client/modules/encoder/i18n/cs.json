@@ -95,7 +95,5 @@
     "act.encoder.start": "Spustit enkodér",
     "act.encoder.stream_stop": "Zastavit stream",
     "act.encoder.reload": "Obnovit SRTLA",
-    "role.encoder": "enkodér",
-    "setup.role.encoder": "Enkodér",
-    "setup.role.encoder_tag": "Zachycuje video a posílá ho přes SRT"
+    "setup.role.encoder": "Enkodér"
 }

@@ -1,0 +1,4 @@
+{
+    "role.encoder": "enkodér",
+    "setup.role.encoder_tag": "Zachytáva GStreamer pipeline a odosiela ho cez SRT"
+}

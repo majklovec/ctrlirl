@@ -1,0 +1,4 @@
+{
+    "role.encoder": "エンコーダー",
+    "setup.role.encoder_tag": "GStreamer パイプラインをキャプチャし、SRT で送信します"
+}

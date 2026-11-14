@@ -23,7 +23,5 @@
     "set.service_group_other": "其他",
     "set.broadcaster": "RTMP 输出",
     "set.broadcaster_desc": "为每个发布目标设置流服务、URL 和密钥——所有目标使用相同的 ffmpeg 配置。流密钥仅可写入。保存后流会重启。",
-    "set.broadcaster_profile": "输出配置",
-    "role.broadcaster": "broadcaster",
-    "setup.role.broadcaster_tag": "推流到 RTMP 目标"
+    "set.broadcaster_profile": "输出配置"
 }

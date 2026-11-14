@@ -33,7 +33,8 @@ import type {
     WidgetConfigField,
 } from "./contracts/wire";
 import { registerLogWording } from "./log_messages";
-import { appPath, MODULE_ROOTS } from "./paths";
+import { appPath, MODULE_ROOTS, ROLE_ROOT } from "./paths";
+import { roleServesModule } from "./roles";
 import { isCompiledBinary } from "./util";
 
 export type {
@@ -118,31 +119,13 @@ function validate(mod: unknown, file: string): asserts mod is BackendModule {
     ])
         fn(name);
     strings("dependencies");
-    strings("roles");
     strings("legacyConfigKeys");
-    strings("enabledByDefaultRoles");
     strings("secretFields");
-    if (m.roleDefinitions !== undefined) {
-        if (
-            !Array.isArray(m.roleDefinitions) ||
-            m.roleDefinitions.some(
-                (r) =>
-                    !(r instanceof Object) ||
-                    typeof (r as RoleDefinition).id !== "string" ||
-                    (r as RoleDefinition).id === "" ||
-                    typeof (r as RoleDefinition).titleKey !== "string" ||
-                    !Number.isFinite((r as RoleDefinition).order) ||
-                    ((r as RoleDefinition).taglineKey !== undefined &&
-                        typeof (r as RoleDefinition).taglineKey !== "string") ||
-                    ((r as RoleDefinition).default !== undefined &&
-                        typeof (r as RoleDefinition).default !== "boolean") ||
-                    ((r as RoleDefinition).setupSelectable !== undefined &&
-                        typeof (r as RoleDefinition).setupSelectable !==
-                            "boolean"),
-            )
-        )
+    if (m.services !== undefined && m.services !== null) {
+        const svc = m.services as Record<string, unknown>;
+        if (svc.consumes !== undefined && !isStringArray(svc.consumes))
             throw new Error(
-                `module ${id}: roleDefinitions must be valid role metadata`,
+                `module ${id}: services.consumes must be a string array`,
             );
     }
     if (m.pages !== undefined) {
@@ -261,33 +244,169 @@ export const ALL_MODULES: readonly BackendModule[] = resolveOrder([
 
 for (const mod of ALL_MODULES) if (mod.log) registerLogWording(mod.log);
 
-const ROLE_DEFINITIONS: readonly RoleDefinition[] = ALL_MODULES.flatMap(
-    (mod) => mod.roleDefinitions ?? [],
-).sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
-const roleIds = new Set<string>();
-for (const definition of ROLE_DEFINITIONS) {
-    if (roleIds.has(definition.id))
-        throw new Error(`duplicate role definition ${definition.id}`);
-    roleIds.add(definition.id);
-}
-if (ROLE_DEFINITIONS.filter((definition) => definition.default).length !== 1)
-    throw new Error(
-        "module role definitions must declare exactly one default role",
-    );
+// ---------------------------------------------------------------------------
+// Roles — discovered from client/roles/<id>/role.ts (ROLE_ROOT), the same two
+// ways modules are discovered. A role owns the knowledge of which modules run
+// on it and which capabilities they consume/register; modules never name a
+// role.
+// ---------------------------------------------------------------------------
 
-/** Module-contributed roles, sorted for stable setup/settings presentation. */
+const sorted = (names: readonly string[]): string[] =>
+    [...names].sort((a, b) => a.localeCompare(b));
+
+const roleModuleMap = new Map(ALL_MODULES.map((m) => [m.id, m]));
+const roleIds = new Set<string>();
+const ROLE_DEFINITIONS: RoleDefinition[] = [];
+
+/** Validate one role definition against the module registrations. */
+function validateRole(definition: RoleDefinition): void {
+    const { id } = definition;
+    const requires = definition.requires;
+    if (requires === undefined || requires === null)
+        throw new Error(`role ${id}: requires { modules, capabilities }`);
+    if (!isStringArray(requires.modules) || requires.modules.length === 0)
+        throw new Error(`role ${id}: requires.modules must be a non-empty string array`);
+    if (requires.optionalModules !== undefined && !isStringArray(requires.optionalModules))
+        throw new Error(`role ${id}: requires.optionalModules must be a string array`);
+    if (!isStringArray(requires.capabilities))
+        throw new Error(`role ${id}: requires.capabilities must be a string array`);
+    const provides = definition.provides;
+    if (provides === undefined || provides === null || !isStringArray(provides.capabilities))
+        throw new Error(`role ${id}: provides.capabilities must be a string array`);
+
+    const optional = requires.optionalModules ?? [];
+    for (const duplicate of requires.modules)
+        if (optional.includes(duplicate))
+            throw new Error(
+                `role ${id}: module ${duplicate} is listed in both requires.modules and requires.optionalModules`,
+            );
+    const modules = [...requires.modules, ...optional];
+    for (const moduleId of modules) {
+        const mod = roleModuleMap.get(moduleId);
+        if (mod === undefined)
+            throw new Error(`role ${id}: requires unknown module ${moduleId}`);
+        if (mod.kind !== "device")
+            throw new Error(`role ${id}: module ${moduleId} is not a device module`);
+    }
+
+    const setEquals = (
+        declared: readonly string[],
+        computed: readonly string[],
+        what: string,
+    ): void => {
+        const want = sorted([...new Set(declared)]);
+        const got = sorted([...new Set(computed)]);
+        if (JSON.stringify(want) !== JSON.stringify(got))
+            throw new Error(
+                `role ${id}: ${what} must list exactly [${want.join(", ")}] (got [${declared.join(", ")}])`,
+            );
+    };
+    setEquals(
+        requires.capabilities,
+        modules.flatMap((id) => roleModuleMap.get(id)!.services?.consumes ?? []),
+        "requires.capabilities",
+    );
+    setEquals(
+        provides.capabilities,
+        modules.flatMap(
+            (id) => Object.keys(roleModuleMap.get(id)!.services?.capabilities ?? {}),
+        ),
+        "provides.capabilities",
+    );
+}
+
+async function discoverRoles(): Promise<RoleDefinition[]> {
+    let definitions: RoleDefinition[];
+    if (isCompiledBinary()) {
+        let manifest: unknown;
+        try {
+            manifest = (await import("../generated/roles")).default;
+        } catch (err) {
+            throw new Error(
+                `compiled binary is missing the role manifest (generated/roles.ts) — run \`bun run gen:modules\` before building: ${
+                    err instanceof Error ? err.message : String(err)
+                }`,
+            );
+        }
+        definitions = manifest as RoleDefinition[];
+    } else {
+        const root = appPath(ROLE_ROOT);
+        const entries = readdirSync(root)
+            .sort()
+            .filter((entry) => existsSync(join(root, entry, "role.ts")));
+        definitions = (
+            await Promise.all(
+                entries.map(async (entry) => {
+                    const file = join(root, entry, "role.ts");
+                    const label = `${ROLE_ROOT}/${entry}/role.ts`;
+                    let ns: { default?: RoleDefinition };
+                    try {
+                        ns = (await import(file)) as { default?: RoleDefinition };
+                    } catch (err) {
+                        throw new Error(
+                            `failed to load role ${label}: ${err instanceof Error ? err.message : String(err)}`,
+                        );
+                    }
+                    if (ns.default === undefined)
+                        throw new Error(`role ${label} has no default export`);
+                    return ns.default;
+                }),
+            )
+        ) as RoleDefinition[];
+    }
+    return definitions.map((definition) => {
+        if (
+            typeof definition !== "object" ||
+            definition === null ||
+            typeof definition.id !== "string" ||
+            definition.id === "" ||
+            typeof definition.titleKey !== "string" ||
+            !Number.isFinite(definition.order) ||
+            (definition.taglineKey !== undefined &&
+                typeof definition.taglineKey !== "string") ||
+            (definition.default !== undefined &&
+                typeof definition.default !== "boolean") ||
+            (definition.setupSelectable !== undefined &&
+                typeof definition.setupSelectable !== "boolean")
+        )
+            throw new Error(
+                `role ${definition?.id ?? "?"}: definition must have string id, titleKey and finite order`,
+            );
+        return definition;
+    });
+}
+
+{
+    const definitions = await discoverRoles();
+    for (const definition of definitions) {
+        if (roleIds.has(definition.id))
+            throw new Error(`duplicate role definition ${definition.id}`);
+        roleIds.add(definition.id);
+        validateRole(definition);
+    }
+    if (definitions.filter((definition) => definition.default).length !== 1)
+        throw new Error("role definitions must declare exactly one default role");
+    ROLE_DEFINITIONS.push(
+        ...definitions.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id)),
+    );
+}
+
+/** All defined roles, sorted for stable setup/settings presentation. */
 export const roleDefinitions = (): readonly RoleDefinition[] =>
     ROLE_DEFINITIONS;
 
-/** The valid role ids contributed by registered modules. */
+/** The role definitions list (read-only; for the pure role helpers). */
+export const ROLES: readonly RoleDefinition[] = ROLE_DEFINITIONS;
+
+/** The valid role ids defined under client/roles. */
 export const registeredRoleIds = (): readonly Role[] =>
     ROLE_DEFINITIONS.map((definition) => definition.id);
 
-/** Default role selected by the module that contributes it. */
+/** The role declared `default` in its own role.ts. */
 export const defaultRole = (): Role =>
     ROLE_DEFINITIONS.find((definition) => definition.default)!.id;
 
-/** Whether a value names a role contributed by a registered module. */
+/** Whether a value names a role defined under client/roles. */
 export const isRegisteredRole = (value: unknown): value is Role =>
     typeof value === "string" && roleIds.has(value);
 
@@ -357,17 +476,17 @@ export const dashboardActionKey = (moduleId: string, actionId: string) =>
 
 /**
  * The operator actions a device offers right now, from the registrations of
- * every module that is enabled in `status.modules` and serves the device's
- * role (an action's own `roles`, else the method's role override, else the
- * module's roles). The control server merges this into the cached status so
- * the dashboard reads the catalogue off `status.actions` without another RPC.
+ * every module that is enabled in `status.modules` and runs on the device's
+ * role (per the role's own module list). The control server merges this into
+ * the cached status so the dashboard reads the catalogue off `status.actions`
+ * without another RPC.
  */
 export function dashboardActionsFor(status: Status): DashboardActionEntry[] {
     const role = status.role;
     const out: DashboardActionEntry[] = [];
     for (const m of ALL_MODULES) {
         if (m.dashboardActions === undefined) continue;
-        if (m.roles && !m.roles.includes(role)) continue;
+        if (!roleServesModule(ROLE_DEFINITIONS, role, m.id)) continue;
         if (status.modules?.[m.configKey ?? m.id]?.enabled !== true) continue;
         // A factory resolves against the device's live status. The control
         // server calls this on every status push, so dynamic action sets
@@ -392,8 +511,6 @@ export function dashboardActionsFor(status: Status): DashboardActionEntry[] {
                 !methods.has(a.method)
             )
                 continue;
-            const roles = a.roles ?? m.methodRoles?.[a.method] ?? m.roles;
-            if (roles && !roles.includes(role)) continue;
             out.push({
                 ...a,
                 key: dashboardActionKey(m.id, a.id),

@@ -31,6 +31,7 @@ import type {
 } from "../../../shared/contracts/frontend_module";
 import type { DeviceSummary, SetupInfo } from "../../../shared/contracts/wire";
 import { attemptedSteps } from "../../../shared/setup_progress";
+import { roleServes, roleServesOrLegacy } from "../../../shared/ui/role_view";
 import log from "./log";
 import type {
 	RelayDeviceSummary,
@@ -125,7 +126,7 @@ function syncRelayForm(host: DeviceCard, status: RelayStatus): void {
 const relayDashboardWidgets: DeviceDashboardWidget[] = [
 	{
 		type: "relay",
-		available: (device) => device.role === "relay" || device.role === undefined,
+		available: (device) => roleServesOrLegacy(device.role, "relay"),
 		defaultSize: { w: 4, h: 4 },
 		minSize: { w: 3, h: 3 },
 		body: ({ card: host, status }) =>
@@ -143,7 +144,7 @@ const relaySummaryColumns = [
 	{
 		id: "stream",
 		order: 0,
-		available: (device: DeviceSummary) => device.role === "relay",
+		available: (device: DeviceSummary) => roleServes(device.role, "relay"),
 		header: () => t("mgmt.th.stream"),
 		cell: (device: DeviceSummary) => {
 			if (!device.online) return "—";
@@ -170,7 +171,7 @@ const relaySummaryColumns = [
 	{
 		id: "relay",
 		order: 40,
-		available: (device: DeviceSummary) => device.role === "relay",
+		available: (device: DeviceSummary) => roleServes(device.role, "relay"),
 		header: () => [relayIcon(), ` ${t("setup.step.relay")}`],
 		cell: (device: DeviceSummary) => {
 			const { relay } = device as RelayDeviceSummary;
@@ -377,10 +378,9 @@ const relayModule: FrontendModule = {
 	id: "relay",
 	kind: "device-card",
 	title: "Relay",
-	roleIcons: { relay: relayIcon },
 	order: 5,
 	log,
-	available: (status) => status.role === "relay",
+	available: (status) => roleServes(status.role, "relay"),
 	dashboardWidgets: relayDashboardWidgets,
 	deviceSummaryColumns: relaySummaryColumns,
 	setupSteps: [
@@ -388,7 +388,6 @@ const relayModule: FrontendModule = {
 			id: "relay",
 			title: "setup.step.relay",
 			subtitle: "setup.step.relay_sub",
-			roles: ["relay"],
 			isValid() {
 				const { listenPort, srtlaRemoteHost, srtlaRemotePort } = setupFields;
 				return (

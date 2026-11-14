@@ -16,6 +16,7 @@ import type {
 	DeviceDashboardWidget,
 	FrontendModule,
 } from "../../../shared/contracts/frontend_module";
+import { roleServes } from "../../../shared/ui/role_view";
 import log from "./log";
 import type { CtrlinkRuntimeStatus } from "./types";
 
@@ -38,18 +39,6 @@ const DISCOVERY_METHOD_KEYS = {
 	mdns: "dev.ctrlink.method_mdns",
 	"control-server": "dev.ctrlink.method_control_server",
 } as const;
-
-/** The role pictogram (bridging a hub to the shared interfaces). */
-const ctrlinkRelayIcon = () => (
-	<OutlineIcon class="role-icon role-icon-ctrlink-relay">
-		<circle cx="12" cy="12" r="2.5" />
-		<circle cx="4.5" cy="5" r="2" />
-		<circle cx="19.5" cy="5" r="2" />
-		<circle cx="4.5" cy="19" r="2" />
-		<circle cx="19.5" cy="19" r="2" />
-		<path d="m9.9 10.1-3.4-3.2M14.1 10.1l3.4-3.2M9.9 13.9l-3.4 3.2M14.1 13.9l3.4 3.2" />
-	</OutlineIcon>
-);
 
 /**
  * The uplink mark (protocol.md §1: every relayed interface is an uplink,
@@ -74,7 +63,7 @@ function ctrlinkStart(host: DeviceCard): void {
 const ctrlinkDashboardWidgets: DeviceDashboardWidget[] = [
 	{
 		type: "ctrlink_relay",
-		available: (device) => device.role === "ctrlink_relay",
+		available: (device) => roleServes(device.role, "ctrlink_relay"),
 		defaultSize: { w: 4, h: 4 },
 		minSize: { w: 3, h: 3 },
 		body: ({ card: host, status }) => (status ? ctrlinkCardBody(host) : null),
@@ -91,10 +80,9 @@ const ctrlinkRelayModule: FrontendModule = {
 	id: "ctrlink_relay",
 	kind: "device-card",
 	title: "Relay",
-	roleIcons: { ctrlink_relay: ctrlinkRelayIcon },
 	order: 51,
 	log,
-	available: (status) => status.role === "ctrlink_relay",
+	available: (status) => roleServes(status.role, "ctrlink_relay"),
 	dashboardWidgets: ctrlinkDashboardWidgets,
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },
