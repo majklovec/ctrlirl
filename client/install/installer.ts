@@ -69,7 +69,7 @@ export interface InstallOpts {
     moduleRoot?: string;
     /**
      * Board the role is installed on (defaults to auto-detection). Lets the
-     * plan apply `install/boards/<board>.json` deltas and record the board in
+     * plan apply `install/board.<board>.json` deltas and record the board in
      * state.
      */
     boardId?: BoardId;

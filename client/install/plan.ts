@@ -22,7 +22,7 @@ import { orderByModuleDependencies } from "./ordering";
  * @param cfg the role's runtime config (top level) for `{{cfg:…}}` resolution.
  * @param opts `moduleRoot`: the directory whose children are modules (defaults
  *   to the repo's `client/modules`; tests point it at a fixture dir).
- *   `boardId`: the board the role is installed on — `install/boards/<board>.json`
+ *   `boardId`: the board the role is installed on — `install/board.<board>.json`
  *   deltas are applied for matching modules. Defaults to auto-detection.
  */
 export async function buildPlan(

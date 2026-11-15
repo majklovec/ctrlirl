@@ -8,8 +8,7 @@ firewall rules, udev rules, config overlays, package dependencies) from
 client/modules/<module>/install/
   install.json              # base spec (applies to every role)
   install.<role>.json       # optional role delta (merged over the base)
-  boards/
-    <board>.json            # optional board delta (merged last, board wins)
+  board.<board>.json        # optional board delta (merged last, board wins)
   hooks/
     install.sh              # optional, runs after everything else
     uninstall.sh            # optional, runs first on uninstall
@@ -67,14 +66,14 @@ installer simply has nothing to do for them.
 
 All keys are optional. `version` must be `1`. Three optional layers merge in
 order, **later wins**: `install.json` (base) → `install.<role>.json` (role) →
-`boards/<board>.json` (board). Arrays concatenate then dedupe: `services` by
+`board.<board>.json` (board). Arrays concatenate then dedupe: `services` by
 `name`, `firewall` by `(tool, table, chain, rule)`, `udev` by `file`
 (later entry wins).
 
 **Board layers** are hardware-specific. The board id is detected at runtime
 from the device tree / CPU (`orange_pi_5_plus`, `raspberry_pi`, `generic`) and
 can be overridden with `--board <id>` or the `BOARD_ID` env var. A
-`boards/<board>.json` delta is only merged when the board is non-generic —
+`board.<board>.json` delta is only merged when the board is non-generic —
 `generic` (the safe default, and the board for most SBC-agnostic modules)
 applies no board delta. Board ids are validated against the known set; an
 unknown `--board`/`BOARD_ID` is a validation error (exit 1).

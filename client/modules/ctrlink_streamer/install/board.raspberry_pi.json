@@ -1,5 +1,5 @@
 {
-    "$schema": "../../../shared/install/schema.json",
+    "$schema": "../../../../shared/install/schema.json",
     "version": 1,
     "udev": [
         {

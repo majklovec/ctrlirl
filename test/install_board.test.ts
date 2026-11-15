@@ -83,10 +83,10 @@ describe("board delta merge", () => {
 
     async function stageWithBoard(): Promise<string> {
         const dir = join(modRoot, "streamer", "install");
-        await mkdir(join(dir, "boards"), { recursive: true });
+        await mkdir(dir, { recursive: true });
         await writeFile(join(dir, "install.json"), JSON.stringify(base, null, 2));
         await writeFile(
-            join(dir, "boards", "raspberry_pi.json"),
+            join(dir, "board.raspberry_pi.json"),
             JSON.stringify({ version: 1, udev: [piRule] }, null, 2),
         );
         return join(modRoot, "streamer");

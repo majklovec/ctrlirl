@@ -60,7 +60,7 @@ Detection is read-only (`/proc/device-tree/model`, `/proc/cpuinfo`) and safe on
 the host.
 
 The board is a **third merge layer** — base → role → board (board wins) — read
-from `install/boards/<board>.json` in `loadInstallSpec`. It is applied only
+from `install/board.<board>.json` in `loadInstallSpec`. It is applied only
 when the board is non-generic, so `generic` (the default) is a no-op. The board
 id threads through `buildPlan` → `InstallPlan.board` → install state
 (`state.board`) → CLI (`--board` / `BOARD_ID`, validated, exit 1 on unknown).

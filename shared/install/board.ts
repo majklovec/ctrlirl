@@ -5,7 +5,7 @@
  * …). Some install rules differ per board — e.g. a Raspberry Pi only needs an
  * overlay tweak for firmware/DT overlay activation, while an Orange Pi 5 Plus
  * needs an udev rule pinning the GRETAP kernel names. A module can therefore
- * carry a per-board delta under `install/boards/<board>.json` that is merged
+ * carry a per-board delta under `install/board.<board>.json` that is merged
  * over the base + role spec for the board it is running on.
  *
  * `detectBoardId()` is the single source of truth for "which board are we
