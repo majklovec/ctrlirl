@@ -143,6 +143,8 @@ describe("source runs without generated/", () => {
 				"--dry-run",
 				"--config",
 				join(tree, "config.json"),
+				"--state-file",
+				join(tree, "state.json"),
 				"--log-file",
 				join(tree, "log.json"),
 			],

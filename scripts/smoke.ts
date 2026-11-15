@@ -120,6 +120,8 @@ try {
 				"--dry-run",
 				"--config",
 				join(tmp, "config.json"),
+				"--state-file",
+				join(tmp, "state.json"),
 				"--log-file",
 				join(tmp, "log.json"),
 			],

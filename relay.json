@@ -8,28 +8,6 @@
   "role": "ctrlink_relay",
   "username": "majkl",
   "uuid": "58bbdeb9-fa2b-4a8a-afe9-345038efc844",
-  "ctrlink": {
-    "announceHost": "",
-    "enabled": true,
-    "gretap": true,
-    "listenPortBase": 4000,
-    "logLevel": "info",
-    "nat": true,
-    "runtimeStatusFile": "/tmp/ctrlink-status.json",
-    "interfaceAllow": [],
-    "interfaceIgnore": [
-      "docker.*",
-      "veth.*"
-    ],
-    "interfaceNameOverrides": {},
-    "portMap": {
-      "br-geno2rpi4": 4006,
-      "eno1": 4000,
-      "eno2": 4005,
-      "wg0": 4002,
-      "wwx001e101f0000": 4007
-    }
-  },
   "modules": {
     "broadcaster": {
       "enabled": false,
@@ -105,12 +83,5 @@
     "systeminfo": {
       "enabled": true
     }
-  },
-  "relay": {
-    "listenPort": "6000",
-    "mode": "enhanced",
-    "quality": true,
-    "remoteHost": "asd",
-    "remotePort": "6000"
   }
 }

@@ -25,17 +25,29 @@ export { argv, type Role };
 
 const TMP = tmpdir();
 
-// Device config: the core settings plus every module's own sections; live
-// process state is memory-only and never persisted.
+// Device config: the permanent parameters (core settings + per-module config
+// slices). The mutable per-module data sections (`state.data.*`) live in the
+// separate state file. Live process state (pids, counters) is memory-only and
+// never written to either file.
 export const CONFIG_FILE = argEnv("--config", "CONFIG_FILE", join(TMP, "config.json"));
-// A crashed run leaves `<config>.<hex>.tmp` orphans; a fresh boot is the safe
-// moment to clear them (nothing else is mid-save on a single-device config).
+/** State file: the per-module data sections, separate from the config file. */
+export const STATE_FILE = argEnv("--state-file", "STATE_FILE", "/var/lib/ctrlirl/state.json");
+// A crashed run leaves `<file>.<hex>.tmp` orphans; a fresh boot is the safe
+// moment to clear them (nothing else is mid-save on a single-device file).
 await removeStaleTmps(CONFIG_FILE);
+await removeStaleTmps(STATE_FILE);
 // A fresh device (no config file) shows the setup wizard first
 export const CONFIG_EXISTS = await Bun.file(CONFIG_FILE).exists();
+export const STATE_EXISTS = await Bun.file(STATE_FILE).exists();
 /** Config file contents at startup (null when missing or unreadable); state.ts builds on it. */
 export const INITIAL_CONFIG = CONFIG_EXISTS
     ? ((await Bun.file(CONFIG_FILE)
+          .json()
+          .catch(() => null)) as Record<string, unknown> | null)
+    : null;
+/** State file contents at startup (null when missing/unreadable): the module data sections. */
+export const INITIAL_STATE = STATE_EXISTS
+    ? ((await Bun.file(STATE_FILE)
           .json()
           .catch(() => null)) as Record<string, unknown> | null)
     : null;

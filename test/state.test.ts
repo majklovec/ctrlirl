@@ -52,18 +52,24 @@ function withStoredModules<T>(
 
 describe("config file projection", () => {
     test("splits the core settings from the module sections", () => {
-        const st = fromConfig({
-            uuid: "u",
-            hostname: "box",
-            role: "relay",
-            autostart: true,
-            srtla: {
-                listenPort: "9000",
-                remoteHost: "h",
-                remotePort: "1",
-                selection: { modems: ["wwan0"] },
+        // Module data sections now come from the state file (the second
+        // argument), not from the config object.
+        const st = fromConfig(
+            {
+                uuid: "u",
+                hostname: "box",
+                role: "relay",
+                autostart: true,
             },
-        });
+            {
+                srtla: {
+                    listenPort: "9000",
+                    remoteHost: "h",
+                    remotePort: "1",
+                    selection: { modems: ["wwan0"] },
+                },
+            },
+        );
         expect(st.settings).toMatchObject({
             uuid: "u",
             hostname: "box",
@@ -78,6 +84,14 @@ describe("config file projection", () => {
                 selection: { modems: ["wwan0"] },
             },
         });
+    });
+
+    test("core keys are never treated as data sections", () => {
+        const st = fromConfig(
+            { uuid: "u" },
+            { uuid: "should-be-dropped", relay: { a: 1 } },
+        );
+        expect(st.data).toEqual({ relay: { a: 1 } });
     });
 });
 

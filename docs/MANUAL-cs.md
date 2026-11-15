@@ -186,7 +186,7 @@ User=root
 WantedBy=multi-user.target
 ```
 
-Ovládací server používá tentýž vzorec s `server` (root není potřeba). Role, URL/token ovládacího serveru a přepisy cest k binárkám dejte do konfiguračního souboru (`--config`) nebo do `EnvironmentFile` — zařízení si stav uchovává v cestě `--config`, která musí zůstat stálá, aby přežilo restart (a tedy autostart).
+Ovládací server používá tentýž vzorec s `server` (root není potřeba). Role, URL/token ovládacího serveru a přepisy cest k binárkám dejte do konfiguračního souboru (`--config`) nebo do `EnvironmentFile`. Zařízení uchovává konfiguraci v cestě `--config` (výchozí `$TMPDIR/config.json`) a stav modulů v cestě `--state-file` (výchozí `/var/lib/ctrlirl/state.json`). V produkci použijte trvalou cestu pro konfiguraci a zajistěte službě oprávnění k zápisu do adresáře stavu; zařízení jej v případě potřeby a dostatečných oprávnění vytvoří. Pro zachování stavu ze starší verze, která používala `$TMPDIR/state.json`, soubor přesuňte na novou cestu nebo nastavte `--state-file` na původní cestu.
 
 #### Docker
 
@@ -575,7 +575,8 @@ Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI 
 | `--role`                  | `ROLE`                          | `relay`                          | Role definovaná v `client/roles/` (`relay`, `encoder`, `obs`, `broadcaster`, `ctrlink_relay`).                                                                                           |
 | `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Lokální web UI a WebSocket API (`/ws`), vždy zapnuto.                                                                                                                            |
 | `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Další povolené zdroje požadavků prohlížeče pro `/ws` (oddělené čárkami, `*` = libovolný zdroj).                                                                                  |
-| `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Konfigurační soubor zařízení: základní nastavení a konfigurace vlastněné moduly. **V produkci použijte trvalou cestu**, protože ji automatické spuštění potřebuje i po restartu. |
+| `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Konfigurační soubor zařízení: trvalá identita a nastavení (uživatelské jméno/heslo, hostname, role, ovládací odkaz) a konfigurace jednotlivých modulů. **V produkci použijte trvalou cestu**, protože ji automatické spuštění potřebuje i po restartu. |
+| `--state-file`            | `STATE_FILE`                    | `/var/lib/ctrlirl/state.json`    | Stavový soubor zařízení — datové sekce jednotlivých modulů (modemy, cíl SRTLA, relé…). Proces zařízení musí mít právo zápisu do adresáře. |
 | `--uplinks`               | `UPLINKS_FILE`                  | `$TMPDIR/srtla_ips.txt`          | Soubor se seznamem uplinků pro `srtla_send`.                                                                                                                                     |
 | `--start-srtla`           | —                               | —                                | Pro roli relay spustí při startu SRTLA→SRTLA most s parametry `<srtlaPort> <remoteHost> <remotePort>`.                                                                           |
 | `--srtla-reload`          | `SRTLA_RELOAD_MODE`             | `signal`                         | Určuje, jak znovu načíst `srtla_send`: pomocí signálu `SIGHUP` (`signal`) nebo restartováním procesu (`restart`).                                                                |

@@ -32,12 +32,12 @@ Every capability is a **self-contained module** that talks to the rest of the sy
 A role is a directory under `client/roles/<role>/` with a `role.ts` that lists the modules to load. The device client runs exactly one role at a time, chosen with `--role`.
 
 | Role              | What it does                                             | Key modules                           | Capabilities it provides / consumes                                  |
-| ----------------- | -------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- | --- |
+| ----------------- | -------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- |
 | `relay` (default) | SRTLA→SRTLA bridge; uplink and ModemManager handling     | `relay`, `network`, `modems`, `ssh`   | provides `stream.relay`; consumes `network.uplinks`, `modems.source` |
 | `encoder`         | Runs belacoder/ceracoder and its local `srtla_send`      | `encoder`, `network`, `modems`, `obs` | consumes `network.uplinks`, `modems.source`                          |
 | `obs`             | Connects to OBS Studio and exposes a scene switcher      | `obs`                                 | provides `obs.events`                                                |
 | `broadcaster`     | SRTLA ingress + RTMP output via ffmpeg                   | `broadcaster`                         | provides `broadcast.outputs`                                         |
-| `ctrlink_relay`   | Transparent L2 bridging of LAN interfaces to the encoder | `ctrlink_relay`                       | provides `ctrlink.lan` (per-interface GRETAP tunnels)                |     |
+| `ctrlink_relay`   | Transparent L2 bridging of LAN interfaces to the encoder | `ctrlink_relay`                       | provides `ctrlink.lan` (per-interface GRETAP tunnels)                |
 
 <!-- IMAGE: device dashboard / role picker — e.g. ![Roles](docs/img/roles.png) -->
 

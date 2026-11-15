@@ -80,7 +80,8 @@ Každý parametr má protějšek v podobě proměnné prostředí. Řešení: **
 | `‑‑role`                  | `ROLE`                            | `relay`                          | Role definovaná v `client/roles/` (`relay`, `encoder`, `obs`, `broadcaster`, `ctrlink_relay`)                                             |
 | `‑‑host`, `‑‑port`        | `API_HOST`, `API_PORT`            | `127.0.0.1`, `8085`              | Lokální webové rozhraní a WebSocket API (`/ws`), vždy aktivní                                                                         |
 | `‑‑allow‑origin`          | `ALLOWED_ORIGINS`                 |                                  | Další povolené originy pro `/ws` (oddělené čárkami, `*` = libovolný)                                                                  |
-| `‑‑config`                | `CONFIG_FILE`                     | `$TMPDIR/config.json`            | Konfigurace zařízení — nastavení jádra a sekce modulů. **V produkčním provozu použijte trvalou cestu.**                              |
+| `‑‑config`                | `CONFIG_FILE`                     | `$TMPDIR/config.json`            | Konfigurace zařízení — trvalá identita a nastavení (uživatelské jméno/heslo, hostname, role, ovládací odkaz) a konfigurace modulů. **V produkčním provozu použijte trvalou cestu.** |
+| `‑‑state‑file`            | `STATE_FILE`                      | `/var/lib/ctrlirl/state.json`    | Stav zařízení — datové sekce jednotlivých modulů (modemy, cíl SRTLA, relé…). Proces zařízení musí mít právo zápisu do adresáře. |
 | `‑‑uplinks`               | `UPLINKS_FILE`                    | `$TMPDIR/srtla_ips.txt`          | Soubor s uplinky pro `srtla_send`                                                                                                     |
 | `‑‑start‑srtla`           |                                   |                                  | Pro relay: spustí SRTLA→SRTLA most při startu pomocí parametrů `<srtlaPort> <remoteHost> <remotePort>`                          |
 | `‑‑srtla‑reload`          | `SRTLA_RELOAD_MODE`               | `signal`                         | `signal` (SIGHUP) nebo `restart`                                                                                                      |
@@ -192,7 +193,7 @@ WantedBy=multi-user.target
 
 Řídicí server se nastavuje obdobně, pouze místo `client` použijte `server` (oprávnění root nejsou potřeba). Roli, URL řídicího serveru, token a cesty k binárním souborům nastavte v konfiguračním souboru `--config` nebo v souboru `EnvironmentFile`.
 
-Zařízení uchovává stav v cestě určené parametrem `--config`. Tato cesta musí být trvalá, aby automatické spuštění fungovalo i po restartu.
+Zařízení uchovává konfiguraci v cestě `--config` (výchozí `$TMPDIR/config.json`) a datové sekce modulů v cestě `--state-file` (výchozí `/var/lib/ctrlirl/state.json`). Pro automatické spuštění použijte trvalou cestu pro konfiguraci a zajistěte službě oprávnění k zápisu do adresáře stavu. Stav ze starší výchozí cesty `$TMPDIR/state.json` přesuňte na novou cestu nebo ji nastavte pomocí `--state-file`.
 
 ### Obraz Armbian (Orange Pi 5 Plus)
 

@@ -184,7 +184,7 @@ User=root
 WantedBy=multi-user.target
 ```
 
-The control server uses the same pattern with `server` (no `root` needed). Put role, control-server URL/token, and binary overrides in the config file (`--config`) or an `EnvironmentFile` — the device keeps its state in the `--config` path, which autostart needs to survive a reboot.
+The control server uses the same pattern with `server` (no `root` needed). Put role, control-server URL/token, and binary overrides in the config file (`--config`) or an `EnvironmentFile`. The device stores config at `--config` (default `$TMPDIR/config.json`) and module state at `--state-file` (default `/var/lib/ctrlirl/state.json`). Use a persistent config path in production and ensure the service can write the state directory; the device creates it if necessary and permitted. To retain state from an earlier version that used `$TMPDIR/state.json`, move that file to the new path or set `--state-file` to its existing path.
 
 #### Docker
 
@@ -579,7 +579,8 @@ Every flag has an environment-variable counterpart. Resolution order: **CLI flag
 | `--role`                  | `ROLE`                          | `relay`                          | A role defined in `client/roles/` (`relay`, `encoder`, `obs`, `broadcaster`, `ctrlink_relay`).                                                             |
 | `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on.                                                                                                    |
 | `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Extra browser origins for `/ws` (comma-separated, `*` = any).                                                                                         |
-| `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Device config — core settings and module-owned slices. **Use a persistent path in production** (autostart needs it to survive a reboot).               |
+| `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Device config — persistent identity and setup (username/password, hostname, role, remote control link, …) plus module config slices. **Use a persistent path in production** (autostart needs it to survive a reboot). |
+| `--state-file`            | `STATE_FILE`                    | `/var/lib/ctrlirl/state.json`    | Device state — the per-module data sections (modems, SRTLA target, relay, …). The directory must be writable by the device process. |
 | `--uplinks`               | `UPLINKS_FILE`                  | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`.                                                                                                                        |
 | `--start-srtla`           | —                               | —                                | Relay: start the SRTLA→SRTLA bridge on boot with `<srtlaPort> <remoteHost> <remotePort>`.                                                              |
 | `--srtla-reload`          | `SRTLA_RELOAD_MODE`             | `signal`                         | How to reload `srtla_send`: `signal` (SIGHUP) or `restart`.                                                                                           |

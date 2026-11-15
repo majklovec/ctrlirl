@@ -1,18 +1,25 @@
 /*
- * Persistent storage:
+ * Persistent storage (two files):
  *   config.json      permanent parameters only — the core device settings
  *                     (identity, role, control link, language, per-module
- *                     settings slices) plus every module's own config
- *                     sections, kept verbatim under `state.data`. Stable key
- *                     order, 2-space indent.
+ *                     settings slices). Stable key order, 2-space indent.
+ *   state.json       the mutable per-module data sections, kept verbatim under
+ *                     `state.data`. Separate file so high-churn module data
+ *                     never rewrites the small, long-lived config file.
  *   in memory        live process state (running flags, pids, counters) is
  *                     module-owned and never written to disk.
  *
  * Modules mutate their `state.data.<section>` objects and their settings slice,
- * then call `saveState()`, which persists the permanent part. The core knows
- * no section by name.
+ * then call `saveState()`, which persists the permanent part to config.json and
+ * the data sections to state.json. The core knows no section by name.
+ *
+ * Legacy: older config files stored the data sections as top-level keys. On load
+ * a device with a config but no state file adopts those keys as its data, and the
+ * next save moves them into state.json (they drop out of config.json).
  */
 import { randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import type { ModuleSlice } from "../../shared/contracts/backend_module";
 import {
 	asLanguage,
@@ -27,7 +34,10 @@ import {
 	CONFIG_FILE,
 	DRY_RUN,
 	INITIAL_CONFIG,
+	INITIAL_STATE,
 	ROLE,
+	STATE_EXISTS,
+	STATE_FILE,
 } from "./config";
 import { writeFileAtomic } from "./files";
 
@@ -66,8 +76,8 @@ const CORE_KEYS = [
 	"uuid",
 ] as const;
 
-/** Permanent device parameters persisted to the config file. */
-export interface DeviceConfig extends Record<string, unknown> {
+/** Permanent device parameters persisted to the config file (core keys only). */
+export interface DeviceConfig {
 	autostart: boolean;
 	color: string;
 	hostname: string;
@@ -100,7 +110,6 @@ export let setupRequired = !CONFIG_EXISTS;
 function projectConfig(s: PersistentState): DeviceConfig {
 	const { settings } = s;
 	const cfg: DeviceConfig = {
-		...s.data,
 		autostart: !!s.autostart,
 		color: settings.color ?? DEFAULT_COLOR,
 		hostname: settings.hostname ?? "",
@@ -116,13 +125,18 @@ function projectConfig(s: PersistentState): DeviceConfig {
 	return cfg;
 }
 
-/** Split a config file into the core settings and the module sections. */
+/**
+ * Build the in-memory state from a config object (the core device settings)
+ * and a data object (the module data sections — from the state file, or from
+ * legacy top-level config keys). Core keys are never treated as data.
+ */
 export function fromConfig(
 	cfg: Record<string, unknown> | null,
+	dataIn?: Record<string, unknown> | null,
 ): PersistentState {
 	const c = cfg ?? {};
 	const data: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(c))
+	for (const [key, value] of Object.entries(dataIn ?? {}))
 		if (!(CORE_KEYS as readonly string[]).includes(key)) data[key] = value;
 	return {
 		settings: {
@@ -159,34 +173,59 @@ export function notifyStateChange(): void {
 }
 
 let lastConfig = "";
-/** Newest config awaiting persist, plus the single in-flight writer it drains. */
+let lastState = "";
+/** Newest config/state awaiting persist, plus the single in-flight writer it drains. */
 let pendingConfig: string | null = null;
+let pendingState: string | null = null;
 let draining: Promise<void> | null = null;
 
 /**
- * Persist the permanent parameters; no-op when they have not changed. Saves
- * coalesce onto one in-flight writer: rapid successive changes only ever have
- * a single `writeFileAtomic` outstanding, so a crash can orphan at most one
+ * Persist the permanent parameters to config.json and the module data sections
+ * to state.json; no-op for a file that has not changed. Saves coalesce onto one
+ * in-flight writer: rapid successive changes only ever have a single
+ * `writeFileAtomic` outstanding per file, so a crash can orphan at most one
  * `.tmp` (which `removeStaleTmps` clears on the next boot) instead of a burst.
+ *
+ * Pass `force` to write both files even when unchanged — used for the one-time
+ * legacy migration, where the on-disk config file still carries the data keys
+ * while the in-memory canonical form already matches the detectors.
  */
-export async function saveState(): Promise<void> {
+export async function saveState(force = false): Promise<void> {
 	notifyStateChange();
 	if (DRY_RUN) return;
 	const config = stableStringify(projectConfig(state));
-	if (config === lastConfig) return;
+	const data = stableStringify(state.data);
+	if (!force && config === lastConfig && data === lastState) return;
 	lastConfig = config;
+	lastState = data;
 	pendingConfig = config;
-	if (!draining) draining = drainConfig();
+	pendingState = data;
+	if (!draining) draining = drain();
 	return draining;
 }
 
-async function drainConfig(): Promise<void> {
+async function drain(): Promise<void> {
 	try {
-		while (pendingConfig !== null) {
-			const toWrite = pendingConfig;
-			pendingConfig = null;
-			await writeFileAtomic(CONFIG_FILE, toWrite);
+		while (pendingConfig !== null || pendingState !== null) {
+			// Preserve legacy config data if creating or writing the state file fails.
+			if (pendingState !== null) {
+				const toWrite = pendingState;
+				pendingState = null;
+				await mkdir(dirname(STATE_FILE), { recursive: true });
+				await writeFileAtomic(STATE_FILE, toWrite);
+			}
+			if (pendingConfig !== null) {
+				const toWrite = pendingConfig;
+				pendingConfig = null;
+				await writeFileAtomic(CONFIG_FILE, toWrite);
+			}
 		}
+	} catch (error) {
+		pendingConfig = null;
+		pendingState = null;
+		lastConfig = "";
+		lastState = "";
+		throw error;
 	} finally {
 		draining = null;
 	}
@@ -198,27 +237,42 @@ export async function completeSetup(): Promise<void> {
 	await saveState();
 }
 
-/** Shared mutable state; modules mutate their sections and call `saveState()`. */
-export const state: PersistentState = CONFIG_EXISTS
-	? fromConfig(INITIAL_CONFIG)
-	: { settings: {}, autostart: false, data: {} };
+/**
+ * Shared mutable state. The data sections load from the state file when present;
+ * a device that predates the split (config file, no state file) adopts the
+ * legacy top-level data keys from the config file — the next save moves them
+ * into state.json and they drop out of config.json.
+ */
+export const state: PersistentState =
+	CONFIG_EXISTS || STATE_EXISTS
+		? fromConfig(
+				INITIAL_CONFIG,
+				STATE_EXISTS ? INITIAL_STATE : INITIAL_CONFIG,
+			)
+		: { settings: {}, autostart: false, data: {} };
 
-// Seed the change detector with the canonical form of the loaded config so the
+// Seed the change detectors with the canonical form of the loaded files so the
 // first saveState() of a process writes only when a value actually differs —
 // an untouched file is never rewritten (no spurious reformat/mtime churn).
 lastConfig = stableStringify(projectConfig(state));
+lastState = stableStringify(state.data);
 
 // Hostnames change; the uuid is the device's permanent identity on the control server.
 // It is auto-assigned here (backfilled into older config files) and never changes.
 // Older config files have no language either; normalize so it is always present.
 // A fresh device keeps both in memory only, so the setup wizard still runs.
 {
+	const existsBefore = CONFIG_EXISTS || STATE_EXISTS;
+	// One-time migration: a config file that predates the split stores its data
+	// sections as top-level keys. Force an initial save so they move into
+	// state.json and drop out of config.json (a no-op under --dry-run).
+	const migrateLegacy = existsBefore && CONFIG_EXISTS && !STATE_EXISTS;
 	const backfill =
-		CONFIG_EXISTS &&
+		existsBefore &&
 		(!state.settings.uuid || state.settings.language === undefined);
 	state.settings.uuid ||= randomUUID();
 	state.settings.language ??= DEFAULT_LANGUAGE;
-	if (backfill) await saveState();
+	if (migrateLegacy || backfill) await saveState(migrateLegacy);
 }
 
 // Seed the process-wide current language so t()/label() self-resolve to the
