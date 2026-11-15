@@ -15,6 +15,15 @@ export interface CtrlinkRelayConfig {
 	 */
 	nat: boolean;
 	/**
+	 * Enable the GRETAP pass-through (default false — it is OFF until turned
+	 * on). When true the relay bridges each advertised (non-direct) interface
+	 * into a keyed GRETAP L2 tunnel per discovered encoder so the encoder
+	 * reaches that interface's whole subnet over the tunnel — see
+	 * `GRETAP-RESEARCH.md`. This moves the interface's IP onto a bridge and
+	 * needs root `ip`; it is restorable (teardown puts the IP back).
+	 */
+	gretap: boolean;
+	/**
 	 * The LAN IP this relay advertises to encoders in its discovery announce.
 	 * Empty = auto-detect (the first bound relay address). A manual value wins
 	 * over the auto-detected one. Always shown (filled) in the UI.

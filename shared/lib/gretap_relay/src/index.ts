@@ -39,6 +39,12 @@ export {
     readIfaceStats,
     listGretapInterfaces,
     ifaceWithAddress,
+    outerEndpointFor,
+    listIfaceAddrs,
+    createGretapTunnel,
+    attachToBridge,
+    moveAddrsToBridge,
+    releaseIfaceFromBridge,
     DEFAULT_GRETAP_MTU,
     IFACE_NAME_RE,
 } from "./gretap";

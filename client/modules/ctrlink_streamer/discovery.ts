@@ -20,6 +20,7 @@ import {
 	CTRLINK_ENCODER_ANNOUNCE_VERSION,
 	type CtrlinkDiscoveredRelay,
 	type CtrlinkEncoderAnnounce,
+	type CtrlinkSharedEndpoint,
 } from "../../../shared/ctrlink_discovery";
 
 let socket: dgram.Socket | undefined;
@@ -53,10 +54,19 @@ function signature(): string {
 		// `state` is part of the signature: an `interface_down` /
 		// `interface_up` with no other shape change must still fire the
 		// change callback (protocol.md §4–§5) so reconcile stops/starts the
-		// TUN.
+		// TUN. `outer_ip` / `prefix` too: the WS hello exposes an interface
+		// (adds `outer_ip`) AFTER the UDP announce that seed-created the
+		// legacy `10.x` tunnel — without them in the signature that change
+		// is invisible and the tunnel never rebuilds to the remote-LAN IP
+		// (GRETAP-RESEARCH.md: the encoder kept 10.90.0.1, not 192.168.1.200).
 		out.push(
 			`${relayKey(r)}|${r.interfaces
-				.map((i) => `${i.name}:${i.address}:${i.listenPort}:${i.state ?? "up"}`)
+				.map(
+					(i) =>
+						`${i.name}:${i.address}:${i.listenPort}:${
+							i.state ?? "up"
+						}:${i.outer_ip ?? ""}:${i.prefix ?? ""}`,
+				)
 				.join(",")}`,
 		);
 	}
@@ -158,23 +168,73 @@ export function startDiscovering(
  * duplicate key for the same relay (learned earlier under a different key)
  * is merged away. Logs once per relay, not on every refresh.
  */
-function registerRelay(relay: CtrlinkDiscoveredRelay): void {
+/**
+ * Carry a previous entry's GRETAP exposure onto an incoming entry for the
+ * SAME relay. `outer_ip` / `prefix` are only ever learned through the
+ * authoritative WS hello; the UDP/mDNS announce paths carry a compact
+ * endpoint list without them. When one of those compact paths replaces an
+ * entry (same-key refresh, or the IP-keyed → identity-keyed merge), the
+ * `relays.set` below would wholesale overwrite the exposure — so copy it
+ * over, per interface, before the swap. Without this the tunnel rebuilds to
+ * the legacy `10.x` IP the moment the relay's compact record arrives
+ * (GRETAP-RESEARCH.md: encoder kept 10.90.0.1, not 192.168.1.200).
+ */
+function carryExposure(
+	next: CtrlinkDiscoveredRelay,
+	prev: CtrlinkDiscoveredRelay,
+): CtrlinkDiscoveredRelay {
+	const prevByIface = new Map(prev.interfaces.map((i) => [i.name, i]));
+	const interfaces = next.interfaces.map((i) => {
+		const p = prevByIface.get(i.name);
+		if (i.outer_ip !== undefined && i.prefix !== undefined) return i;
+		return {
+			...i,
+			outer_ip: i.outer_ip ?? p?.outer_ip,
+			prefix: i.prefix ?? p?.prefix,
+		};
+	});
+	return { ...next, interfaces };
+}
+
+type RelaySource = "broadcast" | "mdns" | "ws";
+
+function registerRelay(
+	relay: CtrlinkDiscoveredRelay,
+	source: RelaySource = "ws",
+): void {
 	const key = relayKey(relay);
+	// The WS channel is authoritative: it alone carries GRETAP `outer_ip` /
+	// `prefix`, and a relay that drops its on-path IP genuinely un-exposes the
+	// interface — so a WS refresh must be applied verbatim. The UDP-broadcast
+	// and mDNS paths carry a compact endpoint list WITHOUT those fields, so
+	// when one of them replaces a WS entry (or a same-key refresh) it would
+	// otherwise strip the exposure the WS channel had provided. Carry it over
+	// for non-WS sources only (GRETAP-RESEARCH.md: encoder kept 10.90.0.1, not
+	// 192.168.1.200, because an mDNS refresh dropped `outer_ip`).
+	const preserve = source !== "ws";
 	// Merge away a duplicate key for the SAME relay: an entry that shares the
 	// identity (hostname) or that is the old IP-keyed entry for this very IP.
+	// Before dropping it, preserve the WS-provided GRETAP exposure so a
+	// compact mDNS/UDP refresh can't strip it.
+	let next: CtrlinkDiscoveredRelay = relay;
 	for (const [k, e] of relays) {
 		if (k === key) continue;
 		const sameIdentity =
 			(relay.hostname && e.hostname === relay.hostname) ||
 			(!e.hostname && k === relay.host);
 		if (sameIdentity) {
+			if (preserve) next = carryExposure(next, e);
 			relays.delete(k);
 			loggedKeys.delete(k);
 		}
 	}
 	// Honor a caller-supplied lastSeen (production callers stamp `now`); this
-	// also lets tests backdate an entry to exercise the TTL sweep.
-	relays.set(key, { ...relay, lastSeen: relay.lastSeen ?? Date.now() });
+	// also lets tests backdate an entry to exercise the TTL sweep. A same-key
+	// refresh (k === key) is also a replacement, so for non-WS sources its
+	// exposure must survive too (e.g. an mDNS refresh of a WS-registered entry).
+	const self = relays.get(key);
+	if (self && preserve) next = carryExposure(next, self);
+	relays.set(key, { ...next, lastSeen: next.lastSeen ?? Date.now() });
 	if (!loggedKeys.has(key)) {
 		loggedKeys.add(key);
 		console.log(
@@ -218,7 +278,9 @@ export function sweepStaleRelays(protectedHosts?: () => Set<string>): string[] {
  * shape change; logs once per relay (subsequent refreshes are silent).
  */
 export function noteRelay(relay: CtrlinkDiscoveredRelay): void {
-	registerRelay(relay);
+	// The WS `hello` / control-server path is authoritative (carries
+	// `outer_ip` / `prefix`), so it is applied verbatim.
+	registerRelay(relay, "ws");
 }
 
 /** True for a plain dotted-quad IPv4 literal (no hostname resolution). */
@@ -276,12 +338,15 @@ export function noteMdnsRelay(
 		endpoints.length > (known?.interfaces.length ?? 0)
 			? endpoints
 			: (known?.interfaces ?? endpoints);
-	registerRelay({
-		host,
-		hostname: hostname ?? known?.hostname,
-		interfaces,
-		lastSeen: Date.now(),
-	});
+	registerRelay(
+		{
+			host,
+			hostname: hostname ?? known?.hostname,
+			interfaces,
+			lastSeen: Date.now(),
+		},
+		"mdns", // compact TXT — carries no `outer_ip`; preserve the WS entry's
+	);
 }
 
 /** The currently-known relays (empty when none heard). */

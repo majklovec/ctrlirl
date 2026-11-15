@@ -28,6 +28,7 @@ import {
 	makeMockIfaceRawSocket,
 } from "../../../../shared/lib/gretap_relay";
 import * as mod from "../backend";
+import { tunnelName } from "../gretap";
 import {
 	knownEncoderIps,
 	knownEncoders,
@@ -999,5 +1000,27 @@ describe("directly-connected interfaces are not advertised", () => {
 		expect(mod.lastWsPushEvents().map((e) => e.iface.iface_name)).toEqual([
 			"eno2",
 		]);
+	});
+});
+
+describe("tunnelName derivation", () => {
+	test("is gretap_<iface> and stable across passes (no self-collision suffix)", () => {
+		// First pass: nothing taken → base name.
+		expect(tunnelName("eno2", "enc-rpi4", [])).toBe("gretap_eno2");
+		// Second pass: the tunnel's own device now exists, but reconcilePass
+		// excludes it from the taken set (filter n !== ownName). The name must
+		// stay `gretap_eno2` — NOT flip to `gretap_eno2_rpi` and flap.
+		const own = "gretap_eno2";
+		const taken = ["gretap_eno2", "gretap_wg0"].filter((n) => n !== own);
+		expect(tunnelName("eno2", "enc-rpi4", taken)).toBe("gretap_eno2");
+	});
+
+	test("only a genuinely distinct gretap device on the same iface collides", () => {
+		// A DIFFERENT tunnel already owns gretap_eno2 (a second encoder) →
+		// fall back to gretap_<iface>_<encId-slug>, truncated to the 15-char
+		// kernel limit. The encoder id slugs away its dash (`enc-rpi4`→`encrpi4`).
+		expect(tunnelName("eno2", "enc-rpi4", ["gretap_eno2"])).toBe(
+			"gretap_eno2_encrpi4".slice(0, 15),
+		);
 	});
 });

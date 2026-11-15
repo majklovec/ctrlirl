@@ -129,15 +129,15 @@ describe("ctrlink_streamer", () => {
 		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
 		expect(uplinks.added).toEqual([
 			{
-				id: "ctrlink:m0_eth0",
+				id: "ctrlink:gretap_eth0",
 				source: "10.90.0.1",
-				label: "Ctrlink (m0_eth0)",
+				label: "Ctrlink (gretap_eth0)",
 			},
 		]);
 		const v = await view();
 		expect(v.runtime.running).toBe(true);
 		expect(v.runtime.tunnels[0]).toMatchObject({
-			interfaceName: "gretapm0_eth0",
+			interfaceName: "gretap_eth0",
 			interfaceAddress: "10.90.0.1",
 			relayHost: "203.0.113.10",
 			relayPort: 4000,
@@ -145,7 +145,7 @@ describe("ctrlink_streamer", () => {
 		});
 		// The learned relay is mirrored to the network card registry.
 		await up().stop();
-		expect(uplinks.removed).toContain("ctrlink:m0_eth0");
+		expect(uplinks.removed).toContain("ctrlink:gretap_eth0");
 		expect(uplinks.list()).toEqual([]);
 	});
 
@@ -168,7 +168,7 @@ describe("ctrlink_streamer", () => {
 				.list()
 				.map((e) => e.id)
 				.sort(),
-		).toEqual(["ctrlink:m0_eth0", "ctrlink:m0_eth1"]);
+		).toEqual(["ctrlink:gretap_eth0", "ctrlink:gretap_eth1"]);
 		await up().stop();
 	});
 
@@ -183,7 +183,7 @@ describe("ctrlink_streamer", () => {
 	test("a relay announced while running re-reconciles and adds a TUN", async () => {
 		const { uplinks } = await setup();
 		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:m0_eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
 
 		await announce(relay("198.51.100.7", [["eth0", "198.51.100.7", 4000]]));
 		const v = await view();
@@ -192,10 +192,54 @@ describe("ctrlink_streamer", () => {
 				.list()
 				.map((e) => e.id)
 				.sort(),
-		).toEqual(["ctrlink:m0_eth0", "ctrlink:m1_eth0"]);
+		).toEqual(["ctrlink:gretap_eth0", "ctrlink:gretap_eth0_1"]);
 		expect(v.runtime.tunnels.some((t) => t.relayHost === "198.51.100.7")).toBe(
 			true,
 		);
+		await up().stop();
+	});
+
+	test("a WS hello exposing an iface (outer_ip) rebuilds it to the remote-LAN IP", async () => {
+		await setup();
+		// UDP announce first: eno2 on the relay's home LAN, NO outer_ip yet →
+		// the tunnel gets the legacy `10.x` address.
+		await announce(relay("203.0.113.10", [["eno2", "192.168.1.136", 4005]]));
+		let v = await view();
+		const legacy = v.runtime.tunnels.find(
+			(t) => t.interfaceName === "gretap_eno2",
+		);
+		expect(legacy?.interfaceAddress).toBe("10.90.0.1");
+
+		// The relay's WS hello re-announces the SAME iface (same name/address/
+		// port/state) but now carries `outer_ip`, exposing the remote LAN.
+		// This must change the discovery signature and rebuild the tunnel
+		// into the relay's subnet (192.168.1.200), NOT stay on 10.90.0.1.
+		await announce({
+			host: "203.0.113.10",
+			hostname: "203.0.113.10",
+			interfaces: [
+				{
+					name: "eno2",
+					address: "192.168.1.136",
+					listenPort: 4005,
+					outer_ip: "192.168.10.1",
+					prefix: 24,
+				},
+			],
+			lastSeen: Date.now(),
+		});
+		// The rebuild is a stop+start cycle (a longer async path than the
+		// single start above) — poll until it settles, then assert.
+		let exposed: { interfaceName: string; interfaceAddress: string } | undefined;
+		for (let i = 0; i < 50; i++) {
+			await Bun.sleep(10);
+			v = await view();
+			exposed = v.runtime.tunnels.find(
+				(t) => t.interfaceName === "gretap_eno2",
+			);
+			if (exposed?.interfaceAddress === "192.168.1.200") break;
+		}
+		expect(exposed?.interfaceAddress).toBe("192.168.1.200");
 		await up().stop();
 	});
 
@@ -214,10 +258,10 @@ describe("ctrlink_streamer", () => {
 	test("teardown removes the uplinks and leaves nothing registered", async () => {
 		const { uplinks } = await setup();
 		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:m0_eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
 		await up().stop();
 		expect(uplinks.list()).toEqual([]);
-		expect(uplinks.removed).toContain("ctrlink:m0_eth0");
+		expect(uplinks.removed).toContain("ctrlink:gretap_eth0");
 	});
 
 	test("the learned relays are reported in the view's discoveredRelays", async () => {
@@ -278,10 +322,10 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 		await Bun.sleep(10);
 		const v = await view();
 		expect(v.discoveredRelays.map((r) => r.host)).toContain("wan-relay");
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:m0_eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
 		// The TUN dials the INTERFACE address the relay advertised, not its id.
 		expect(v.runtime.tunnels[0]).toMatchObject({
-			interfaceName: "gretapm0_eth0",
+			interfaceName: "gretap_eth0",
 			relayHost: "198.51.100.9",
 			relayPort: 4000,
 		});
@@ -363,7 +407,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 		await Bun.sleep(10);
 		const before = (await view()).runtime.tunnels[0];
 		expect(before).toMatchObject({
-			interfaceName: "gretapm0_eth0",
+			interfaceName: "gretap_eth0",
 			interfaceAddress: "10.90.0.1",
 		});
 
@@ -393,7 +437,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 		await Bun.sleep(10);
 		const after = (await view()).runtime.tunnels[0];
 		expect(after).toMatchObject({
-			interfaceName: "gretapm0_eth0",
+			interfaceName: "gretap_eth0",
 			interfaceAddress: "10.90.0.1",
 		});
 		expect(after).toEqual(before);
@@ -409,7 +453,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			interfaces: [iface("eth0", "198.51.100.9", 4000)],
 		});
 		await Bun.sleep(10);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:m0_eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
 
 		mod.onRelayWsMessage("wan-relay", {
 			type: "interface_added",
@@ -421,7 +465,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 				.list()
 				.map((e) => e.id)
 				.sort(),
-		).toEqual(["ctrlink:m0_eth0", "ctrlink:m0_eth1"]);
+		).toEqual(["ctrlink:gretap_eth0", "ctrlink:gretap_eth1"]);
 		expect(
 			(await view()).runtime.tunnels.map((t) => t.interfaceAddress),
 		).toEqual(["10.90.0.1", "10.90.1.1"]);
@@ -431,7 +475,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			iface: iface("eth1", "198.51.100.9", 4001),
 		});
 		await Bun.sleep(10);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:m0_eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
 		expect(
 			(await view()).discoveredRelays
 				.find((r) => r.host === "wan-relay")
@@ -552,6 +596,40 @@ describe("registry dedupe (one entry per relay)", () => {
 		expect(knownRelays()[0].host).toBe("192.0.2.10");
 		expect(knownRelays()[0].hostname).toBe("bigcml");
 		expect(knownRelays()[0].interfaces).toHaveLength(1);
+		await up().stop();
+	});
+
+	test("an mDNS refresh drops the WS-provided outer_ip (GRETAP exposure)", async () => {
+		await setup();
+		// 1) WS hello: the relay exposes eno2 onto its home LAN (outer_ip set).
+		mod.onRelayWsMessage(
+			"bigcml",
+			{
+				type: "hello",
+				relay_id: "bigcml",
+				proto: 1,
+				interfaces: [
+					{
+						iface_name: "eno2",
+						ip: "192.0.2.10",
+						udp_port: 4000,
+						state: "up",
+						uplink: true,
+						outer_ip: "192.0.2.1",
+					},
+				],
+			},
+			"192.0.2.10",
+		);
+		expect(knownRelays()[0].interfaces[0].outer_ip).toBe("192.0.2.1");
+		// 2) mDNS for the SAME relay (same host + hostname) carries a compact
+		// endpoint list WITHOUT outer_ip. It must merge into the single entry
+		// WITHOUT stripping the exposure the WS channel provided.
+		noteMdnsRelay("192.0.2.10", "bigcml", [
+			{ name: "eno2", address: "192.0.2.10", listenPort: 4000 },
+		]);
+		expect(knownRelays()).toHaveLength(1);
+		expect(knownRelays()[0].interfaces[0].outer_ip).toBe("192.0.2.1");
 		await up().stop();
 	});
 

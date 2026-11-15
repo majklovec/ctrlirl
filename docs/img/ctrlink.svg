@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img"
+    aria-label="Ctrlink: transparent L2 bridging via GRETAP tunnels">
+    <defs>
+        <marker id="gr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+            orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#f59e0b" />
+        </marker>
+        <marker id="gr2" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6"
+            orient="auto">
+            <path d="M10,0 L0,5 L10,10 z" fill="#f59e0b" />
+        </marker>
+    </defs>
+    <text x="600" y="42" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20"
+        font-weight="700" fill="#0f172a" text-anchor="middle">Ctrlink — transparent L2 bridging via
+        GRETAP</text>
+    <text x="600" y="68" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13"
+        fill="#475569" text-anchor="middle">GRETAP tunnels carry Ethernet frames between the relay
+        and the encoder</text>
+
+    <!-- Relay panel -->
+    <rect x="50" y="100" width="500" height="420" rx="14" fill="#ffffff" stroke="#cbd5e1"
+        stroke-width="1.5" />
+    <text x="80" y="136" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16"
+        font-weight="700" fill="#0f172a">Relay box</text>
+    <text x="80" y="156" font-family="ui-monospace, monospace" font-size="12" fill="#64748b">role:
+        ctrlink_relay</text>
+
+    <!-- LAN interfaces -->
+    <g font-family="ui-monospace, monospace" font-size="13" text-anchor="middle" fill="#0f172a">
+        <rect x="90" y="180" width="120" height="42" rx="8" fill="#f1f5f9" stroke="#94a3b8"
+            stroke-width="1.5" />
+        <text x="150" y="206">eth0</text>
+        <rect x="230" y="180" width="120" height="42" rx="8" fill="#f1f5f9" stroke="#94a3b8"
+            stroke-width="1.5" />
+        <text x="290" y="206">eth1</text>
+        <rect x="370" y="180" width="120" height="42" rx="8" fill="#f1f5f9" stroke="#94a3b8"
+            stroke-width="1.5" />
+        <text x="430" y="206">wlan0</text>
+    </g>
+
+    <!-- arrows to bridge -->
+    <g stroke="#94a3b8" stroke-width="1.5">
+        <line x1="150" y1="222" x2="180" y2="248" />
+        <line x1="290" y1="222" x2="290" y2="248" />
+        <line x1="430" y1="222" x2="400" y2="248" />
+    </g>
+
+    <!-- Bridge -->
+    <rect x="120" y="248" width="340" height="48" rx="8" fill="#eef2ff" stroke="#6366f1"
+        stroke-width="1.5" />
+    <text x="290" y="270" font-family="ui-monospace, monospace" font-size="13" font-weight="700"
+        fill="#3730a3" text-anchor="middle">br0 (linux bridge)</text>
+    <text x="290" y="288" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11"
+        fill="#4338ca" text-anchor="middle">LAN interfaces attached</text>
+
+    <!-- arrows to gretap -->
+    <g stroke="#94a3b8" stroke-width="1.5">
+        <line x1="200" y1="296" x2="200" y2="318" />
+        <line x1="290" y1="296" x2="290" y2="318" />
+        <line x1="380" y1="296" x2="380" y2="318" />
+    </g>
+
+    <!-- gretap tunnels -->
+    <g font-family="ui-monospace, monospace" font-size="12" text-anchor="middle" fill="#78350f">
+        <rect x="140" y="318" width="120" height="46" rx="8" fill="#fffbeb" stroke="#f59e0b"
+            stroke-width="2" />
+        <text x="200" y="346">gretap0</text>
+        <rect x="270" y="318" width="120" height="46" rx="8" fill="#fffbeb" stroke="#f59e0b"
+            stroke-width="2" />
+        <text x="330" y="346">gretap1</text>
+        <rect x="400" y="318" width="120" height="46" rx="8" fill="#fffbeb" stroke="#f59e0b"
+            stroke-width="2" />
+        <text x="460" y="346">gretap2</text>
+    </g>
+
+    <text x="300" y="400" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
+        fill="#64748b" text-anchor="middle">one GRETAP interface per bridged LAN segment</text>
+    <text x="300" y="420" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
+        fill="#64748b" text-anchor="middle">Ethernet frames encapsulated over GRE</text>
+
+    <text x="300" y="480" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
+        fill="#64748b" text-anchor="middle">relay only forwards frames — no routing config</text>
+
+    <!-- tunnel arrows -->
+    <g stroke="#f59e0b" stroke-width="2.5" fill="none">
+        <line x1="550" y1="330" x2="650" y2="330" marker-end="url(#gr)" />
+        <line x1="650" y1="354" x2="550" y2="354" marker-end="url(#gr2)" />
+    </g>
+    <rect x="570" y="300" width="80" height="24" rx="6" fill="#fef3c7" stroke="#f59e0b" />
+    <text x="610" y="317" font-family="ui-monospace, monospace" font-size="11" fill="#78350f"
+        text-anchor="middle">GRE</text>
+
+    <!-- Encoder panel -->
+    <rect x="650" y="100" width="500" height="420" rx="14" fill="#ffffff" stroke="#cbd5e1"
+        stroke-width="1.5" />
+    <text x="680" y="136" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16"
+        font-weight="700" fill="#0f172a">Encoder box</text>
+    <text x="680" y="156" font-family="ui-monospace, monospace" font-size="12" fill="#64748b">role:
+        encoder</text>
+
+    <!-- ctrlink_streamer gretap receivers -->
+    <g font-family="ui-monospace, monospace" font-size="12" text-anchor="middle" fill="#78350f">
+        <rect x="700" y="180" width="120" height="46" rx="8" fill="#fffbeb" stroke="#f59e0b"
+            stroke-width="2" />
+        <text x="760" y="208">gretap0</text>
+        <rect x="830" y="180" width="120" height="46" rx="8" fill="#fffbeb" stroke="#f59e0b"
+            stroke-width="2" />
+        <text x="890" y="208">gretap1</text>
+        <rect x="960" y="180" width="120" height="46" rx="8" fill="#fffbeb" stroke="#f59e0b"
+            stroke-width="2" />
+        <text x="1020" y="208">gretap2</text>
+    </g>
+
+    <text x="900" y="252" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
+        fill="#64748b" text-anchor="middle">ctrlink_streamer creates the GRETAP interfaces</text>
+
+    <!-- arrows to bridge -->
+    <g stroke="#94a3b8" stroke-width="1.5">
+        <line x1="760" y1="226" x2="790" y2="260" />
+        <line x1="890" y1="226" x2="890" y2="260" />
+        <line x1="1020" y1="226" x2="990" y2="260" />
+    </g>
+
+    <!-- Bridge -->
+    <rect x="720" y="260" width="340" height="48" rx="8" fill="#eef2ff" stroke="#6366f1"
+        stroke-width="1.5" />
+    <text x="890" y="282" font-family="ui-monospace, monospace" font-size="13" font-weight="700"
+        fill="#3730a3" text-anchor="middle">br0 (linux bridge)</text>
+    <text x="890" y="300" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11"
+        fill="#4338ca" text-anchor="middle">GRETAP interfaces attached</text>
+
+    <!-- arrow down to virtual LAN -->
+    <line x1="890" y1="308" x2="890" y2="340" stroke="#94a3b8" stroke-width="1.5" />
+
+    <rect x="740" y="340" width="300" height="60" rx="10" fill="#f1f5f9" stroke="#94a3b8"
+        stroke-width="1.5" />
+    <text x="890" y="366" font-family="ui-monospace, monospace" font-size="14" fill="#0f172a"
+        text-anchor="middle">virtual LAN segment</text>
+    <text x="890" y="386" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11"
+        fill="#64748b" text-anchor="middle">encoder sees the relay's LAN as local Ethernet</text>
+
+    <text x="890" y="440" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
+        fill="#64748b" text-anchor="middle">SRTLA destination stays on the encoder</text>
+    <text x="890" y="460" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
+        fill="#64748b" text-anchor="middle">relay just bridges frames transparently</text>
+</svg>

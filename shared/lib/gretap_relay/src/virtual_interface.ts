@@ -13,7 +13,13 @@
  * (`bindAddress`, `keepaliveIntervalMs`, `tunDevice`, `relay.port`) are
  * accepted and ignored.
  */
-import { IFACE_NAME_RE, readIfaceStats, removeGretap, setUpGretap } from "./gretap";
+import {
+	IFACE_NAME_RE,
+	ipRunner,
+	readIfaceStats,
+	removeGretap,
+	setUpGretap,
+} from "./gretap";
 import { noteError, newVifStats } from "./stats";
 import type { Endpoint, VifStats } from "./types";
 
@@ -41,6 +47,15 @@ export interface VirtualInterfaceOptions {
      * Derive it with `greKeyForEndpoints(peerIp, localIp)`. Default: none.
      */
     greKey?: number;
+    /**
+     * The relay IP the GRETAP outer header is **addressed at** (`remote`).
+     * When this box reaches the relay over a segment other than the one the
+     * relay advertises on (GRETAP exposure, `GRETAP-RESEARCH.md`), that IP is
+     * the relay's ON-PATH egress IP, not the advertised `relay.host`. Without
+     * it the kernel drops tunnel-egress frames addressed to a non-local
+     * address. Default: `relay.host` (direct / same-segment tunnel).
+     */
+    remoteIp?: string;
     /** Tunnel MTU (default 1500). */
     mtu?: number;
     /** Legacy: ignored (GRE keepalives are kernel-side). */
@@ -74,6 +89,18 @@ export interface VirtualInterface {
 
 const DEFAULT_MTU = 1500;
 
+/** The network address of `ip/prefix` (for `ip route replace <net>/<prefix>`). */
+function cidrNetwork(ip: string, prefix: number): string {
+    const octets = ip.split(".").map((o) => Number.parseInt(o, 10) | 0);
+    const bits = prefix & ~7;
+    const mask = bits === 0
+        ? 0
+        : 0xffffffff ^ (0xffffffff >>> (Math.min(bits, 32))) | 0;
+    return octets
+        .map((o, i) => (o & (mask >>> (24 - 8 * i)) & 0xff) & 0xff)
+        .join(".");
+}
+
 /**
  * Construct a tunnel handle. Cheap: validates input only. Runtime failures
  * (`ip` calls, missing privileges) surface from `start()`.
@@ -100,6 +127,13 @@ export async function createVirtualInterface(
             )} must be the peer's WDS-link IPv4 address`,
         );
     if (
+        opts.remoteIp !== undefined &&
+        !/^\d+\.\d+\.\d+\.\d+$/.test(opts.remoteIp)
+    )
+        throw new Error(
+            `remoteIp ${JSON.stringify(opts.remoteIp)} is not IPv4`,
+        );
+    if (
         !Number.isInteger(opts.prefixLength) ||
         opts.prefixLength < 8 ||
         opts.prefixLength > 32
@@ -122,21 +156,50 @@ class VifImpl implements VirtualInterface {
         private opts: VirtualInterfaceOptions,
         private mtu: number,
     ) {
-        this.name = `gretap${opts.name}`;
+        // `name` is the FULL device name (e.g. `gretap_eno2`); the bridge is
+        // `br-<name>` (e.g. `br-gretap_eno2`). `IFACE_NAME_RE` already
+        // validated it in `createVirtualInterface`.
+        this.name = opts.name;
         this.localIp = opts.localIp;
     }
 
     async start(): Promise<void> {
         if (this.running) return;
         try {
-            await setUpGretap({
+            const { bridge } = await setUpGretap({
                 name: this.opts.name,
-                peerIp: this.opts.relay.host,
+                // Address outer GRE at the relay's ON-PATH IP when the relay
+                // told us to (GRETAP exposure); else the advertised link IP.
+                peerIp: this.opts.remoteIp ?? this.opts.relay.host,
                 localIp: this.localIp,
                 localIface: this.opts.localIface,
                 mtu: this.mtu,
                 greKey: this.opts.greKey,
             });
+            // Give the bridge an address in the tunnel subnet + a route for it.
+            // Without this the GRETAP device carries no IP and the LAN (or the
+            // exposed remote-LAN prefix) is unreachable — the L2 bridge extends
+            // the LAN, but nothing has an address on it yet. `localIp` is the
+            // virtual address (legacy 10.x or the exposed remote-LAN .200) and
+            // `prefixLength` the matching netmask (the exposed prefix, not the
+            // default /24, when the relay exposes a remote LAN).
+            await ipRunner([
+                "addr",
+                "replace",
+                `${this.localIp}/${this.opts.prefixLength}`,
+                "dev",
+                bridge,
+            ]);
+            // The route for `localIp/prefix` is the connected route on the
+            // bridge; make it explicit so it wins over the default/LAN route.
+            const network = cidrNetwork(this.localIp, this.opts.prefixLength);
+            await ipRunner([
+                "route",
+                "replace",
+                `${network}/${this.opts.prefixLength}`,
+                "dev",
+                bridge,
+            ]).catch(() => {});
         } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
             noteError(this._stats, message);

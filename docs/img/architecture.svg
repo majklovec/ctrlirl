@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img"
+  aria-label="Architecture: device client and control server">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+      orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b" />
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+      orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a9eff" />
+    </marker>
+    <marker id="arrV" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+      orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b5cf6" />
+    </marker>
+  </defs>
+
+
+  <!-- Device client panel -->
+  <rect x="40" y="60" width="520" height="580" rx="14" fill="#ffffff" stroke="#cbd5e1"
+    stroke-width="1.5" />
+  <text x="70" y="100" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18"
+    font-weight="700" fill="#0f172a">Device client</text>
+  <text x="70" y="122" font-family="ui-monospace, monospace" font-size="12" fill="#64748b">client/ ·
+    one role per box</text>
+
+  <!-- Role pill -->
+  <rect x="180" y="150" width="240" height="42" rx="21" fill="#eef2ff" stroke="#8b5cf6"
+    stroke-width="1.5" />
+  <text x="300" y="176" font-family="ui-monospace, monospace" font-size="14" font-weight="700"
+    fill="#4c1d95" text-anchor="middle">role: relay</text>
+
+  <line x1="300" y1="192" x2="300" y2="220" stroke="#64748b" stroke-width="1.5"
+    marker-end="url(#arr)" />
+
+  <!-- Module boxes 2x2 -->
+  <g font-family="ui-monospace, monospace" font-size="14" text-anchor="middle" fill="#0f172a">
+    <rect x="80" y="230" width="200" height="52" rx="8" fill="#eff6ff" stroke="#4a9eff"
+      stroke-width="1.5" />
+    <text x="180" y="262">relay</text>
+    <rect x="320" y="230" width="200" height="52" rx="8" fill="#eff6ff" stroke="#4a9eff"
+      stroke-width="1.5" />
+    <text x="420" y="262">network</text>
+    <rect x="80" y="300" width="200" height="52" rx="8" fill="#eff6ff" stroke="#4a9eff"
+      stroke-width="1.5" />
+    <text x="180" y="332">modems</text>
+    <rect x="320" y="300" width="200" height="52" rx="8" fill="#eff6ff" stroke="#4a9eff"
+      stroke-width="1.5" />
+    <text x="420" y="332">ssh</text>
+  </g>
+
+  <!-- arrows to bus -->
+  <line x1="180" y1="352" x2="180" y2="400" stroke="#64748b" stroke-width="1.5"
+    marker-end="url(#arr)" />
+  <line x1="420" y1="352" x2="420" y2="400" stroke="#64748b" stroke-width="1.5"
+    marker-end="url(#arr)" />
+
+  <!-- Capability bus -->
+  <rect x="70" y="410" width="460" height="52" rx="10" fill="#0f172a" />
+  <text x="300" y="442" font-family="ui-monospace, monospace" font-size="14" font-weight="700"
+    fill="#ffffff" text-anchor="middle">CAPABILITY BUS</text>
+
+  <text x="300" y="490" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13"
+    fill="#475569" text-anchor="middle">modules provide &amp; consume named capabilities</text>
+  <text x="300" y="510" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13"
+    fill="#475569" text-anchor="middle">never by direct import</text>
+
+  <text x="300" y="590" font-family="ui-monospace, monospace" font-size="12" fill="#64748b"
+    text-anchor="middle">e.g. network.uplinks · modems.source · stream.relay</text>
+
+  <!-- connection arrow -->
+  <line x1="560" y1="350" x2="640" y2="350" stroke="#4a9eff" stroke-width="2"
+    marker-end="url(#arrB)" />
+  <text x="600" y="335" font-family="ui-monospace, monospace" font-size="11" fill="#4a9eff"
+    text-anchor="middle">HTTPS</text>
+  <text x="600" y="372" font-family="ui-monospace, monospace" font-size="11" fill="#4a9eff"
+    text-anchor="middle">WS</text>
+
+  <!-- Control server panel -->
+  <rect x="640" y="60" width="520" height="580" rx="14" fill="#ffffff" stroke="#cbd5e1"
+    stroke-width="1.5" />
+  <text x="670" y="100" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18"
+    font-weight="700" fill="#0f172a">Control server</text>
+  <text x="670" y="122" font-family="ui-monospace, monospace" font-size="12" fill="#64748b">server/
+    · optional, fleet-wide</text>
+
+  <rect x="780" y="150" width="240" height="42" rx="21" fill="#ecfeff" stroke="#0891b2"
+    stroke-width="1.5" />
+  <text x="900" y="176" font-family="ui-monospace, monospace" font-size="14" font-weight="700"
+    fill="#0e7490" text-anchor="middle">slice: fleet</text>
+
+  <line x1="900" y1="192" x2="900" y2="220" stroke="#64748b" stroke-width="1.5"
+    marker-end="url(#arr)" />
+
+  <g font-family="ui-monospace, monospace" font-size="14" text-anchor="middle" fill="#0f172a">
+    <rect x="680" y="230" width="140" height="52" rx="8" fill="#ecfeff" stroke="#0891b2"
+      stroke-width="1.5" />
+    <text x="750" y="262">deck</text>
+    <rect x="830" y="230" width="140" height="52" rx="8" fill="#ecfeff" stroke="#0891b2"
+      stroke-width="1.5" />
+    <text x="900" y="262">stats</text>
+    <rect x="980" y="230" width="140" height="52" rx="8" fill="#ecfeff" stroke="#0891b2"
+      stroke-width="1.5" />
+    <text x="1050" y="262">chat</text>
+  </g>
+
+  <line x1="900" y1="282" x2="900" y2="320" stroke="#64748b" stroke-width="1.5"
+    marker-end="url(#arr)" />
+
+  <rect x="780" y="330" width="240" height="42" rx="8" fill="#f0fdf4" stroke="#10b981"
+    stroke-width="1.5" />
+  <text x="900" y="356" font-family="ui-monospace, monospace" font-size="13" fill="#065f46"
+    text-anchor="middle">/overlay/:id → OBS</text>
+
+  <text x="900" y="430" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13"
+    fill="#475569" text-anchor="middle">serves the dashboard and the OBS</text>
+  <text x="900" y="450" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13"
+    fill="#475569" text-anchor="middle">overlays from the same module system</text>
+
+  <text x="900" y="590" font-family="ui-monospace, monospace" font-size="12" fill="#64748b"
+    text-anchor="middle">device capabilities show up as actions + events</text>
+</svg>

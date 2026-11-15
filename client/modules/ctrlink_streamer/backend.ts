@@ -129,10 +129,28 @@ const tunSlots = new Map<
 const relayOrdinal = new Map<string, number>();
 const relayIfcSeen = new Map<string, number>();
 let relaySeq = 0;
+/**
+ * Pick this box's host address inside an exposed relay subnet so the bridge
+ * extends that remote LAN: the same /24 base with the last octet set to `.200`
+ * (e.g. `192.168.1.136/24 → 192.168.1.200`), matching the proven PoC and
+ * avoiding the low (DHCP) range of the common /24. Single-encoder (this
+ * deployment) is unambiguous; a multi-encoder cutover needs an ARP-free scan.
+ */
+function pickExposedIp(ifaceIp: string): string {
+	const parts = ifaceIp.split(".");
+	parts[3] = "200";
+	return parts.join(".");
+}
 function slotFor(
 	key: string,
 	relayHost: string,
 	ifaceName: string,
+	/**
+	 * Exposed-subnet address this box should use on this GRETAP path (when the
+	 * relay exposed an interface over the tunnel); `undefined` keeps the legacy
+	 * `10.x` tunnel-local IP (direct / same-segment path).
+	 */
+	exposedIp?: string,
 ): {
 	x: number;
 	y: number;
@@ -140,7 +158,17 @@ function slotFor(
 	localIp: string;
 } {
 	const existing = tunSlots.get(key);
-	if (existing) return existing;
+	if (existing) {
+		// The device NAME is stable, but the LOCAL IP must follow the
+		// exposure state: a WS hello can add `outer_ip` (→ remote-LAN IP)
+		// AFTER the UDP announce that seed-created this slot with the legacy
+		// `10.x` IP. Without updating, reconcile never rebuilds to the remote
+		// LAN (GRETAP-RESEARCH.md: the encoder stayed on 10.90.0.1).
+		const nextLocalIp =
+			exposedIp ?? `10.${90 + existing.x}.${existing.y}.1`;
+		if (existing.localIp !== nextLocalIp) existing.localIp = nextLocalIp;
+		return existing;
+	}
 	let x = relayOrdinal.get(relayHost);
 	if (x === undefined) {
 		x = relaySeq++;
@@ -148,13 +176,20 @@ function slotFor(
 	}
 	const y = relayIfcSeen.get(relayHost) ?? 0;
 	relayIfcSeen.set(relayHost, y + 1);
+	const slug = ifaceName.replace(/[^a-zA-Z0-9_.-]/g, "");
+	const base = `gretap_${slug}`.slice(0, 15);
+	const taken = [...tunSlots.values()].map((s) => s.name);
 	const slot = {
 		x,
 		y,
-		// GRETAP: the kernel device is `gretap<name>`, so `name` must keep
-		// 6 chars of headroom (15-char iface limit).
-		name: `m${x}_${ifaceName}`.slice(0, 9),
-		localIp: `10.${90 + x}.${y}.1`,
+		// GRETAP: the device name is `gretap_<relayIface>` (e.g. `gretap_eno2`,
+		// bridge `br-gretap_eno2`) — derived from the RELAY's interface so both
+		// ends name the tunnel identically (GRETAP-RESEARCH.md). On a collision
+		// (two relays exposing an iface with the same name) disambiguate with
+		// the relay ordinal: `gretap_eth0`, `gretap_eth0_1`, …
+		name: taken.includes(base) ? `gretap_${slug}_${x}`.slice(0, 15) : base,
+		// Exposed path: sit ON the relay's remote LAN; direct/legacy: 10.x.
+		localIp: exposedIp ?? `10.${90 + x}.${y}.1`,
 	};
 	tunSlots.set(key, slot);
 	return slot;
@@ -164,9 +199,21 @@ function slotFor(
 interface TunnelTarget {
 	key: string;
 	tunName: string;
+	/** This box's IP on the path — the exposed remote-LAN IP when the relay
+	 * exposed the interface over GRETAP, else the legacy `10.x` tunnel IP. */
 	localIp: string;
+	/** IPv4/prefix for this box's address (exposed prefix vs. legacy /24). */
+	prefix: number;
+	/** The relay IP the GRETAP outer header is addressed at (`remote`). The
+	 * relay's on-path egress IP when exposed (≠ `relayHost`), else `relayHost`. */
+	remoteIp?: string;
 	relayHost: string;
 	relayPort: number;
+	/** The relay's advertised IP for THIS interface (the real LAN IP when
+	 * exposed). Keyed-GRE demux (GRETAP-RESEARCH.md) matches the endpoint PAIR,
+	 * so both ends must hash this same iface IP — not the relay's announce
+	 * host — or the tunnel drops every frame. */
+	ifaceIp: string;
 }
 
 // ----------------------------------------------------------------------
@@ -321,6 +368,12 @@ function desiredTargets(): TunnelTarget[] {
 			order: number;
 			relayHost: string;
 			iface: string;
+			/** Relay iface IP on the exposed subnet (`A.B.C.200` source here). */
+			ifaceIp: string;
+			/** Exposed-subnet prefix (default /24). */
+			prefix: number;
+			/** Relay's on-path IP for THIS iface, if exposed over GRETAP. */
+			outerIp?: string;
 		}
 	>();
 	let order = 0;
@@ -329,11 +382,23 @@ function desiredTargets(): TunnelTarget[] {
 		port: number,
 		relayHost: string,
 		iface: string,
+		ifaceIp: string,
+		prefix: number,
+		outerIp?: string,
 	): void => {
 		if (!host || !port) return;
 		const key = `${host}:${port}`;
 		if (byKey.has(key)) return;
-		byKey.set(key, { host, port, order: order++, relayHost, iface });
+		byKey.set(key, {
+			host,
+			port,
+			order: order++,
+			relayHost,
+			iface,
+			ifaceIp,
+			prefix,
+			outerIp,
+		});
 	};
 	for (const r of knownRelays().sort((a, b) => a.host.localeCompare(b.host))) {
 		for (const ep of r.interfaces) {
@@ -342,21 +407,43 @@ function desiredTargets(): TunnelTarget[] {
 			// path returns no re-detection is needed — reconcile just
 			// re-creates the TUN for the SAME endpoint.
 			if (ep.state === "down") continue;
-			add(ep.address || r.host, ep.listenPort, r.host, ep.name);
+			add(
+				ep.address || r.host,
+				ep.listenPort,
+				r.host,
+				ep.name,
+				ep.address,
+				ep.prefix ?? 24,
+				ep.outer_ip,
+			);
 		}
 	}
 	// Assign a stable name + local IP per endpoint (stable across set growth).
+	// An interface WITH `outer_ip` is exposed over the tunnel: sit in the relay's
+	// remote LAN (`pickExposedIp`) and address outer GRE at `outer_ip`. One
+	// WITHOUT it is a legacy / direct segment: the kernel GRETAP falls back to
+	// the advertised `relayHost` and a private `10.x` address.
 	return [...byKey.values()]
 		.sort((a, b) => a.order - b.order)
 		.map((t) => {
 			const key = `${t.host}:${t.port}`;
-			const slot = slotFor(key, t.relayHost, t.iface);
+			const exposed = t.outerIp !== undefined;
+			const slot = slotFor(
+				key,
+				t.relayHost,
+				t.iface,
+				exposed ? pickExposedIp(t.ifaceIp) : undefined,
+			);
 			return {
 				key,
 				tunName: slot.name,
 				localIp: slot.localIp,
+				prefix: exposed ? t.prefix : config().prefixLength,
+				remoteIp: t.outerIp,
 				relayHost: t.host,
 				relayPort: t.port,
+				// Keyed-GRE: the relay hashes this iface's IP — mirror it here.
+				ifaceIp: t.ifaceIp,
 			};
 		});
 }
@@ -369,14 +456,20 @@ async function startTunnel(target: TunnelTarget): Promise<void> {
 	// egress NIC): binding the tunnel to that NIC is what makes the bridge
 	// extend the LAN across the GRE link. A multi-NIC host must not guess, so
 	// we ask the kernel routing table for the egress to the relay specifically.
-	const localIface = (await egressIface(target.relayHost)) ?? undefined;
+	// Egress to the relay's ON-PATH IP when exposed (that is the address the
+	// tunnel frames actually leave toward), else the advertised link IP.
+	const egressDest = target.remoteIp ?? target.relayHost;
+	const localIface = (await egressIface(egressDest)) ?? undefined;
 	// Keyed GRE: keyless kernel demux matches on the outer destination
 	// address only, which can never match a symmetric pair across
 	// asymmetric subnets (the relay's frames arrive addressed to the
 	// encoder and match no encoder tunnel). Both ends derive the same key
 	// from the endpoint pair, and keyed demux ignores addresses entirely.
+	// The pair is (relay IFACE IP, encoder on-path IP) — the relay keys by
+	// `ep.ip` (the interface's own LAN IP, e.g. 192.168.1.136), NOT its
+	// announce host, so `ifaceIp` mirrors it exactly (GRETAP-RESEARCH.md).
 	const greKey = greKeyForEndpoints(
-		target.relayHost,
+		target.ifaceIp,
 		defaultSourceIp() ?? target.localIp,
 	);
 	const created = await createVirtualInterface({
@@ -385,7 +478,10 @@ async function startTunnel(target: TunnelTarget): Promise<void> {
 		localIface,
 		bindAddress: defaultSourceIp() ?? undefined,
 		greKey,
-		prefixLength: c.prefixLength,
+		// Exposed path uses the relay's announced on-path IP as GRETAP remote.
+		remoteIp: target.remoteIp,
+		// Exposed path: sit in the relay's remote-LAN prefix, not the legacy /24.
+		prefixLength: target.prefix,
 		mtu: c.mtu,
 		keepaliveIntervalMs: c.keepaliveIntervalMs,
 		relay: { host: target.relayHost, port: target.relayPort },
@@ -432,10 +528,26 @@ async function stopTunnel(key: string): Promise<void> {
 	}
 }
 
+/** The target fields that, when they change, force the live TUN to be rebuilt
+ * (key/addr/remote can't be patched onto a running kernel device in place). */
+function targetSignature(t: TunnelTarget): string {
+	return [
+		t.tunName,
+		t.localIp,
+		t.prefix,
+		t.remoteIp ?? "",
+		t.ifaceIp,
+		t.relayHost,
+		t.relayPort,
+	].join("\u0000");
+}
+
 /**
  * Bring the TUN set in line with the discovered + configured relays. Creates
- * new TUNs, stops removed ones; per-target failures are logged and do not
- * abort the rest (the next discovery/refresh retries).
+ * new TUNs, stops removed ones, and rebuilds ones whose target changed (e.g.
+ * a relay started exposing the iface over GRETAP → exposed IP + key). Per
+ * target failures are logged and do not abort the rest (the next
+ * discovery/refresh retries).
  */
 async function reconcile(): Promise<void> {
 	// Remove TUNs whose target is no longer desired.
@@ -452,9 +564,21 @@ async function reconcile(): Promise<void> {
 			}
 		}
 	}
-	// Create TUNs not yet present.
+	// Create TUNs not yet present, and rebuild ones whose target changed
+	// (the exposed IP / prefix / key all differ from the legacy 10.x form).
 	for (const target of desired) {
-		if (tunnels.has(target.key)) continue;
+		const existing = tunnels.get(target.key);
+		if (existing && targetSignature(existing.target) === targetSignature(target))
+			continue;
+		if (existing) {
+			try {
+				await stopTunnel(target.key);
+			} catch (e) {
+				console.warn(
+					`ctrlink_streamer: re-stop ${target.tunName} before rebuild failed: ${errorMessage(e)}`,
+				);
+			}
+		}
 		try {
 			await startTunnel(target);
 		} catch (e) {
@@ -562,8 +686,16 @@ let mdnsAdvertiseStop: (() => void) | undefined;
  * The UDP one lives in `discovery.lastEncoderUdpAnnounceAt()`. Both surface
  * on the Network card (encoder role). */
 let lastMdnsAnnounceAt: number | undefined;
+/** True once the discovery UDP socket + mDNS browser are up. `startDiscovering`
+ * wipes the registry (see `stopDiscovering`), so re-running it on every 5s
+ * autostart `resume()` evicted the WS relay (and its `outer_ip`) — the
+ * exposed-IP path fell back to legacy. Guard it like `ensureControlPlane`
+ * (GRETAP-RESEARCH.md). */
+let discoveryStarted = false;
 
 function ensureDiscovery(): void {
+	if (discoveryStarted) return;
+	discoveryStarted = true;
 	// Always wire the change callback: it also serves as the registration
 	// path for relays handed over via the control server (`noteRelay`). In
 	// dry-run the UDP socket is skipped, but relaying still converges.
@@ -621,6 +753,14 @@ export function encoderInfo(): EncoderInfo | null {
 
 /** The relay WS server (stopped on port/token change at module restart). */
 let wsServer: Bun.Server<RelayWsConn> | null = null;
+/**
+ * Identity of the control plane currently running (port + token), so
+ * `ensureControlPlane()` is idempotent: the per-5s autostart retry re-runs
+ * `resume()` → `ensureControlPlane()`, and naively recreating the server
+ * every time dropped the live relay WS mid-handshake (GRETAP-RESEARCH.md).
+ * Null = no (usable) control plane → build below.
+ */
+let controlPlaneKey: string | null = null;
 
 /**
  * Start (or restart) the relay WebSocket server + the encoder announce
@@ -632,6 +772,14 @@ let wsServer: Bun.Server<RelayWsConn> | null = null;
  */
 function ensureControlPlane(): void {
 	const c = config();
+	// Idempotent guard: a live server with the same port/token is left
+	// untouched. The per-5s autostart retry (resume → ensureControlPlane)
+	// otherwise tore down the server every cycle, dropping the live relay
+	// WS mid-handshake before it could deliver the exposed-IP hello
+	// (GRETAP-RESEARCH.md).
+	const key = `${c.wsPort}\u0000${c.announceToken}`;
+	if (wsServer !== null && controlPlaneKey === key) return;
+	controlPlaneKey = key;
 	wsServer?.stop(true);
 	wsServer = null;
 	// A stopped server has no peers — never sweep-protect a stale IP, and no
@@ -734,6 +882,10 @@ export function onRelayWsMessage(
 				address: f.ip,
 				listenPort: f.udp_port,
 				state: f.state,
+				// GRETAP exposure: on-path IP + exposed prefix (GRETAP-
+				// RESEARCH.md). Absent → this endpoint is a direct uplink.
+				outer_ip: f.outer_ip,
+				prefix: f.prefix,
 			})),
 			lastSeen: Date.now(),
 		});
@@ -765,6 +917,9 @@ export function onRelayWsMessage(
 		address: msg.iface.ip,
 		listenPort: msg.iface.udp_port,
 		state: msg.iface.state,
+		// GRETAP exposure: on-path IP + exposed prefix (GRETAP-RESEARCH.md).
+		outer_ip: msg.iface.outer_ip,
+		prefix: msg.iface.prefix,
 	};
 	if (msg.type === "interface_removed") {
 		if (idx >= 0) next.splice(idx, 1);
@@ -871,6 +1026,7 @@ const registration: BackendModule<ModuleCore> = {
 	},
 	async stop() {
 		stopDiscovering();
+		discoveryStarted = false; // allow ensureDiscovery to rebuild on next start
 		stopEncoderAnnouncing();
 		mdnsBrowseStop?.();
 		mdnsBrowseStop = undefined;
@@ -878,6 +1034,7 @@ const registration: BackendModule<ModuleCore> = {
 		mdnsAdvertiseStop = undefined;
 		wsServer?.stop(true);
 		wsServer = null;
+		controlPlaneKey = null; // force a rebuild on the next start/resume
 		await stopAllTunnels();
 	},
 	/** Resume the TUNs across process restarts. */

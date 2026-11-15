@@ -72,6 +72,15 @@ export interface CtrlinkSharedEndpoint {
 	/** Path state (protocol.md §4/§5): `down` = the encoder must stop using
 	 * this path (the port mapping is kept on the relay); `up`/absent = usable. */
 	state?: "up" | "down";
+	/**
+	 * The relay's ON-PATH IP the encoder must address GRETAP outer headers at
+	 * for a frame on this interface (GRETAP exposure, `GRETAP-RESEARCH.md`).
+	 * Absent when the encoder reaches this interface directly on-link — then
+	 * it is a plain uplink, not a tunnel.
+	 */
+	outer_ip?: string;
+	/** The exposed subnet's prefix length (GRETAP exposure); default /24. */
+	prefix?: number;
 }
 
 /** The discoverable payload a relay broadcasts. */
@@ -211,6 +220,17 @@ export interface CtrlinkRelayIface {
 	/** `up` = usable path; `down` = marked down (port mapping kept). */
 	state: "up" | "down";
 	uplink: true;
+	/**
+	 * The relay's **on-path** source IP for THIS encoder — the address of the
+	 * relay interface the kernel uses to reach the encoder (`ip route get
+	 * <enc.ip>`). The encoder's GRETAP `remote` MUST be this; the advertised
+	 * `ip` above is the pass-through-LAN identity (GRE key material), which
+	 * the encoder's kernel usually cannot route to. Absent for direct on-link
+	 * paths and legacy relays.
+	 */
+	outer_ip?: string;
+	/** Prefix length of this relay interface's subnet (e.g. `24`). */
+	prefix?: number;
 }
 
 /** A relay → encoder control-channel message (protocol.md §3–§4). */

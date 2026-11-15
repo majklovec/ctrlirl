@@ -8,12 +8,21 @@ const role: RoleDefinition = {
     order: 50,
     setupSelectable: true,
     requires: {
-        modules: ["modems", "speedtest", "systeminfo"],
+        modules: ["network", "modems", "speedtest", "systeminfo"],
         optionalModules: ["ctrlink_relay", "obs"],
-        capabilities: ["network.interfaces", "network.uplinks"],
+        capabilities: [
+            "modems.source",
+            "network.interfaces",
+            "network.uplinks",
+        ],
     },
     provides: {
-        capabilities: ["modems.source"],
+        capabilities: [
+            "modems.source",
+            "network.ctrlink",
+            "network.interfaces",
+            "network.uplinks",
+        ],
     },
 };
 

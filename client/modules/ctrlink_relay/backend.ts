@@ -53,6 +53,14 @@ import {
 	type UdpRelay,
 } from "../../../shared/lib/gretap_relay";
 import {
+	gretapOuterIpFor,
+	reconcileGretaps,
+	setGretapIpRunner,
+	setGretapLogger,
+	setGretapRelayer,
+	stopGretaps,
+} from "./gretap";
+import {
 	CTRLINK_ANNOUNCE_INTERVAL_MS,
 	CTRLINK_DISCOVERY_PORT,
 	CTRLINK_RELAY_WS_PROTOCOL,
@@ -106,6 +114,7 @@ const DEFAULTS: Required<
 } = {
 	enabled: false,
 	nat: true,
+	gretap: false,
 	announceHost: "",
 	listenPortBase: 4000,
 	interfaceAllow: [],
@@ -249,6 +258,7 @@ function config(): ResolvedConfig {
 	return {
 		enabled: raw.enabled ?? DEFAULTS.enabled,
 		nat: raw.nat ?? DEFAULTS.nat,
+		gretap: raw.gretap ?? DEFAULTS.gretap,
 		announceHost: raw.announceHost ?? DEFAULTS.announceHost,
 		listenPortBase: raw.listenPortBase ?? DEFAULTS.listenPortBase,
 		interfaceAllow: raw.interfaceAllow ?? DEFAULTS.interfaceAllow,
@@ -289,6 +299,10 @@ export function eligibleInterfaces(
 	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
 	return ifaces
 		.filter((i) => i.addresses.length > 0)
+		// GRETAP's own devices (the `gretap*` tunnels + `br-*` bridges) are
+		// infrastructure, never shareable endpoints — a bridge on the home-LAN
+		// subnet would advertise a duplicate of the pass-through NIC it extends.
+		.filter((i) => !/^gretap/.test(i.name) && !/^br-/.test(i.name))
 		.filter((i) =>
 			allow.length > 0
 				? allow.some((re) => re.test(i.name))
@@ -476,6 +490,38 @@ export function relayIfaceList(): CtrlinkRelayIface[] {
 		state: relays.has(name) ? ("up" as const) : ("down" as const),
 		uplink: true,
 	}));
+}
+
+/** Guard so the relayer closure is wired exactly once (module start). */
+let gretapConfigured = false;
+/**
+ * Wire the GRETAP module's relayer closure + `ip` seam (module start, once).
+ * The closure reads live state on every reconcile, so the same closure serves
+ * the first pass and every network/encoder change.
+ */
+function configureGretap(): void {
+	if (gretapConfigured) return;
+	gretapConfigured = true;
+	setGretapIpRunner(undefined); // production `ip` runner (lib default)
+	setGretapLogger((msg) => core.logEvent("info", "Gretap", msg));
+	setGretapRelayer(() => {
+		const cfg = config();
+		const ifaces = netIfaces?.list() ?? [];
+		return {
+			enabled: cfg.gretap && cfg.enabled,
+			dryRun: core.config.DRY_RUN,
+			endpoints: advertisedInterfaces(ifaces, cfg)
+				.filter((n) => !directIfaces.has(n))
+				.map((n) => ({ iface: n, ip: ifaceAddress(n, ifaces, cfg) ?? "" }))
+				.filter((e) => e.ip),
+			encoders: knownEncoders().map((e) => ({ id: e.encoderId, ip: e.ip })),
+		};
+	});
+}
+
+/** Convenience: kick a (coalesced) GRETAP reconcile. No-op when disabled. */
+function reconcileGretapsNow(): void {
+	void reconcileGretaps();
 }
 
 function buildStatus(): CtrlinkRuntimeStatus {
@@ -994,6 +1040,9 @@ export async function syncRelays(rollbackOnFailure = false): Promise<{
 
 async function stopAll(): Promise<void> {
 	for (const name of [...relays.keys()]) await stopRelay(name);
+	// Tear down the GRETAP tunnels + release the borrowed interfaces (restores
+	// their addresses) so the relay keeps full connectivity after a stop.
+	await stopGretaps();
 	// Sweep any vif reply-routes whose relay left the map (defensive: stopRelay
 	// already clears most of these, a re-learn race can linger).
 	for (const name of [...vifRoutes.keys()]) await removeVifRoute(name);
@@ -1016,6 +1065,9 @@ async function onNetworkChange(): Promise<void> {
 	await refreshDirectIfaces();
 	const { events } = await syncRelays();
 	pushIfaceEvents(events);
+	// Endpoints (iface addresses) may have moved — reconcile GRETAP tunnels
+	// too (coalesced no-op when the set is unchanged or gretap is off).
+	reconcileGretapsNow();
 }
 
 // ----------------------------------------------------------------------
@@ -1041,13 +1093,20 @@ const encoderChannels = new Map<string, EncoderChannel>();
 /** A pending connect (so overlapping reconciles never open two sockets). */
 const pendingConnects = new Set<string>();
 
-/** The full snapshot message (protocol.md §3/§4: sent on every (re)connect). */
-function helloMessage(): CtrlinkRelayWsMessage {
+/** The full snapshot message (protocol.md §3/§4: sent on every (re)connect).
+ * `outer_ip` is per-encoder (depends on how we reach THAT encoder), so it is
+ * filled from the GRETAP reconcile's cache only when gretap is on. */
+function helloMessage(e?: CtrlinkDiscoveredEncoder): CtrlinkRelayWsMessage {
+	const interfaces = relayIfaceList().map((i) => {
+		if (!e) return i;
+		const outer = gretapOuterIpFor(i.iface_name, e.ip);
+		return outer ? { ...i, outer_ip: outer } : i;
+	});
 	return {
 		type: "hello",
 		relay_id: RELAY_ID,
 		proto: CTRLINK_RELAY_WS_PROTOCOL,
-		interfaces: relayIfaceList(),
+		interfaces,
 	};
 }
 
@@ -1110,7 +1169,8 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 		// NOW — `e` is a snapshot from channel start and goes stale.
 		noteEncoder({ ...e, lastSeen: Date.now() });
 		// Full snapshot on (re)connect — the encoder has a consistent view.
-		st.ws.send(JSON.stringify(helloMessage()));
+		// `outer_ip` is resolved for THIS encoder (per-channel).
+		st.ws.send(JSON.stringify(helloMessage(e)));
 		lastWsAdvertiseAt = Date.now();
 		// Keepalive: the encoder replies `pong`; every frame in both
 		// directions refreshes the registry TTL (protocol.md §3).
@@ -1175,6 +1235,9 @@ function reconcileEncoderChannels(): void {
 		)
 			stopEncoderChannel(key);
 	}
+	// The encoder set changed (appeared / dropped) — reconcile GRETAP tunnels
+	// (coalesced no-op when the set is unchanged or gretap is off).
+	reconcileGretapsNow();
 }
 
 /**
@@ -1234,7 +1297,10 @@ async function ensureControlServerEncoders(): Promise<void> {
 			});
 			void refreshDirectIfaces();
 			const enc = knownEncoders().find((x) => x.encoderId === id);
-			if (enc) startEncoderChannel(enc);
+			if (enc) {
+				startEncoderChannel(enc);
+				reconcileGretapsNow();
+			}
 		}
 	} catch {
 		/* control server down or link closed — UDP discovery keeps working */
@@ -1267,8 +1333,16 @@ export function pushIfaceEvents(
 	const visible = events.filter((ev) => !directIfaces.has(ev.iface.iface_name));
 	lastPushEvents = visible;
 	for (const ev of visible) {
-		const msg = JSON.stringify({ type: ev.type, iface: ev.iface });
+		// `outer_ip` is per-encoder (the channel key is `encoderId:ip`):
+		// annotate a copy per channel so each encoder learns the address to
+		// send GRETAP outer headers at for `ev.iface` (empty = none/direct).
 		for (const [key, st] of encoderChannels) {
+			const encIp = key.slice(key.lastIndexOf(":") + 1);
+			const outer = gretapOuterIpFor(ev.iface.iface_name, encIp);
+			const iface = outer
+				? { ...ev.iface, outer_ip: outer }
+				: ev.iface;
+			const msg = JSON.stringify({ type: ev.type, iface });
 			try {
 				if (st.ws.readyState === WebSocket.OPEN) st.ws.send(msg);
 			} catch (e) {
@@ -1285,11 +1359,18 @@ export function pushIfaceEvents(
  * Exposed for tests.
  */
 export function onEncoderAnnounced(e: CtrlinkDiscoveredEncoder): void {
-	// A (new) encoder may sit on one of our segments — reclassify the
-	// direct set before the snapshot/events go out to it.
-	void refreshDirectIfaces();
-	if (!encoderChannels.has(e.encoderId) && !pendingConnects.has(e.encoderId))
+	const isNew = !encoderChannels.has(e.encoderId) && !pendingConnects.has(e.encoderId);
+	void (async () => {
+		// A (new) encoder may sit on one of our segments — reclassify the
+		// direct set before the snapshot/events go out to it.
+		await refreshDirectIfaces();
+		if (!isNew) return;
+		// Build this encoder's GRETAP tunnels + populate the per-iface
+		// `outer_ip` cache BEFORE the first hello, so the encoder learns the
+		// on-path address on connect (not in a later, possibly-absent event).
+		await reconcileGretaps();
 		startEncoderChannel(e);
+	})();
 }
 
 /** Stop all relay → encoder channels (module stop). */
@@ -1476,6 +1557,11 @@ const registration: BackendModule<ModuleCore> = {
 		// network module's slice is disabled on this role).
 		await netIfaces.ensureMonitoring();
 		netUnsub = netIfaces.onChanged(() => void onNetworkChange());
+		// Wire the GRETAP module (once) and run its first reconcile — the
+		// tunnels key off the encoder + endpoint set, which is empty at boot
+		// and grows as encoders announce.
+		configureGretap();
+		reconcileGretapsNow();
 		// Sample each relay's live forwarded throughput (bytes/sec) for the
 		// card's "real speed" — the negotiated link speed is not what matters.
 		startRateSampler();

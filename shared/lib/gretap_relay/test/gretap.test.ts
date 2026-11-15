@@ -1,16 +1,22 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+	attachToBridge,
+	createGretapTunnel,
 	createUdpRelay,
 	createVirtualInterface,
 	egressIface,
 	gretapSetupCommands,
 	gretapTeardownCommands,
 	listGretapInterfaces,
+	listIfaceAddrs,
 	makeMockIfaceRawSocket,
 	maxPayload,
+	moveAddrsToBridge,
 	readIfaceStats,
+	releaseIfaceFromBridge,
 	setIpRunner,
 	setUpGretap,
+	outerEndpointFor,
 	DEFAULT_GRETAP_MTU,
 	GRETAP_OVERHEAD,
 	encodeDataFrame,
@@ -81,19 +87,19 @@ test("isValid accepts real IPv4, rejects the rest", () => {
 
 test("gretapSetupCommands emits the exact topology argv", () => {
 	expect(gretapSetupCommands("vif1", "192.168.10.1", 1500)).toEqual([
-		["link", "add", "gretapvif1", "type", "gretap", "remote", "192.168.10.1"],
-		["link", "set", "gretapvif1", "mtu", "1500"],
+		["link", "add", "vif1", "type", "gretap", "remote", "192.168.10.1"],
+		["link", "set", "vif1", "mtu", "1500"],
 		["link", "add", "br-vif1", "type", "bridge"],
 		["link", "set", "br-vif1", "up"],
-		["link", "set", "gretapvif1", "master", "br-vif1"],
-		["link", "set", "gretapvif1", "up"],
+		["link", "set", "vif1", "master", "br-vif1"],
+		["link", "set", "vif1", "up"],
 	]);
 });
 
 test("gretapTeardownCommands removes tunnel then bridge", () => {
 	expect(gretapTeardownCommands("vif1")).toEqual([
-		["link", "set", "gretapvif1", "nomaster"],
-		["link", "del", "gretapvif1"],
+		["link", "set", "vif1", "nomaster"],
+		["link", "del", "vif1"],
 		["link", "del", "br-vif1"],
 	]);
 });
@@ -102,13 +108,13 @@ test("gretapTeardownCommands removes tunnel then bridge", () => {
 
 test("listGretapInterfaces parses `ip -o link show type gretap`", async () => {
 	setIpRunner(async () => [
-		"3: gretapvif1@NONE: <BROADCAST,MULTICAST> mtu 1500 state UP (LOWER_UP)",
-		"4: gretapvif2@NONE: <NO-CARRIER> mtu 1500 state DOWN (DORMANT)",
+		"3: vif1@NONE: <BROADCAST,MULTICAST> mtu 1500 state UP (LOWER_UP)",
+		"4: vif2@NONE: <NO-CARRIER> mtu 1500 state DOWN (DORMANT)",
 	].join("\n"));
 	const list = await listGretapInterfaces();
 	expect(list).toEqual([
-		{ name: "gretapvif1", state: "UP" },
-		{ name: "gretapvif2", state: "DOWN" },
+		{ name: "vif1", state: "UP" },
+		{ name: "vif2", state: "DOWN" },
 	]);
 });
 
@@ -119,7 +125,7 @@ test("listGretapInterfaces on an empty host is []", async () => {
 
 // --- setUpGretap (injected runner) -----------------------------------------------
 
-test("setUpGretap runs the topology + bridges the LAN NIC", async () => {
+test("setUpGretap runs the topology point-to-point (does NOT enslave the LAN NIC)", async () => {
 	const calls: string[][] = [];
 	setIpRunner(recordIpRunner(calls));
 	const res = await setUpGretap({
@@ -130,21 +136,20 @@ test("setUpGretap runs the topology + bridges the LAN NIC", async () => {
 		mtu: 1500,
 	});
 	expect(res).toEqual({
-		name: "gretapvif1",
+		name: "vif1",
 		bridge: "br-vif1",
 		localIface: "eth0",
 	});
-	expect(calls).toEqual([
-		...gretapSetupCommands("vif1", "192.168.10.1", 1500),
-		["link", "set", "eth0", "master", "br-vif1"],
-		["link", "set", "eth0", "up"],
-	]);
+	// The encoder bridge is point-to-point: gretap dev only. eth0 is the outer
+	// egress, never a bridge member — enslaving it steals its IP and black-holes
+	// the host (GRETAP-RESEARCH.md, e2e bring-up §7).
+	expect(calls).toEqual(gretapSetupCommands("vif1", "192.168.10.1", 1500));
 });
 
 test("setUpGretap heals a leftover device (File exists → teardown → retry)", async () => {
 	const calls: string[][] = [];
 	setIpRunner(
-		recordIpRunner(calls, (args) => args[0] === "link" && args[1] === "add" && args[2] === "gretapvif1"),
+		recordIpRunner(calls, (args) => args[0] === "link" && args[1] === "add" && args[2] === "vif1"),
 	);
 	const res = await setUpGretap({
 		name: "vif1",
@@ -152,10 +157,10 @@ test("setUpGretap heals a leftover device (File exists → teardown → retry)",
 		localIp: "192.168.1.1",
 		localIface: "eth0",
 	});
-	expect(res.name).toBe("gretapvif1");
+	expect(res.name).toBe("vif1");
 	// The failing add is retried once, with the heal-teardown in between.
 	const addIndexes = calls
-		.map((c, i) => (c[1] === "add" && c[2] === "gretapvif1" ? i : -1))
+		.map((c, i) => (c[1] === "add" && c[2] === "vif1" ? i : -1))
 		.filter((i) => i >= 0);
 	expect(addIndexes).toHaveLength(2);
 	expect(calls.slice(addIndexes[0] + 1, addIndexes[1])).toEqual(
@@ -165,7 +170,7 @@ test("setUpGretap heals a leftover device (File exists → teardown → retry)",
 
 test("setUpGretap propagates non-healable errors", async () => {
 	setIpRunner(async (args) => {
-		if (args[1] === "add" && args[2] === "gretapvif1")
+		if (args[1] === "add" && args[2] === "vif1")
 			throw new Error("Operation not permitted");
 		return "";
 	});
@@ -217,8 +222,6 @@ test("setUpGretap: virtual localIp (no iface holds it) → LAN NIC from the egre
 	expect(calls).toEqual([
 		["route", "get", "192.168.10.1"],
 		...gretapSetupCommands("vif1", "192.168.10.1", DEFAULT_GRETAP_MTU),
-		["link", "set", "eth2", "master", "br-vif1"],
-		["link", "set", "eth2", "up"],
 	]);
 });
 
@@ -363,7 +366,7 @@ test("createVirtualInterface: start brings up the tunnel, stop tears it down", a
 		localIface: "eth0",
 		mtu: 1500,
 	});
-	expect(vif.name).toBe("gretapvif1");
+	expect(vif.name).toBe("vif1");
 	expect(vif.socketAddress).toBeNull();
 	expect(vif.isRunning()).toBe(false);
 
@@ -371,8 +374,8 @@ test("createVirtualInterface: start brings up the tunnel, stop tears it down", a
 	expect(vif.isRunning()).toBe(true);
 	expect(calls).toEqual([
 		...gretapSetupCommands("vif1", "192.168.10.9", 1500),
-		["link", "set", "eth0", "master", "br-vif1"],
-		["link", "set", "eth0", "up"],
+		["addr", "replace", "192.168.10.1/24", "dev", "br-vif1"],
+		["route", "replace", "192.168.10.0/24", "dev", "br-vif1"],
 	]);
 
 	const before = calls.length;
@@ -415,4 +418,122 @@ test("createVirtualInterface emits onStats on start and stop", async () => {
 	expect(events).toBe(1);
 	await vif.stop();
 	expect(events).toBe(2);
+});
+
+// --- Relay-side GRETAP (on-path endpoint + L2 bridge) ---------------------------
+
+/** A runner that answers the read-only `ip` queries + records writes. */
+function routeRunner(
+	calls: string[][],
+	routeGet: Record<string, string>,
+	addrs: Record<string, string[]>,
+): (args: string[]) => Promise<string> {
+	return async (args: string[]) => {
+		calls.push([...args]);
+		if (args[0] === "route" && args[1] === "get") {
+			const r = routeGet[args[2]];
+			// explicit entry (may be "" → no route) wins; unknown → default route
+			return r !== undefined ? r : "default via 0.0.0.0 dev eno1 src 1.2.3.4";
+		}
+		if (args.slice(0, 4).join(" ") === "-o -4 addr show")
+			return addrs[args[args.length - 1]]?.join("\n") ?? "";
+		return "";
+	};
+}
+
+test("outerEndpointFor parses the on-path iface+src from `ip route get`", async () => {
+	const calls: string[][] = [];
+	setIpRunner(
+		routeRunner(calls, { "192.168.10.103": "192.168.10.103 dev eno1 src 192.168.10.1" }, {}),
+	);
+	expect(await outerEndpointFor("192.168.10.103")).toEqual({
+		iface: "eno1",
+		ip: "192.168.10.1",
+	});
+	setIpRunner(routeRunner([], { "10.0.0.9": "" }, {}));
+	expect(await outerEndpointFor("10.0.0.9")).toBeNull();
+});
+
+test("listIfaceAddrs returns the CIDR list of an interface", async () => {
+	setIpRunner(
+		routeRunner([], {}, {
+			eno2: ["3: eno2    inet 192.168.1.136/24 brd 192.168.1.255"],
+		}),
+	);
+	expect(await listIfaceAddrs("eno2")).toEqual(["192.168.1.136/24"]);
+	expect(await listIfaceAddrs("eth0")).toEqual([]);
+});
+
+test("createGretapTunnel builds the topology + points `local` at the on-path IP", async () => {
+	const calls: string[][] = [];
+	setIpRunner(recordIpRunner(calls));
+	const res = await createGretapTunnel({
+		name: "enc103",
+		encIp: "192.168.10.103",
+		relayIp: "192.168.10.1",
+		mtu: 1458,
+		greKey: 4143611081,
+	});
+	expect(res).toEqual({ gretap: "enc103", bridge: "br-enc103" });
+	expect(calls).toEqual([
+		...gretapSetupCommands("enc103", "192.168.10.103", 1458, 4143611081),
+		["link", "set", "enc103", "type", "gretap", "local", "192.168.10.1", "remote", "192.168.10.103"],
+	]);
+});
+
+test("createGretapTunnel heals a leftover device and retries once", async () => {
+	const calls: string[][] = [];
+	setIpRunner(
+		recordIpRunner(calls, (args) => args[1] === "add" && args[2] === "enc103"),
+	);
+	await createGretapTunnel({
+		name: "enc103",
+		encIp: "192.168.10.103",
+		relayIp: "192.168.10.1",
+		greKey: 4143611081,
+	});
+	const addIndexes = calls
+		.map((c, i) => (c[1] === "add" && c[2] === "enc103" ? i : -1))
+		.filter((i) => i >= 0);
+	expect(addIndexes).toHaveLength(2);
+	// The tunnel encodes toward the on-path IP (relayIp), never the adv IP.
+	expect(calls.some((c) => c.includes("192.168.10.1") && c.includes("192.168.10.103"))).toBe(true);
+});
+
+test("moveAddrsToBridge relocates the port's IPv4 onto the bridge, then flushes", async () => {
+	const calls: string[][] = [];
+	setIpRunner(
+		routeRunner(calls, {}, {
+			eno2: ["3: eno2    inet 192.168.1.136/24 brd 192.168.1.255"],
+		}),
+	);
+	const moved = await moveAddrsToBridge("eno2", "br-enc103");
+	expect(moved).toEqual(["192.168.1.136/24"]);
+	expect(calls).toEqual([
+		["-o", "-4", "addr", "show", "dev", "eno2"],
+		["addr", "replace", "192.168.1.136/24", "dev", "br-enc103"],
+		["addr", "flush", "dev", "eno2"],
+		["route", "flush", "dev", "eno2"],
+	]);
+});
+
+test("releaseIfaceFromBridge restores the addrs to the port, un-enslaves, clears the bridge", async () => {
+	const calls: string[][] = [];
+	setIpRunner(recordIpRunner(calls));
+	await releaseIfaceFromBridge("eno2", "br-enc103", ["192.168.1.136/24"]);
+	expect(calls).toEqual([
+		["addr", "replace", "192.168.1.136/24", "dev", "eno2"],
+		["link", "set", "eno2", "nomaster"],
+		["addr", "flush", "dev", "br-enc103"],
+	]);
+});
+
+test("attachToBridge enslaves the interface into the bridge and brings it up", async () => {
+	const calls: string[][] = [];
+	setIpRunner(recordIpRunner(calls));
+	await attachToBridge("br-enc103", "eno2");
+	expect(calls).toEqual([
+		["link", "set", "eno2", "master", "br-enc103"],
+		["link", "set", "eno2", "up"],
+	]);
 });
