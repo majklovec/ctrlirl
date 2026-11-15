@@ -27,3 +27,4 @@ assets/*
 .tmp*.js
 # librespeed-cli binary (resolved via LIBRESPEED_CLI_PATH / PATH / auto-download)
 librespeed-cli
+relay.json.bak-e2e
