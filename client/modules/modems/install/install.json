@@ -1,0 +1,12 @@
+{
+    "$schema": "../../../../shared/install/schema.json",
+    "version": 1,
+    "dependencies": ["ModemManager"],
+    "udev": [
+        {
+            "file": "55-ctrlirl-modem.rules",
+            "contentFile": "udev/modem.rules",
+            "trigger": { "subsystem": "usb", "action": "change" }
+        }
+    ]
+}

@@ -1,0 +1,5 @@
+# Managed by ctrlirl (modems). Stable names for the cellular uplinks plus
+# the `uucp` group so non-root users can talk to the modem through
+# ModemManager's AT port.
+SUBSYSTEM=="usb", ATTRS{bInterfaceClass}=="0e", TAG+="uaccess", GROUP="dialout"
+SUBSYSTEM=="tty", KERNEL=="ttyUSB[0-9]*", GROUP="uucp", MODE="0660"

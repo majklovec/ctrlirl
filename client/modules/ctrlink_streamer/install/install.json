@@ -1,0 +1,13 @@
+{
+    "$schema": "../../../../shared/install/schema.json",
+    "version": 1,
+    "capabilities": {
+        "ambient": ["CAP_NET_ADMIN"]
+    },
+    "udev": [
+        {
+            "file": "50-ctrlirl-gre.rules",
+            "content": "# GRETAP tunnels are managed by the ctrlink transport (br_gretap).\n# Keep udev from renaming them: preserve the kernel name gretap_<iface>.\nSUBSYSTEM==\"net\", KERNEL==\"gretap*\", NAME=\"%k\"\n"
+        }
+    ]
+}

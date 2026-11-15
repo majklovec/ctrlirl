@@ -36,6 +36,15 @@
  */
 import { ensureGeneratedManifests } from "../../shared/generated_manifests";
 
+// The declarative install surface (handoff §13): `install`/`uninstall`/
+// `reinstall`/`switch-from`/`validate` intercept here, BEFORE the app graph
+// loads, so a subcommand never brings up the device process. `start` (the
+// default) auto-installs the role's rules if its state is missing, then
+// falls through to the app.
+import { installCli } from "../install/cli";
+const outcome = await installCli();
+if (outcome !== "start") process.exit(0);
+
 // generated/ first: the application graph statically imports the manifests.
 await ensureGeneratedManifests();
 // Persistent-device safety net: a stray uncaught error — most often a native

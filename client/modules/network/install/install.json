@@ -1,0 +1,20 @@
+{
+    "$schema": "../../../../shared/install/schema.json",
+    "version": 1,
+    "sysctl": {
+        "net.ipv4.ip_forward": 1,
+        "net.ipv4.conf.all.rp_filter": 2
+    },
+    "firewall": [
+        {
+            "tool": "nft",
+            "chain": "forward",
+            "rule": "ip saddr 10.7.0.0/16 ct state established,related accept"
+        },
+        {
+            "tool": "nft",
+            "chain": "forward",
+            "rule": "ip daddr 10.7.0.0/16 accept"
+        }
+    ]
+}

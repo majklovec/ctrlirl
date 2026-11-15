@@ -12,6 +12,7 @@
         "dev:server": "bun server/main.ts",
         "dev:client": "bun client/backend/client.ts",
         "test": "bun test --parallel=8",
+        "validate:install": "bun scripts/validate_install.ts",
         "smoke": "bun scripts/smoke.ts",
         "prebuild:client": "bun scripts/gen_pages.ts && bun scripts/gen_control_server_assets.ts",
         "build:client": "bun build --compile --minify --sourcemap --format=esm --bytecode ./client/backend/client.ts --outfile dist/client && bun build --compile --minify --sourcemap --format=esm --bytecode ./client/backend/client.ts --outfile dist/client-arm --target=bun-linux-arm64",

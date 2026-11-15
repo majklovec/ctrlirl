@@ -1,0 +1,117 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ctrlirl/install-schema",
+    "title": "Ctrl-IRL module install spec",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "$schema": { "type": "string" },
+        "version": { "const": 1 },
+        "dependencies": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+        },
+        "capabilities": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "ambient": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "uniqueItems": true
+                }
+            }
+        },
+        "services": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "unit"],
+                "properties": {
+                    "name": { "type": "string", "minLength": 1 },
+                    "unit": { "const": "systemd" },
+                    "content": { "type": "string" },
+                    "contentFile": { "type": "string", "minLength": 1 },
+                    "enabled": { "type": "boolean" },
+                    "started": { "type": "boolean" }
+                }
+            }
+        },
+        "sysctl": {
+            "type": "object",
+            "additionalProperties": {
+                "oneOf": [{ "type": "number" }, { "type": "string" }],
+                "minLength": 1
+            }
+        },
+        "firewall": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tool", "chain", "rule"],
+                "properties": {
+                    "tool": { "enum": ["nft", "iptables"] },
+                    "table": { "type": "string", "minLength": 1 },
+                    "chain": { "type": "string", "minLength": 1 },
+                    "rule": { "type": "string", "minLength": 1 },
+                    "comment": { "type": "string", "minLength": 1 },
+                    "family": { "enum": ["inet", "ip", "ip6"] }
+                },
+                "allOf": [
+                    {
+                        "if": { "properties": { "tool": { "const": "iptables" } }, "required": ["tool"] },
+                        "then": { "required": ["comment"] }
+                    }
+                ]
+            }
+        },
+        "udev": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file"],
+                "properties": {
+                    "file": {
+                        "type": "string",
+                        "pattern": "^\\d{2}-ctrlirl-[a-z0-9_-]+\\.rules$"
+                    },
+                    "content": { "type": "string" },
+                    "contentFile": { "type": "string", "minLength": 1 },
+                    "trigger": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                            "subsystem": { "type": "string", "minLength": 1 },
+                            "attrMatch": { "type": "string", "minLength": 1 },
+                            "action": { "enum": ["change", "add"] }
+                        }
+                    }
+                }
+            }
+        },
+        "overlay": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "preserve": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                "reload": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                "allowProtected": {
+                    "type": "array",
+                    "items": { "type": "string", "pattern": "^/[^\\s/]+(\\s+/[^\\s/]+)*$" }
+                }
+            }
+        },
+        "hooks": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "install": { "type": "string", "minLength": 1 },
+                "uninstall": { "type": "string", "minLength": 1 }
+            }
+        }
+    }
+}
