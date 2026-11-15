@@ -1,8 +1,7 @@
 /* Network card: interface detection, bond selection per interface, and the
  * live srtla_send link stats matched to interfaces by source IP (shown on
- * the roles that push the SRTLA leg's stats — `relay.stats` on the relay,
- * `stream.stats` on the encoder; the link columns sit muted until/unless
- * stats arrive).
+ * the role that pushes the SRTLA leg's stats — `stream.stats` on the
+ * encoder; the link columns sit muted until/unless stats arrive).
  */
 import "./styles.css";
 import { Badge, Card, type Child, IconButton } from "@ui/components/";
@@ -28,8 +27,8 @@ import type { Iface, NetworkStatus, SrtlaLinkStats } from "./types";
 const STATS_STALE_MS = 5_000;
 const LINK_COLUMNS = 7;
 
-/** The SRTLA leg's stats push names, per role (a device runs one of them). */
-const SRTLA_STATS_EVENTS = ["relay.stats", "stream.stats"] as const;
+/** The SRTLA leg's stats push name (the encoder role pushes `stream.stats`). */
+const SRTLA_STATS_EVENTS = ["stream.stats"] as const;
 
 /** The newest valid SRTLA stats push frame with its payload. */
 function statsFrame(

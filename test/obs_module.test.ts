@@ -29,8 +29,8 @@ describe("OBS module role and settings", () => {
             state.settings.modules = defaultModules("obs");
             expect(methodAllowed("obs.request")).toBe(true);
 
-            state.settings.role = "relay";
-            state.settings.modules = defaultModules("relay");
+            state.settings.role = "encoder";
+            state.settings.modules = defaultModules("encoder");
             expect(methodAllowed("obs.request")).toBe(false);
             state.settings.modules[OBS].enabled = true;
             expect(methodAllowed("obs.request")).toBe(true);

@@ -5,7 +5,8 @@ const role: RoleDefinition = {
     id: "encoder",
     titleKey: "role.encoder",
     taglineKey: "setup.role.encoder_tag",
-    order: 20,
+    order: 10,
+    default: true,
     setupSelectable: true,
     requires: {
         modules: [
@@ -17,7 +18,7 @@ const role: RoleDefinition = {
             "speedtest",
             "systeminfo",
         ],
-        optionalModules: ["obs"],
+        // optionalModules: ["obs"],
         capabilities: ["network.uplinks", "network.ctrlink", "modems.source"],
     },
     provides: {

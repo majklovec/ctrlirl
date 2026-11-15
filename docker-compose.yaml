@@ -62,51 +62,6 @@ services:
             server:
                 condition: service_healthy
 
-    relay:
-        build:
-            context: .
-            dockerfile: Dockerfile.device
-        container_name: ctrlirl-relay
-        restart: unless-stopped
-        # mDNS discovery (224.0.0.251:5353) is not forwarded by the bridge
-        # driver: under `network_mode: host` the relay's mDNS advertising and
-        # encoder browsing work directly on the LAN. In bridge mode the UDP
-        # unicast path (10333) and the control server keep discovery alive.
-        cap_add:
-            - NET_ADMIN
-        ports:
-            - "8086:8085"
-            # 6000/udp is the relay's SRTLA input (the encoder → relay hop).
-            # The loopback SRT port (5000) between srtla_rec and srtla_send is
-            # internal and never published.
-            - "6000:6000/udp"
-            # 10333/udp is the CtrLink discovery port: encoders unicast/broadcast
-            # their announces here (TODO/protocol.md §2). Without this the
-            # encoder's UDP discovery can't reach the bridge NAT.
-            - "10333:10333/udp"
-        command:
-            - "--host"
-            - "0.0.0.0"
-            - "--port"
-            - "8085"
-            - "--role"
-            - "relay"
-            - "--config"
-            - "/config/config.json"
-            - "--state-file"
-            - "/config/state.json"
-        environment:
-            - CONTROL_SERVER_URL=${CONTROL_SERVER_URL}
-            - CONTROL_SERVER_TOKEN=${CONTROL_SERVER_TOKEN}
-            - SRTLA_SEND_BIN=/app/srtla_send
-            - SRTLA_LISTEN_PORT=6000
-            - SRT_INTERNAL_PORT=9000
-        volumes:
-            - ./config/relay:/config
-        depends_on:
-            server:
-                condition: service_healthy
-
     encoder:
         build:
             context: .
@@ -114,7 +69,7 @@ services:
 
         container_name: ctrlirl-encoder
         restart: unless-stopped
-        # Runs as root (like the relay): the ssh module needs root for
+        # Runs as root: the ssh module needs root for
         # sshd (port 22, root logins) and chpasswd (password reset).
         cap_add:
             - NET_ADMIN
@@ -147,7 +102,8 @@ services:
             - CONTROL_SERVER_TOKEN=${CONTROL_SERVER_TOKEN}
             - ENCODER_BIN=/app/ceracoder
             # Outbound SRTLA leg: the encoder feeds a local srtla_send, which
-            # sends the SRTLA stream to the relay (UDP 6000 by default).
+            # bonds the SRTLA stream across the uplinks to the destination
+            # host the encoder is pointed at (set ENCODER_DESTINATION_*).
             - SRTLA_SEND_BIN=/app/srtla_send
             - ENCODER_DESTINATION_HOST=relay
             - ENCODER_DESTINATION_PORT=6000

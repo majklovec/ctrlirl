@@ -33,8 +33,7 @@ A role is a directory under `client/roles/<role>/` with a `role.ts` that lists t
 
 | Role              | What it does                                             | Key modules                           | Capabilities it provides / consumes                                  |
 | ----------------- | -------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- |
-| `relay` (default) | SRTLA→SRTLA bridge; uplink and ModemManager handling     | `relay`, `network`, `modems`, `ssh`   | provides `stream.relay`; consumes `network.uplinks`, `modems.source` |
-| `encoder`         | Runs belacoder/ceracoder and its local `srtla_send`      | `encoder`, `network`, `modems`, `obs` | consumes `network.uplinks`, `modems.source`                          |
+| `encoder` (default) | Runs belacoder/ceracoder and its local `srtla_send`    | `encoder`, `network`, `modems`, `obs` | provides `stream.encoder`; consumes `network.uplinks`, `modems.source` |
 | `obs`             | Connects to OBS Studio and exposes a scene switcher      | `obs`                                 | provides `obs.events`                                                |
 | `broadcaster`     | SRTLA ingress + RTMP output via ffmpeg                   | `broadcaster`                         | provides `broadcast.outputs`                                         |
 | `ctrlink_relay`   | Transparent L2 bridging of LAN interfaces to the encoder | `ctrlink_relay`                       | provides `ctrlink.lan` (per-interface GRETAP tunnels)                |
@@ -60,7 +59,6 @@ These run on the box, under `client/modules/`.
 | Module             | Description                                                                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `encoder`          | Starts and supervises the encoder process (`belacoder`/`ceracoder`) and its local `srtla_send`. Pipeline discovery, automatic restart, live bitrate. |
-| `relay`            | Owns the SRTLA→SRTLA bridge: `srtla_rec` + `srtla_send`, uplink management, reload on bonding changes.                                               |
 | `network`          | Interface discovery, SRTLA bonding (policy routing, `ip monitor`). Provides `network.uplinks`.                                                       |
 | `modems`           | ModemManager (`mmcli`) integration — modem state, enable/disable/reset/connect actions. Provides `modems.source`.                                    |
 | `obs`              | Native obs-websocket v5 connection; forwards events into the device event stream.                                                                    |
@@ -86,7 +84,7 @@ These run inside the control server / dashboard, under `server/pages/<slice>/mod
 
 Modules communicate **only over the capability bus** — never by direct import.
 
--   A **capability** is a named contract (e.g. `network.uplinks`, `modems.source`, `stream.relay`).
+-   A **capability** is a named contract (e.g. `network.uplinks`, `modems.source`, `stream.encoder`).
 -   A module **provides** a capability by registering it in its backend registration.
 -   Another module **consumes** it by asking the bus for that name.
 -   The core knows nothing about individual capabilities — it only routes requests and events by name.
@@ -97,12 +95,12 @@ This is what makes modules replaceable and roles declarative: swapping an implem
 
 ![Ctrlink](docs/img/ctrlink.svg)
 
-Ctrlink lets you carry Ethernet traffic from the relay box to the encoder **without configuring routing on the relay**. It is built on **GRETAP** (Ethernet over GRE) tunnels and consists of two cooperating modules:
+Ctrlink lets you carry Ethernet traffic from the CtrLink box to the encoder **without configuring routing on the CtrLink box**. It is built on **GRETAP** (Ethernet over GRE) tunnels and consists of two cooperating modules:
 
--   **`ctrlink_relay`** (on the relay box) — creates one GRETAP interface per shared LAN segment and bridges the corresponding LAN interface into it. Ethernet frames are encapsulated over GRE and sent to the encoder.
--   **`ctrlink_streamer`** (on the encoder) — creates the matching GRETAP interfaces and bridges them locally. The encoder sees the relay's LAN segments as local Ethernet interfaces, with the same MAC addresses and broadcast domain.
+-   **`ctrlink_relay`** (on the CtrLink box) — creates one GRETAP interface per shared LAN segment and bridges the corresponding LAN interface into it. Ethernet frames are encapsulated over GRE and sent to the encoder.
+-   **`ctrlink_streamer`** (on the encoder) — creates the matching GRETAP interfaces and bridges them locally. The encoder sees the CtrLink box's LAN segments as local Ethernet interfaces, with the same MAC addresses and broadcast domain.
 
-Because this is L2, the relay does not need to know which IPs the encoder wants to reach — it just bridges frames. The SRTLA destination stays on the encoder; the relay only transparently forwards traffic. This is useful when the encoder needs to reach devices on the relay's LAN (cameras, sensors, …) without a complex routing setup.
+Because this is L2, the CtrLink box does not need to know which IPs the encoder wants to reach — it just bridges frames. The SRTLA destination stays on the encoder; the CtrLink box only transparently forwards traffic. This is useful when the encoder needs to reach devices on the CtrLink box's LAN (cameras, sensors, …) without a complex routing setup.
 
 GRETAP is configured over the same transport that carries SRTLA, so no additional ports need to be opened between the two boxes beyond what SRTLA already uses.
 
@@ -124,5 +122,5 @@ Modules check for their own dependencies at startup and log what is missing.
 Run a role directly:
 
 ```sh
-sudo bun client/backend/client.ts --role relay
+sudo bun client/backend/client.ts --role encoder
 ```

@@ -132,8 +132,8 @@ export interface UplinkEntry {
 }
 
 /** The `network.uplinks` capability (network module): the bond source-IP
- * file the bonding consumers (relay, encoder) point `srtla_send` at, plus
- * change notification so they can reload when the bond changes.
+ * file the bonding consumer (encoder) points `srtla_send` at, plus
+ * change notification so it can reload when the bond changes.
  *
  * `add`/`remove`/`list` expose programmatic uplinks: an entry is merged into
  * the uplinks file alongside the detected bond IPs (deduplicated, extras

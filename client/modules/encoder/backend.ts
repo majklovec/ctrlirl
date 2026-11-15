@@ -145,7 +145,7 @@ let uplinksUnsub: (() => void) | undefined;
 let emit: Emit | undefined;
 
 let send: InstanceType<typeof SrtlaSend> | undefined;
-/** The supervised srtla_send leg (the same class the relay's leg uses). */
+/** The supervised srtla_send leg (the encoder's outbound SRTLA hop). */
 const sendLeg = (): SrtlaSend =>
     (send ??= new SrtlaSend(
         {
@@ -176,7 +176,7 @@ const srtlaState = (): SrtlaState => sendLeg().state();
 /**
  * Spawn (or reuse) srtla_send aimed at `target`. The scheduler options come
  * from the persisted stream config; the control socket is on by default so
- * the leg is monitored like the relay's.
+ * the leg is monitored via live per-link stats.
  */
 async function startSrtlaSend(target: SrtlaTarget): Promise<void> {
     if (sendLeg().running) {
@@ -190,7 +190,7 @@ async function startSrtlaSend(target: SrtlaTarget): Promise<void> {
         await stopSrtlaSend();
     }
 
-    // The bonded uplinks file from the network module (same file the relay reloads on).
+    // The bonded uplinks file from the network module.
     await uplinksImpl().ensure();
     await sendLeg().start(srtlaSendBin(), {
         sendPort: target.listenPort,

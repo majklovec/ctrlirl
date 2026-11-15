@@ -231,7 +231,7 @@ export const moduleSettings = (): Record<string, unknown> =>
 
 /** Setup wizard data: merge the setup info of every module that provides it.
  * Not filtered by the process role — the wizard lets the user pick any role,
- * so a relay process must still return the encoder's pipelines & audio sources
+ * so any process must still return the encoder's pipelines & audio sources
  * when the user selects the encoder role. */
 export async function moduleSetupInfo(): Promise<Record<string, unknown>> {
     let out: Record<string, unknown> = {};

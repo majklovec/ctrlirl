@@ -28,7 +28,7 @@
   <rect x="180" y="150" width="240" height="42" rx="21" fill="#eef2ff" stroke="#8b5cf6"
     stroke-width="1.5" />
   <text x="300" y="176" font-family="ui-monospace, monospace" font-size="14" font-weight="700"
-    fill="#4c1d95" text-anchor="middle">role: relay</text>
+    fill="#4c1d95" text-anchor="middle">role: encoder</text>
 
   <line x1="300" y1="192" x2="300" y2="220" stroke="#64748b" stroke-width="1.5"
     marker-end="url(#arr)" />
@@ -37,7 +37,7 @@
   <g font-family="ui-monospace, monospace" font-size="14" text-anchor="middle" fill="#0f172a">
     <rect x="80" y="230" width="200" height="52" rx="8" fill="#eff6ff" stroke="#4a9eff"
       stroke-width="1.5" />
-    <text x="180" y="262">relay</text>
+    <text x="180" y="262">encoder</text>
     <rect x="320" y="230" width="200" height="52" rx="8" fill="#eff6ff" stroke="#4a9eff"
       stroke-width="1.5" />
     <text x="420" y="262">network</text>
@@ -66,7 +66,7 @@
     fill="#475569" text-anchor="middle">never by direct import</text>
 
   <text x="300" y="590" font-family="ui-monospace, monospace" font-size="12" fill="#64748b"
-    text-anchor="middle">e.g. network.uplinks · modems.source · stream.relay</text>
+    text-anchor="middle">e.g. network.uplinks · modems.source · stream.encoder</text>
 
   <!-- connection arrow -->
   <line x1="560" y1="350" x2="640" y2="350" stroke="#4a9eff" stroke-width="2"

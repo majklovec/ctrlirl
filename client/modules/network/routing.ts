@@ -727,7 +727,7 @@ let monitorProc: Bun.Subprocess<"ignore", "pipe", "pipe"> | null = null;
 let monitorDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let monitorBusy = false;
 let monitorPending = false;
-// One handler per SRTLA leg owner (relay, encoder) — each reloads its own
+// One handler per SRTLA leg owner (the encoder) — it reloads its own
 // srtla_send. Registered over the `network.uplinks` capability.
 const uplinksChangedHandlers = new Set<UplinksChangedHandler>();
 let monitorWanted = false;
@@ -855,7 +855,7 @@ export function setSysfsNetForTest(dir: string | null): void {
 
 /**
  * The interface's carrier state, collapsed to `up`/`down` with the same
- * lenient semantics the relay uses: only an explicit `down` operstate counts
+ * lenient semantics the encoder uses: only an explicit `down` operstate counts
  * as down; read failures (missing entry, non-Linux dev machine) report `up`
  * so the signature stays stable there.
  */
@@ -873,10 +873,10 @@ function carrierState(name: string): "up" | "down" {
 }
 
 /** List the machine's own IPv4 interfaces. Filtered:
- * - loopback (never carries relay traffic)
+ * - loopback (never carries stream traffic)
  * - CtrLink tunnel TUNs (`relay${slot}_${iface}`, e.g. `relay0_wg0`) —
- *   tunnels to a relay's shared uplinks, not own interfaces: selecting one
- *   would loop traffic back through the relay (see `isCtrlinkTun`). */
+ *   tunnels to a CtrLink box's shared uplinks, not own interfaces: selecting one
+ *   would loop traffic back through the CtrLink box (see `isCtrlinkTun`). */
 export function listNetworkInterfaces(): NetworkInterfaceInfo[] {
     const out: NetworkInterfaceInfo[] = [];
     for (const [name, addrs] of Object.entries(networkInterfaces() ?? {})) {

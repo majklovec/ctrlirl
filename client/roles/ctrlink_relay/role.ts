@@ -5,7 +5,7 @@ const role: RoleDefinition = {
     id: "ctrlink_relay",
     titleKey: "role.ctrlink_relay",
     taglineKey: "setup.role.ctrlink_relay_tag",
-    order: 50,
+    order: 20,
     setupSelectable: true,
     requires: {
         modules: ["network", "modems", "speedtest", "systeminfo"],

@@ -140,7 +140,7 @@ describe("control-server domain contracts", () => {
         };
         const unavailable = await call("POST", "/api/dashboards", {
             name: "Unavailable",
-            widgets: [{ type: "relay", deviceId: "other" }],
+            widgets: [{ type: "modems", deviceId: "other" }],
         });
         expect(unavailable.status).toBe(200);
         expect(await unavailable.json()).toEqual({
@@ -151,7 +151,7 @@ describe("control-server domain contracts", () => {
 
         const created = await call("POST", "/api/dashboards", {
             name: " Operations ",
-            widgets: [{ id: "widget", type: "relay", deviceId: "relay" }],
+            widgets: [{ id: "widget", type: "modems", deviceId: "relay" }],
         });
         expect(created.status).toBe(201);
         const { dashboard } = await created.json();
@@ -164,8 +164,8 @@ describe("control-server domain contracts", () => {
                 {
                     id: "widget",
                     deviceId: "relay",
-                    type: "relay",
-                    name: "relay",
+                    type: "modems",
+                    name: "modems",
                     x: 0,
                     y: 0,
                     w: 4,
@@ -231,7 +231,7 @@ describe("control-server domain contracts", () => {
         {
             const strictPost = await call("POST", "/api/dashboards", {
                 name: "Strict",
-                widgets: [{ type: "relay", deviceId: "gone" }],
+                widgets: [{ type: "modems", deviceId: "gone" }],
             });
             expect(await strictPost.json()).toEqual({
                 ok: false,
@@ -241,7 +241,7 @@ describe("control-server domain contracts", () => {
 
             const created = await call("POST", "/api/dashboards", {
                 name: "Tolerant",
-                widgets: [{ id: "w1", type: "relay", deviceId: "relay" }],
+                widgets: [{ id: "w1", type: "modems", deviceId: "relay" }],
             });
             const { dashboard } = await created.json();
             const path = `/api/dashboards/${dashboard.id}`;
@@ -251,7 +251,7 @@ describe("control-server domain contracts", () => {
             const kept = await call("PUT", path, {
                 name: "Tolerant",
                 widgets: [
-                    { id: "w1", type: "relay", deviceId: "relay" },
+                    { id: "w1", type: "modems", deviceId: "relay" },
                     { id: "w2", type: "encoder", deviceId: "gone" },
                 ],
                 version: dashboard.version,
@@ -263,8 +263,8 @@ describe("control-server domain contracts", () => {
                 {
                     id: "w1",
                     deviceId: "relay",
-                    type: "relay",
-                    name: "relay",
+                    type: "modems",
+                    name: "modems",
                     x: 0,
                     y: 0,
                     w: 4,
@@ -287,7 +287,7 @@ describe("control-server domain contracts", () => {
             // Foreign device that still exists: rejected on PUT as before.
             const foreign = await call("PUT", path, {
                 name: "Tolerant",
-                widgets: [{ id: "w1", type: "relay", deviceId: "other" }],
+                widgets: [{ id: "w1", type: "modems", deviceId: "other" }],
                 version: keptBody.dashboard.version,
             });
             expect(await foreign.json()).toEqual({

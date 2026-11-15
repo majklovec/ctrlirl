@@ -17,8 +17,7 @@ cases.
 │   ├── backend/              # device core (client.ts, state, module lifecycle, RPC)
 │   ├── frontend/             # device web UI (index / setup / settings pages)
 │   ├── roles/                # the roles: each declares the modules + capabilities it runs
-│   │   ├── relay/            #   role.ts, icon.tsx, diagram.svg, i18n/<lang>.json
-│   │   ├── encoder/
+│   │   ├── encoder/          #   role.ts, icon.tsx, diagram.svg, i18n/<lang>.json
 │   │   ├── obs/
 │   │   ├── broadcaster/
 │   │   └── ctrlink_relay/
@@ -29,7 +28,6 @@ cases.
 │       ├── ctrlink_relay/      # per-interface UDP relays (relay-box side)
 │       ├── ctrlink_streamer/   # TUN virtual interface (encoder side)
 │       ├── network/
-│       ├── relay/
 │       ├── obs/
 │       ├── broadcaster/
 │       └── ssh/
@@ -149,7 +147,7 @@ beyond the contracts, components, store, i18n and util helpers a card needs.
 `config.json` = the core keys (`uuid`, `hostname`, `role`, `remoteUrl`,
 `remoteToken`, `color`, `language`, `autostart`, `modules`) plus every other
 top-level key verbatim as a module section in `core.state.data`. A module reads
-and mutates its own sections (`data.relay`, `data.encoder`, …)
+and mutates its own sections (`data.encoder`, `data.network`, …)
 and calls `core.saveState()`; runtime state (pids, counters) stays in module
 variables. The per-module settings slices (`settings.modules[<configKey>]`)
 are seeded from the role's module list (a module is `enabled` by default when
@@ -293,9 +291,8 @@ frontend pages must stay free of module feature branches.
 
 | name                | provider | consumers       | shape                                                                      |
 | ------------------- | -------- | --------------- | -------------------------------------------------------------------------- |
-| `stream.relay`      | relay    | —               | `{ relayStatus(), startRelay(), stopRelay(), reloadRelay(), target() }`    |
 | `network.interfaces`| network  | ctrlink_relay   | `{ list(), onChanged(), ensureMonitoring() }`                              |
-| `network.uplinks`   | network  | ctrlink_relay, ctrlink_streamer | `{ file(), ensure(), onChanged(), add(), remove(), list() }` |
+| `network.uplinks`   | network  | encoder, ctrlink_relay, ctrlink_streamer | `{ file(), ensure(), onChanged(), add(), remove(), list() }` |
 
 Capabilities are looked up by name; providers and consumers remain isolated
 and depend only on the runtime methods they use.
@@ -343,9 +340,9 @@ live role run me?" — so no module file names a role (pinned by
 ## Ordering
 
 `resolveOrder` (in `shared/registry.ts`) topologically sorts modules by their
-`dependencies` (cycle-safe; ids visited alphabetically). Today: `relay` →
-`encoder` → `obs` → `ssh`; `ctrlink_streamer` additionally depends on
-`network`. `startModules` / `stopModules` (reverse) /
+`dependencies` (cycle-safe; ids visited alphabetically). Today: `network`
+depends on `modems`, and `encoder`, `ctrlink_relay` and `ctrlink_streamer` all
+depend on `network`. `startModules` / `stopModules` (reverse) /
 `moduleStatuses` / autostart all iterate that order.
 
 ## Adding a module

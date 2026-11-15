@@ -43,9 +43,9 @@ export interface ReconfigureResult {
 }
 
 /**
- * One srtla_send link of the SRTLA stats push (`relay.stats` / `stream.stats`)
- * — the fields the interfaces card renders (structural: the SRTLA modules
- * own the full event type).
+ * One srtla_send link of the SRTLA stats push (`stream.stats`)
+ * — the fields the interfaces card renders (structural: the SRTLA module
+ * owns the full event type).
  */
 export interface SrtlaLinkStats {
 	ip: string;
@@ -87,6 +87,6 @@ export interface NetworkStatus {
 /**
  * Capability note: the `network.uplinks` contract is the `Uplinks` type
  * (shared/contracts/module_capabilities.ts, re-exported above) — the bonded
- * uplinks file plus a change hook; the consumers (relay, encoder) reload
- * their `srtla_send` (SIGHUP first, restart as fallback) when it fires.
+ * uplinks file plus a change hook; the consumer (encoder) reloads
+ * its `srtla_send` (SIGHUP first, restart as fallback) when it fires.
  */

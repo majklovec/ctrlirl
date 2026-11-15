@@ -44,7 +44,7 @@ describe("dashboard action catalogue (status.actions)", () => {
                 typeof mod.dashboardActions === "function"
                     ? mod.dashboardActions(
                           status(
-                              rolesWithModule(ROLES, mod.id)[0] ?? "relay",
+                              rolesWithModule(ROLES, mod.id)[0] ?? "encoder",
                               { [mod.configKey ?? mod.id]: true },
                           ),
                       )
@@ -58,23 +58,14 @@ describe("dashboard action catalogue (status.actions)", () => {
 
     test("merges the actions of the enabled modules that serve the role", () => {
         const keys = dashboardActionsFor(
-            status("encoder", { encoder: true, relay: false }),
+            status("encoder", { encoder: true }),
         ).map((a) => a.key);
         expect(keys).toContain(dashboardActionKey("encoder", "stop"));
-        // Disabled SRTLA module → neither relay nor modem actions.
-        expect(keys).not.toContain(dashboardActionKey("relay", "reconfigure"));
-        expect(keys).not.toContain(dashboardActionKey("relay", "reload"));
         // not enabled at all (no slice) → no actions
         expect(keys.some((k) => k.startsWith("obs."))).toBe(false);
     });
 
     test("respects the module's roles and the method role overrides", () => {
-        // a relay never offers encoder actions even when the slice claims enabled
-        const relay = dashboardActionsFor(
-            status("relay", { encoder: true, relay: true }),
-        ).map((a) => a.key);
-        expect(relay.some((k) => k.startsWith("encoder."))).toBe(false);
-        expect(relay).toContain(dashboardActionKey("relay", "stop"));
         // encoder devices offer both the process and the stream controls
         const encoder = dashboardActionsFor(
             status("encoder", { encoder: true }),
@@ -97,7 +88,7 @@ describe("dashboard action catalogue (status.actions)", () => {
     });
 
     test("emits one mute/toggle action per live OBS audio source", () => {
-        const st = status("relay", { "obs": true });
+        const st = status("encoder", { "obs": true });
         // status() spreads module fragments to the top level, so the source
         // list lands at status.obs.audioSources (as the device reports it).
         st.obs = {
@@ -138,7 +129,7 @@ describe("dashboard action catalogue (status.actions)", () => {
     });
 
     test("emits one scene-switch action per OBS scene", () => {
-        const st = status("relay", { "obs": true });
+        const st = status("encoder", { "obs": true });
         st.obs = { scenes: ["Live", "BRB"], currentScene: "Live" };
         const scenes = dashboardActionsFor(st).filter((a) =>
             a.id.startsWith("scene:"),
@@ -162,7 +153,7 @@ describe("dashboard action catalogue (status.actions)", () => {
     test("the OBS factory hides mute buttons when no sources are reported", () => {
         // enabled module with no obs fragment → base actions only
         const keys = dashboardActionsFor(
-            status("relay", { "obs": true }),
+            status("encoder", { "obs": true }),
         ).map((a) => a.id);
         expect(keys).toContain("stream-start");
         expect(keys.some((k) => k.startsWith("mute:"))).toBe(false);
@@ -177,8 +168,8 @@ describe("deck widget config", () => {
             { name: DECK_FIELD, type: "hidden" },
         ]);
         // other device widgets keep no config and stay device-bound
-        expect(deviceWidgetConfigFields("relay")).toEqual([]);
-        expect(isFleetWidgetType("relay")).toBe(false);
+        expect(deviceWidgetConfigFields("broadcaster")).toEqual([]);
+        expect(isFleetWidgetType("broadcaster")).toBe(false);
     });
 
     test("parses and round-trips the stored layout", () => {

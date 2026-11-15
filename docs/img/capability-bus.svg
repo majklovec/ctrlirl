@@ -28,8 +28,8 @@
 
     <rect x="680" y="150" width="220" height="70" rx="10" fill="#eff6ff" stroke="#4a9eff"
       stroke-width="1.5" />
-    <text x="790" y="180">relay</text>
-    <text x="790" y="202" font-size="11" fill="#1e40af">→ stream.relay</text>
+    <text x="790" y="180">encoder</text>
+    <text x="790" y="202" font-size="11" fill="#1e40af">→ stream.encoder</text>
   </g>
 
   <!-- arrows down to bus -->
@@ -62,7 +62,7 @@
     <rect x="590" y="400" width="220" height="70" rx="10" fill="#ede9fe" stroke="#8b5cf6"
       stroke-width="1.5" />
     <text x="700" y="430">broadcaster</text>
-    <text x="700" y="452" font-size="11" fill="#5b21b6">uses stream.relay</text>
+    <text x="700" y="452" font-size="11" fill="#5b21b6">uses stream.encoder</text>
   </g>
 
   <text x="500" y="500" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"

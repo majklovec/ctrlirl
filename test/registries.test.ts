@@ -29,7 +29,7 @@ import {
  * anymore, so the topological sort is plain alphabetical order of ids.
  */
 // Canonical dependency order (the registry's start order): capability
-// providers (modems, network) come before their consumers (encoder, relay).
+// providers (modems, network) come before their consumers (encoder).
 const DEVICE_ORDER = [
     "broadcaster",
     "modems",
@@ -38,7 +38,6 @@ const DEVICE_ORDER = [
     "ctrlink_streamer",
     "encoder",
     "obs",
-    "relay",
     "speedtest",
     "ssh",
     "systeminfo",
@@ -199,7 +198,7 @@ describe("module registries", () => {
         expect(missing).toEqual([]);
         expect(extra).toEqual([]);
         // The network card owns the interfaces table and the modems card
-        // owns the modem panels — the relay card is SRTLA-only.
+        // owns the modem panels.
         const networkSrc = readFileSync(
             join(moduleDir("network"), "frontend.tsx"),
             "utf8",
@@ -326,17 +325,16 @@ describe("module registries", () => {
         expect(setup).not.toMatch(
             /encoderHost|srtlaRemoteHost|setup\.step\.encoder/,
         );
-        expect(devices).not.toMatch(/hasEncoder|\.encoder\b|\.relay\b/);
+        expect(devices).not.toMatch(/hasEncoder|\.encoder\b/);
     });
 
     test("device modules declare their frontend contributions", () => {
         const frontend = (id: string) =>
             readFileSync(join(moduleDir(id), "frontend.tsx"), "utf8");
         const encoder = frontend("encoder");
-        const relay = frontend("relay");
         const obs = frontend("obs");
 
-        for (const source of [encoder, relay]) {
+        for (const source of [encoder]) {
             expect(source).toContain("available:");
             expect(source).toContain("dashboardWidgets:");
             expect(source).toContain("setupSteps:");
@@ -362,9 +360,9 @@ describe("module registries", () => {
     });
 });
 
-// Role presets come from module registrations: the relay module serves the
-// relay role, the encoder module the encoder role, the OBS controller defaults
-// on for the dedicated OBS role and remains opt-in elsewhere.
+// Role presets come from module registrations: the encoder module serves the
+// encoder role, the OBS controller defaults on for the dedicated OBS role and
+// remains opt-in elsewhere.
 describe("role presets from the registrations", () => {
     test("default modules follow the roles each module serves", () => {
         const on = (role: Parameters<typeof defaultModules>[0]) =>
@@ -372,14 +370,6 @@ describe("role presets from the registrations", () => {
                 .filter(([, slice]) => slice.enabled)
                 .map(([key]) => key)
                 .sort();
-        expect(on("relay")).toEqual([
-            "modems",
-            "network",
-            "relay",
-            "speedtest",
-            "ssh",
-            "systeminfo",
-        ]);
         // The CtrLink streamer runs always on encoders (no start/stop).
         expect(on("encoder")).toEqual([
             "ctrlink_streamer",
@@ -398,18 +388,18 @@ describe("role presets from the registrations", () => {
     });
 
     test("a module's stored slice key is its id unless it declares a configKey", () => {
-        const relay = ALL_MODULES.find((m) => m.id === "relay");
-        expect(relay?.configKey).toBeUndefined();
-        expect(defaultModules("relay")).toHaveProperty("relay");
-        expect(defaultModules("relay")).not.toHaveProperty("srtla");
+        const encoder = ALL_MODULES.find((m) => m.id === "encoder");
+        expect(encoder?.configKey).toBeUndefined();
+        expect(defaultModules("encoder")).toHaveProperty("encoder");
+        expect(defaultModules("encoder")).not.toHaveProperty("pipeline");
     });
 
-    test("status view exposes the relay module flag", () => {
+    test("status view exposes the encoder module flag", () => {
         const saved = state.settings.modules;
         try {
-            state.settings.modules = defaultModules("relay");
-            const view = safeModules() as { relay?: { enabled: boolean } };
-            expect(view.relay).toEqual({ enabled: true });
+            state.settings.modules = defaultModules("encoder");
+            const view = safeModules() as { encoder?: { enabled: boolean } };
+            expect(view.encoder).toEqual({ enabled: true });
         } finally {
             state.settings.modules = saved;
         }
@@ -425,14 +415,13 @@ describe("role presets from the registrations", () => {
                     obsUrl: "ws://1.2.3.4:4455",
                 },
             };
-            const modules = ensureModuleSlices("relay");
+            const modules = ensureModuleSlices("encoder");
             expect(modules["obs"]).toMatchObject({
                 enabled: true,
                 obsUrl: "ws://1.2.3.4:4455",
                 sceneEvents: true,
             });
-            expect(modules.relay).toEqual({ enabled: true });
-            expect(modules.encoder).toEqual({ enabled: false });
+            expect(modules.encoder).toEqual({ enabled: true });
         } finally {
             state.settings.modules = saved;
             state.settings.role = role;
@@ -474,24 +463,24 @@ describe("module start on a fresh device (no config file, no slices)", () => {
     };
 
     test("startModules seeds default slices and wires every default-enabled module's emit", async () => {
-        // The stubs must name modules the `relay` role enables by default
+        // The stubs must name modules the `encoder` role enables by default
         // (its `requires.modules`), so the fresh-device seed turns them on:
         // under the role model a module a role doesn't serve stays disabled.
         const a = { current: undefined as Emit | undefined };
         const b = { current: undefined as Emit | undefined };
         const saved = save();
         try {
-            state.settings.role = "relay";
+            state.settings.role = "encoder";
             state.settings.modules = undefined;
-            await startModules([makeStub("relay", a), makeStub("network", b)]);
+            await startModules([makeStub("encoder", a), makeStub("network", b)]);
 
             // Slices are seeded with the role defaults.
-            expect(state.settings.modules?.["relay"]).toEqual({ enabled: true });
+            expect(state.settings.modules?.["encoder"]).toEqual({ enabled: true });
             expect(state.settings.modules?.["network"]).toEqual({ enabled: true });
             // Both modules started, and their start() captured the emit —
             // the regression: without the seed the slices were missing, the
             // modules never started, and every event was silently dropped.
-            expect(a.current, "relay emit wired").toBeInstanceOf(Function);
+            expect(a.current, "encoder emit wired").toBeInstanceOf(Function);
             expect(b.current, "network emit wired").toBeInstanceOf(Function);
         } finally {
             restore(saved);
@@ -503,14 +492,14 @@ describe("module start on a fresh device (no config file, no slices)", () => {
         const b = { current: undefined as Emit | undefined };
         const saved = save();
         try {
-            state.settings.role = "relay";
+            state.settings.role = "encoder";
             state.settings.modules = {
-                "relay": { enabled: false },
+                "encoder": { enabled: false },
                 "network": { enabled: true },
             };
-            await startModules([makeStub("relay", a), makeStub("network", b)]);
+            await startModules([makeStub("encoder", a), makeStub("network", b)]);
 
-            expect(a.current, "relay stays stopped").toBeUndefined();
+            expect(a.current, "encoder stays stopped").toBeUndefined();
             expect(b.current, "network emit wired").toBeInstanceOf(Function);
         } finally {
             restore(saved);

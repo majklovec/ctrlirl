@@ -239,7 +239,7 @@ Choose **one** of the following and document the choice in the implementation:
 -   **Option A (recommended):** MPEG-TS muxer inside the app (`MediaMuxer` with `MUXER_OUTPUT_MPEG_TS` is not universally available; a lightweight TS writer or a library like `mp4parser` adapted for TS is acceptable). Feed the TS stream into SRT as payload.
 -   **Option B:** Raw H.264/AAC with a custom framing header, matching what the Ctrl-IRL relay/broadcaster expects. **This must be verified against the relay’s `srtla_rec` configuration** — a relay that expects TS will fail on raw frames.
 
-> **Handoff instruction:** Before implementing the packetiser, read `client/modules/relay` and `client/modules/broadcaster` in ctrlirl to determine the exact SRT payload format the relay forwards. Align the Android encoder with that format.
+> **Handoff instruction:** Before implementing the packetiser, read `client/modules/encoder` and `client/modules/broadcaster` in ctrlirl to determine the exact SRT payload format used on the SRTLA leg. Align the Android encoder with that format.
 
 ### 5.3 Clock and timestamping
 
@@ -367,7 +367,7 @@ Add a GitHub Actions workflow:
 | ------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | No Android SRTLA library exists                         | High — bonding must be written from scratch     | Ship pure-Kotlin `KotlinSrtlaBond` first (Brix reference, `srtla_send` Rust reference); keep it behind `SrtlaBond` so native replacement is a drop-in. |
 | Pure-Kotlin bonding misses the performance gate (§8.3)  | High — stream quality degrades at high bitrate  | Pre-allocate buffers, dedicated thread, no per-packet allocations; promote to native via §2.4.                                                         |
-| Relay expects a specific SRT payload format (TS vs raw) | Medium — stream may not be accepted             | Inspect `client/modules/relay` and `broadcaster` before choosing a packetiser.                                                                         |
+| Relay expects a specific SRT payload format (TS vs raw) | Medium — stream may not be accepted             | Inspect `client/modules/encoder` and `broadcaster` before choosing a packetiser.                                                                        |
 | Android restricts simultaneous Wi‑Fi + cellular use     | Medium — bonding may be impossible on some OEMs | Use `ConnectivityManager` request-network APIs correctly; provide a “single-link mode” fallback and document OEM limitations.                          |
 | Control-server protocol drift                           | Medium — RPC mismatch                           | Copy method signatures from `client/modules/encoder`; add a contract test that runs against `bun run dev`.                                             |
 | Battery / thermal throttling                            | Medium — stream degrades                        | Expose thermal status in diagnostics; allow automatic bitrate/fps reduction.                                                                           |
@@ -390,7 +390,7 @@ Add a GitHub Actions workflow:
 
 ## 12. Open Questions to Resolve at Implementation Time
 
-1. **SRT payload format:** Does the Ctrl-IRL relay `srtla_rec` accept MPEG-TS only, or can it forward raw H.264/AAC? (Check `client/modules/relay` and the `srtla_rec` startup args.)
+1. **SRT payload format:** Does the Ctrl-IRL relay `srtla_rec` accept MPEG-TS only, or can it forward raw H.264/AAC? (Check `client/modules/broadcaster` and the `srtla_rec` startup args.)
 2. **Token provisioning:** Should the Android app support QR-code provisioning of the control-server URL and token, or is manual entry sufficient for v1?
 3. **Background operation:** Android may restrict camera/mic access in the background. Confirm that a foreground service with `FOREGROUND_SERVICE_CAMERA` + `FOREGROUND_SERVICE_MICROPHONE` is sufficient on target OEMs.
 4. **Adaptive bitrate:** Should the Android encoder react to SRTLA link stats by lowering bitrate automatically, or is manual `encoder.setBitrate` enough for v1?

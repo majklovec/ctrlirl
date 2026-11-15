@@ -14,14 +14,14 @@
         font-weight="700" fill="#0f172a" text-anchor="middle">Ctrlink — transparent L2 bridging via
         GRETAP</text>
     <text x="600" y="68" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13"
-        fill="#475569" text-anchor="middle">GRETAP tunnels carry Ethernet frames between the relay
-        and the encoder</text>
+        fill="#475569" text-anchor="middle">GRETAP tunnels carry Ethernet frames between the CtrLink
+        box and the encoder</text>
 
-    <!-- Relay panel -->
+    <!-- CtrLink panel -->
     <rect x="50" y="100" width="500" height="420" rx="14" fill="#ffffff" stroke="#cbd5e1"
         stroke-width="1.5" />
     <text x="80" y="136" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16"
-        font-weight="700" fill="#0f172a">Relay box</text>
+        font-weight="700" fill="#0f172a">CtrLink box</text>
     <text x="80" y="156" font-family="ui-monospace, monospace" font-size="12" fill="#64748b">role:
         ctrlink_relay</text>
 
@@ -79,7 +79,7 @@
         fill="#64748b" text-anchor="middle">Ethernet frames encapsulated over GRE</text>
 
     <text x="300" y="480" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
-        fill="#64748b" text-anchor="middle">relay only forwards frames — no routing config</text>
+        fill="#64748b" text-anchor="middle">the CtrLink box only forwards frames — no routing</text>
 
     <!-- tunnel arrows -->
     <g stroke="#f59e0b" stroke-width="2.5" fill="none">
@@ -137,10 +137,10 @@
     <text x="890" y="366" font-family="ui-monospace, monospace" font-size="14" fill="#0f172a"
         text-anchor="middle">virtual LAN segment</text>
     <text x="890" y="386" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11"
-        fill="#64748b" text-anchor="middle">encoder sees the relay's LAN as local Ethernet</text>
+        fill="#64748b" text-anchor="middle">encoder sees the CtrLink box's LAN as local Ethernet</text>
 
     <text x="890" y="440" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
         fill="#64748b" text-anchor="middle">SRTLA destination stays on the encoder</text>
     <text x="890" y="460" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12"
-        fill="#64748b" text-anchor="middle">relay just bridges frames transparently</text>
+        fill="#64748b" text-anchor="middle">the CtrLink box just bridges frames transparently</text>
 </svg>

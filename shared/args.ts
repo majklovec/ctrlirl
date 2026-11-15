@@ -1,4 +1,4 @@
-/* Minimal CLI argument helpers shared by the relay and the control server. */
+/* Minimal CLI argument helpers shared by the device client and the control server. */
 export const argv = Bun.argv.slice(2);
 export const flag = (name: string): boolean => argv.includes(name);
 

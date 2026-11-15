@@ -1,14 +1,14 @@
 /*
- * Network module: the interface routing layer the `relay` and `encoder` roles
- * share — interface detection, the SRT bond selection, the source-routing
+ * Network module: the interface routing layer the `encoder` role uses —
+ * interface detection, the SRT bond selection, the source-routing
  * tables (`ip rule`/`ip route`), the srtla_send uplinks file and the live
  * netlink monitor that keeps it in sync with the machine's interfaces.
  *
- * The SRTLA leg owners (relay, encoder) don't touch any of that directly:
- * they pull the `network.uplinks` capability and point their `srtla_send` at
+ * The SRTLA leg owner (the encoder) doesn't touch any of that directly:
+ * it pulls the `network.uplinks` capability and points its `srtla_send` at
  * `uplinks.file()`, reloading (SIGHUP, restart fallback) on `uplinks.onChanged`.
  * The uplinks-changed handlers are registered by the consuming modules, so
- * one network module serves both roles without knowing which one is running.
+ * one network module serves the role without knowing which one is running.
  */
 
 import { requireCapability } from "../../../shared/capabilities";

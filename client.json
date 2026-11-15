@@ -79,17 +79,7 @@
         "offline": 400,
         "rtt": 1500
       }
-    },
-    "relay": {
-      "enabled": true
     }
-  },
-  "relay": {
-    "listenPort": "6000",
-    "mode": "enhanced",
-    "quality": true,
-    "remoteHost": "192.168.1.136",
-    "remotePort": "5000"
   },
   "ctrlink": {
     "interfaceIgnore": [

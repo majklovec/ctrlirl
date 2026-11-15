@@ -21,32 +21,18 @@
     text-anchor="middle">client/roles/&lt;name&gt;/role.ts</text>
 
   <!-- role cards (5, arranged around) -->
-  <!-- relay -->
+  <!-- encoder (default) -->
   <line x1="490" y1="260" x2="290" y2="180" stroke="#94a3b8" stroke-width="1.5"
     marker-end="url(#rarr)" />
   <rect x="60" y="120" width="230" height="120" rx="10" fill="#ffffff" stroke="#4a9eff"
     stroke-width="1.5" />
   <text x="80" y="148" font-family="ui-monospace, monospace" font-size="14" font-weight="700"
-    fill="#1e40af">relay</text>
+    fill="#1e40af">encoder</text>
   <text x="80" y="170" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11"
     fill="#64748b">default role</text>
   <g font-family="ui-monospace, monospace" font-size="11" fill="#0f172a">
-    <text x="80" y="196">relay · network</text>
-    <text x="80" y="214">modems · ssh</text>
-  </g>
-
-  <!-- encoder -->
-  <line x1="490" y1="290" x2="290" y2="340" stroke="#94a3b8" stroke-width="1.5"
-    marker-end="url(#rarr)" />
-  <rect x="60" y="300" width="230" height="120" rx="10" fill="#ffffff" stroke="#4a9eff"
-    stroke-width="1.5" />
-  <text x="80" y="328" font-family="ui-monospace, monospace" font-size="14" font-weight="700"
-    fill="#1e40af">encoder</text>
-  <text x="80" y="350" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11"
-    fill="#64748b">local encoding + SRTLA</text>
-  <g font-family="ui-monospace, monospace" font-size="11" fill="#0f172a">
-    <text x="80" y="376">encoder · network</text>
-    <text x="80" y="394">modems · obs</text>
+    <text x="80" y="196">encoder · network</text>
+    <text x="80" y="214">modems · obs · ssh</text>
   </g>
 
   <!-- obs (top right) -->

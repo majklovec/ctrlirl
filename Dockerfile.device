@@ -8,7 +8,7 @@
 #     plus ffmpeg for the broadcaster module.
 #
 # Pick the role per container with `--role` (see docker-compose.yaml):
-#   relay / encoder / obs / broadcaster
+#   encoder / obs / broadcaster
 #
 # SRT is built from the CERALIVE fork (Haivision 1.5.7 + BELABOX patches), the
 # same source the Armbian device image uses (armbian/userpatches/
@@ -128,4 +128,4 @@ EXPOSE 8085
 
 # Default entrypoint — override `command` in docker-compose to set the role.
 ENTRYPOINT ["bun", "client/backend/client.ts"]
-CMD ["--host", "0.0.0.0", "--port", "8085", "--role", "relay", "--pipelines", "/app/pipeline"]
+CMD ["--host", "0.0.0.0", "--port", "8085", "--role", "encoder", "--pipelines", "/app/pipeline"]

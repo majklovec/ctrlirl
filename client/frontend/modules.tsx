@@ -85,7 +85,7 @@ export function refreshDevice(input: {
 		const ctx = contextFor(def);
 		// Only refresh modules that will actually render; a hidden module's
 		// draft is irrelevant and its refresh may assume a module view that
-		// does not exist for this role (e.g. obs on a relay).
+		// does not exist for this role (e.g. obs on the encoder role).
 		if (!def.visible(ctx)) continue;
 		def.refresh?.(ctx);
 	}

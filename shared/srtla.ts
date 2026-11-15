@@ -1,5 +1,5 @@
 /*
- * SRTLA transport primitives shared by the relay and encoder roles (10-SRTLA).
+ * SRTLA transport primitives for the encoder's outbound leg (10-SRTLA).
  *
  * `srtla_send` is the SRT→SRTLA bridge: it listens for a plain SRT stream on a
  * `sendPort` and re-emits it as an SRTLA stream to `remoteHost:remotePort`
@@ -7,21 +7,16 @@
  * uplinks file — not an `srt://` URL — and only a handful of optional flags,
  * which differ by build (the BELABOX C binary understands none of them).
  *
- * `srtla_rec` is the SRTLA→SRT receiver: it listens for SRTLA on a UDP port and
- * re-emits a single plain SRT stream to a (loopback) SRT hostname:port.
- *
  * Beyond the arg/flag helpers this module supervises the process itself
- * (`SrtlaSend`, used by both the relay's outbound leg and the encoder's
- * outbound leg) and speaks the JSON-RPC 2.0 control-socket protocol
+ * (`SrtlaSend`) and speaks the JSON-RPC 2.0 control-socket protocol
  * (`SrtlaControlSocket`): the 1 Hz per-link `stats` pushes and the
  * scheduler mode / quality-scoring switches.
  * https://github.com/irlserver/srtla_send/blob/main/docs/CONTROL_PROTOCOL.md
  *
  * Backend only: this module probes binaries, spawns processes and shells out
- * to `ss` / `ip`, so it must not be imported from browser code.
+ * to `ip`, so it must not be imported from browser code.
  */
-import { mkdirSync, rmSync } from "node:fs";
-import { dirname } from "node:path";
+import { rmSync } from "node:fs";
 import type { Socket } from "bun";
 import type { Supervisor } from "../client/backend/supervisor";
 import { t } from "./i18n";
@@ -64,10 +59,8 @@ export interface SrtlaControlState {
 }
 
 /**
- * The SRTLA target a leg sends to. `listenPort` is the local SRTLA/SRT input
- * the operator configures; on the relay that is the UDP port `srtla_rec`
- * binds (the encoder → relay hop), on the encoder it is the SRT port
- * `srtla_send` listens on. The destination is what `srtla_send` sends to.
+ * The SRTLA target a leg sends to. `listenPort` is the local SRT input port
+ * `srtla_send` listens on; the destination is what `srtla_send` sends to.
  */
 export interface SrtlaTarget {
     listenPort: string;
@@ -79,9 +72,9 @@ export interface SrtlaTarget {
 export interface SrtlaState {
     running: boolean;
     pid?: number;
-    /** Local input port (`srtla_rec` UDP on the relay, SRT listen on the encoder). */
+    /** The local SRT input port `srtla_send` listens on. */
     listenPort?: string;
-    /** The plain-SRT port `srtla_send` listens on (loopback internal port on the relay). */
+    /** The plain-SRT port `srtla_send` listens on. */
     sendPort?: string;
     remoteHost?: string;
     remotePort?: string;
@@ -92,7 +85,7 @@ export interface SrtlaState {
 
 /**
  * The persisted config section of a leg: receiver target plus scheduler
- * options. The relay stores it under `relay`, the encoder under `stream`.
+ * options (the encoder stores it under `stream`).
  */
 export interface SrtlaConfig {
     listenPort: string;
@@ -137,7 +130,7 @@ export interface SrtlaStats {
     links: SrtlaLinkStats[];
 }
 
-/** The `relay.stats` / `stream.stats` push. */
+/** The `stream.stats` push. */
 export interface SrtlaStatsEvent {
     at: number;
     stats: SrtlaStats | null;
@@ -208,38 +201,6 @@ export async function srtlaSendCapabilities(
 }
 
 /**
- * The argv for `srtla_rec`, which listens for an SRTLA stream on `srtlaPort`
- * and re-emits a plain SRT stream to `srtHost:srtPort` (loopback in the relay
- * bridge). The caller is responsible for spawning and supervising the process.
- */
-export function srtlaRecArgs(
-    srtlaPort: number,
-    srtHost: string,
-    srtPort: number,
-): string[] {
-    return [
-        "--srtla_port",
-        String(srtlaPort),
-        "--srt_hostname",
-        srtHost,
-        "--srt_port",
-        String(srtPort),
-    ];
-}
-
-/** Whether a UDP port is bound, via `ss -uln`. False when `ss` is unavailable. */
-export function isUdpPortOpen(port: number): boolean {
-    try {
-        const result = Bun.spawnSync(["ss", "-uln"]);
-        if (result.exitCode !== 0) return false;
-        const matcher = new RegExp(`(^|[\\s:])${port}(?=[\\s])`, "m");
-        return matcher.test(result.stdout.toString());
-    } catch {
-        return false;
-    }
-}
-
-/**
  * The host's default-route source IPv4 (for the `srtla_send` uplinks file);
  * null when it cannot be determined (e.g. `ip` is unavailable).
  */
@@ -250,37 +211,6 @@ export function defaultSourceIp(): string | null {
     } catch {
         return null;
     }
-}
-
-/**
- * Write a single-line uplinks file for a `srtla_send` leg (`sourceIp` — the
- * host's outbound IP; empty when unknown). Creates parent directories.
- */
-export async function writeUplinksFile(
-    path: string,
-    sourceIp: string | null,
-): Promise<void> {
-    mkdirSync(dirname(path), { recursive: true });
-    await Bun.write(path, `${sourceIp ?? ""}\n`);
-}
-
-/**
- * Poll `isUdpPortOpen` until `port` is bound or `timeoutMs` elapses. Returns
- * false when the deadline is reached, or when `isAborted()` flips (a
- * stop/restart invalidates a half-open readiness gate).
- */
-export async function waitForUdpPort(
-    port: number,
-    timeoutMs: number,
-    isAborted: () => boolean = () => false,
-): Promise<boolean> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-        if (isAborted()) return false;
-        if (isUdpPortOpen(port)) return true;
-        await Bun.sleep(150);
-    }
-    return false;
 }
 
 // ----------------------------------------------------------------------
@@ -582,7 +512,7 @@ export interface SrtlaSendServices {
 
 /** Per-role configuration of one supervised leg. */
 export interface SrtlaSendConfig {
-    /** Log section: "SRTLA" (relay) / "SRTLA_SEND" (encoder). */
+    /** Log section: "SRTLA_SEND". */
     section: string;
     /** The control-socket path ("" disables it). */
     controlSocket: string;
@@ -595,7 +525,7 @@ export interface SrtlaSendConfig {
 /**
  * One supervised `srtla_send` process: spawn, restart-on-exit, reload
  * (SIGHUP or respawn) and the scheduler options over the control socket.
- * The relay uses it for its outbound leg, the encoder for its only leg.
+ * The encoder's single `srtla_send` leg uses it.
  */
 export class SrtlaSend {
     /** The control-socket client (stats pushes + mode/quality RPC). */

@@ -25,12 +25,12 @@ afterEach(() => {
     state.data = originalData;
 });
 
-function relayDevice() {
-    const modules = defaultModules("relay");
+function encoderDevice() {
+    const modules = defaultModules("encoder");
     modules[OBS].enabled = true;
     state.settings = {
         ...originalSettings,
-        role: "relay",
+        role: "encoder",
         language: "en",
         modules,
     };
@@ -109,12 +109,6 @@ describe("device RPC surface", () => {
                 "modems.connect",
                 "modems.disconnect",
                 "modems.profile",
-                "relay.status",
-                "relay.start",
-                "relay.stop",
-                "relay.reload",
-                "relay.stats",
-                "relay.options",
                 "pipelines.list",
                 "pipelines.get",
                 "pipelines.create",
@@ -154,7 +148,7 @@ describe("device RPC surface", () => {
     });
 
     test("keeps the read-only settings envelope and token redaction", async () => {
-        relayDevice();
+        encoderDevice();
         state.settings.remoteToken = "secret";
         const response = await request("settings.get");
         expect(response).toMatchObject({
@@ -172,24 +166,24 @@ describe("device RPC surface", () => {
     });
 
     test("status composes the module fragments", async () => {
-        relayDevice();
+        encoderDevice();
         const response = await request("status");
         expect(response.ok).toBe(true);
         expect(response.result).toMatchObject({
-            role: "relay",
+            role: "encoder",
             state: { autostart: false },
-            modules: { relay: { enabled: true }, encoder: { enabled: false } },
+            modules: { encoder: { enabled: true } },
         });
         expect(response.result).toHaveProperty("summary");
-        expect(response.result?.state).toHaveProperty("relay");
+        expect(response.result?.state).toHaveProperty("encoder");
     });
 
-    test("setup.get returns encoder resources on a relay process", async () => {
+    test("setup.get returns encoder resources on a non-encoder process", async () => {
         // The wizard lets the user pick any role, but the process role stays
-        // what it started as (relay here). The encoder's setup step reads
+        // what it started as (obs here). The encoder's setup step reads
         // `pipelines`/`audioSources` from this response, so they must be
         // present even when the encoder is not applicable to the process role.
-        state.settings = { ...originalSettings, role: "relay" };
+        state.settings = { ...originalSettings, role: "obs" };
         const response = await request("setup.get");
         expect(response.ok).toBe(true);
         expect(Array.isArray(response.result?.pipelines)).toBe(true);
@@ -197,12 +191,10 @@ describe("device RPC surface", () => {
     });
 
     test.each([
-        ["relay", "pipelines.list"],
-        ["relay", "ceracoder.set"],
-        ["relay", "stream.start"],
-        ["relay", "encoder.stop"],
-        ["encoder", "relay.start"],
-        ["encoder", "relay.stop"],
+        ["obs", "pipelines.list"],
+        ["obs", "ceracoder.set"],
+        ["obs", "stream.start"],
+        ["obs", "encoder.stop"],
         ["obs", "modems.enable"],
         ["obs", "reconfigure"],
         ["obs", "ssh.status"],
@@ -226,7 +218,7 @@ describe("device RPC surface", () => {
     test.each(["obs.request", "obs.requestBatch", "lowBitrateSwitcher.save"])(
         "gates %s on the OBS module before validation",
         async (method) => {
-            const modules = relayDevice();
+            const modules = encoderDevice();
             modules[OBS].enabled = false;
             const response = await request(method);
             expect(response.code).toBe(409);
@@ -236,21 +228,19 @@ describe("device RPC surface", () => {
 
     test.each([
         [
-            "relay",
+            "encoder",
             "settings.update",
             { uuid: "changed" },
             "The device uuid can't be changed",
             false,
         ],
         [
-            "relay",
+            "encoder",
             "modems.enable",
             {},
             "index must be a non-negative integer",
             true,
         ],
-        ["relay", "relay.start", {}, "listenPort is required", true],
-        ["relay", "relay.options", {}, "mode or quality is required", true],
         ["encoder", "pipelines.get", {}, "id is required", false],
         ["encoder", "pipelines.create", {}, "id is required", true],
         [
@@ -261,11 +251,11 @@ describe("device RPC surface", () => {
             true,
         ],
         ["encoder", "stream.start", {}, "pipeline is required", true],
-        ["relay", "autostart.set", {}, "enabled must be a boolean", true],
-        ["relay", "modules.enable", {}, "id is required", true],
-        ["relay", "obs.request", {}, "requestType is required", false],
+        ["encoder", "autostart.set", {}, "enabled must be a boolean", true],
+        ["encoder", "modules.enable", {}, "id is required", true],
+        ["encoder", "obs.request", {}, "requestType is required", false],
         [
-            "relay",
+            "encoder",
             "obs.requestBatch",
             {},
             "requests must be a non-empty array",
@@ -274,17 +264,14 @@ describe("device RPC surface", () => {
     ] satisfies [Status["role"], string, Params, string, boolean][])(
         "validates %s in the owning module and keeps the logged flag",
         async (role, method, params, error, logged) => {
-            if (role === "relay") relayDevice();
-            else {
-                const modules = defaultModules("encoder");
-                modules[OBS].enabled = true;
-                state.settings = {
-                    ...originalSettings,
-                    role: "encoder",
-                    language: "en",
-                    modules,
-                };
-            }
+            const modules = defaultModules(role);
+            modules[OBS].enabled = true;
+            state.settings = {
+                ...originalSettings,
+                role,
+                language: "en",
+                modules,
+            };
             // Always differ from the supplied update, regardless of local config.
             state.settings.uuid = "original";
             const log = silenceLog();
@@ -302,7 +289,7 @@ describe("device RPC surface", () => {
     );
 
     test("routes a module method to its owner's dispatch with the raw params", async () => {
-        relayDevice();
+        encoderDevice();
         const log = silenceLog();
         const modems = moduleById("modems");
         if (!modems) throw new Error("modems module missing");
@@ -325,7 +312,7 @@ describe("device RPC surface", () => {
     });
 
     test("unknown methods and unknown module ids are rejected", async () => {
-        relayDevice();
+        encoderDevice();
         expect((await request("nope.method")).code).toBe(404);
         const response = await request("modules.enable", { id: "nope" });
         expect(response).toMatchObject({
@@ -337,7 +324,7 @@ describe("device RPC surface", () => {
 
 describe("encoder parameter parsing", () => {
     test("validates bitrates in start order versus live-update order", () => {
-        relayDevice();
+        encoderDevice();
         const params = { minBitrate: "bad-min", maxBitrate: "bad-max" };
         expect(() => parseBitrates(params)).toThrow(
             "maxBitrate must be an integer",
@@ -351,7 +338,7 @@ describe("encoder parameter parsing", () => {
     });
 
     test("uses the saved encoder config as the defaults", () => {
-        relayDevice();
+        encoderDevice();
         const config = {
             pipeline: "saved",
             host: "old-host",

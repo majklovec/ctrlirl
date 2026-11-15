@@ -69,9 +69,6 @@
         "rtt": 1500
       }
     },
-    "relay": {
-      "enabled": true
-    },
     "speedtest": {
       "enabled": true,
       "interface": "wwx001e101f0000",

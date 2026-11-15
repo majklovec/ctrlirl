@@ -101,9 +101,6 @@
         "rtt": 1500
       }
     },
-    "relay": {
-      "enabled": false
-    },
     "ssh": {
       "enabled": true
     }
