@@ -6,26 +6,22 @@
 // types ← helpers ← base ← providers ← factory ← backend dependency chain.
 
 import { LinuxSystemInfoProvider } from "./base";
-import { readFileSafe } from "./helpers";
+import { detectBoardId } from "../../../shared/install/board";
 import { LinuxGenericSystemInfo } from "./providers/linux_generic";
 import { OrangePi5PlusSystemInfo } from "./providers/orange_pi_5_plus";
 import { RaspberryPiSystemInfo } from "./providers/raspberry_pi";
 
 export async function createSystemInfoProvider(): Promise<LinuxSystemInfoProvider> {
-    const dt =
-        (await readFileSafe("/proc/device-tree/model"))
-            ?.replace(/\0/g, "")
-            .trim() ?? "";
-
-    if (/Orange Pi 5 Plus/i.test(dt)) return new OrangePi5PlusSystemInfo();
-    if (/Raspberry Pi/i.test(dt)) return new RaspberryPiSystemInfo();
-
-    // Fallback via /proc/cpuinfo when the device-tree is missing.
-    const ci = (await readFileSafe("/proc/cpuinfo")) ?? "";
-    if (ci.includes("RK3588")) return new OrangePi5PlusSystemInfo();
-    if (/\bBCM2\d{3}\b/.test(ci)) return new RaspberryPiSystemInfo();
-
-    // Unknown board: fall back to the generic provider, which reads the
-    // standard /proc and /sys interfaces (x86 and ARM alike).
-    return new LinuxGenericSystemInfo();
+    // Board detection lives in shared/install/board.ts so the systeminfo and
+    // install-spec per-board deltas never drift apart.
+    switch (await detectBoardId()) {
+        case "orange_pi_5_plus":
+            return new OrangePi5PlusSystemInfo();
+        case "raspberry_pi":
+            return new RaspberryPiSystemInfo();
+        default:
+            // Unknown board: the generic provider reads the standard /proc
+            // and /sys interfaces (x86 and ARM alike).
+            return new LinuxGenericSystemInfo();
+    }
 }

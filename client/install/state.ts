@@ -42,6 +42,7 @@ export async function loadState(role: string): Promise<InstallState> {
     const data = JSON.parse(text) as Partial<InstallState>;
     return {
         role,
+        board: data.board,
         updatedAt: data.updatedAt ?? new Date(0).toISOString(),
         modules: (data.modules ?? {}) as Record<string, ModuleInstallState>,
     };

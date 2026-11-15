@@ -3,7 +3,7 @@
  * repo (both standalone and post-merge), catching typos in CI without a
  * host. Exits 1 when any file has issues (all issues are printed).
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { validateSpecDetailed } from "../shared/install/validate";
 import { mergeSpec, InstSpecError } from "../shared/install/merge";
@@ -32,41 +32,59 @@ const fail = (
     for (const i of issues ?? []) console.error(`   ${i.path || "(root)"} ${i.message}`);
 };
 
-for (const moduleId of readdirSync(modulesRoot, { withFileTypes: true })) {
-    if (!moduleId.isDirectory()) continue;
-    const installDir = join(modulesRoot, moduleId.name, "install");
-    if (!existsSync(installDir)) continue;
-    for (const name of readdirSync(installDir)) {
-        // Only install spec files: install.json and install.<role>.json
-        if (!/^(install|install\.[a-z0-9_]+)\.json$/.test(name)) continue;
+    // Validate + merge-check one spec file against the module's base spec.
+    // `where` labels the file in the output; `withBase` is the file the merge
+    // is checked against (the base spec for role/board deltas).
+    const checkFile = (file: string, withBase: string | null): void => {
         checked++;
-        const file = join(installDir, name);
         let data: unknown;
         try {
             data = JSON.parse(readFileSync(file, "utf8"));
         } catch (e) {
             fail(file, e instanceof Error ? e.message : String(e));
-            continue;
+            return;
         }
         const issues = validateSpecDetailed(data);
         if (issues.length) {
             fail(file, undefined, issues);
-            continue;
+            return;
         }
-        // Cross-check the merged form against the base file when this is a
-        // role delta, so merge-level breakage is caught here too.
-        if (name !== "install.json") {
-            const baseFile = join(installDir, "install.json");
-            if (existsSync(baseFile)) {
-                try {
-                    const base: ModuleInstallSpec = JSON.parse(readFileSync(baseFile, "utf8"));
-                    const merged = mergeSpec(base, data as Partial<ModuleInstallSpec>);
-                    const mi = validateSpecDetailed(merged);
-                    if (mi.length) fail(file, `merged with install.json`, mi);
-                } catch (e) {
-                    fail(file, `merge with install.json: ${e instanceof InstSpecError ? e.message : String(e)}`);
-                }
+        if (withBase && existsSync(withBase)) {
+            try {
+                const base = JSON.parse(
+                    readFileSync(withBase, "utf8"),
+                ) as ModuleInstallSpec;
+                const merged = mergeSpec(base, data as Partial<ModuleInstallSpec>);
+                const mi = validateSpecDetailed(merged);
+                if (mi.length) fail(file, `merged with install.json`, mi);
+            } catch (e) {
+                fail(
+                    file,
+                    `merge with install.json: ${e instanceof InstSpecError ? e.message : String(e)}`,
+                );
             }
+        }
+    };
+
+for (const moduleId of readdirSync(modulesRoot, { withFileTypes: true })) {
+    if (!moduleId.isDirectory()) continue;
+    const installDir = join(modulesRoot, moduleId.name, "install");
+    if (!existsSync(installDir)) continue;
+    // Top-level specs: install.json and install.<role>.json.
+    for (const name of readdirSync(installDir)) {
+        if (!/^(install|install\.[a-z0-9_]+)\.json$/.test(name)) continue;
+        checkFile(
+            join(installDir, name),
+            name === "install.json" ? null : join(installDir, "install.json"),
+        );
+    }
+    // Board deltas: install/boards/<board>.json (merged over the base).
+    const boardsDir = join(installDir, "boards");
+    if (existsSync(boardsDir) &&
+        statSync(boardsDir).isDirectory()) {
+        for (const name of readdirSync(boardsDir)) {
+            if (!/^[a-z0-9_]+\.json$/.test(name)) continue;
+            checkFile(join(boardsDir, name), join(installDir, "install.json"));
         }
     }
 }

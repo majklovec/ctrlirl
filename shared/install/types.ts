@@ -120,6 +120,8 @@ export interface ModuleInstallState {
 /** The per-role state file: `/var/lib/ctrlirl/installed/<role>.json`. */
 export interface InstallState {
     role: string;
+    /** Board the state was installed for. Absent in older state files. */
+    board?: string;
     updatedAt: string;
     modules: Record<string, ModuleInstallState>;
 }
@@ -136,6 +138,8 @@ export interface ModulePlan {
 /** The fully resolved, ordered plan for one role. */
 export interface InstallPlan {
     role: string;
+    /** The board this plan was resolved for (per-board deltas were applied). */
+    board: string;
     /** Ordered for installation; uninstall runs the exact reverse. */
     ordered: ModulePlan[];
 }

@@ -52,6 +52,7 @@ export async function switchRole(
     if (!oldRole || oldRole === newRole) {
         const plan = await buildPlan(roleDef, opts.cfg, {
             moduleRoot: opts.moduleRoot,
+            boardId: opts.boardId,
         });
         await installPlan(plan, opts);
         return {
@@ -64,8 +65,14 @@ export async function switchRole(
     const oldDef = opts.oldRoleDef;
     if (!oldDef)
         throw new Error(`switch: no role definition for old role "${oldRole}"`);
-    const oldPlan = await buildPlan(oldDef, opts.cfg, { moduleRoot: opts.moduleRoot });
-    const newPlan = await buildPlan(roleDef, opts.cfg, { moduleRoot: opts.moduleRoot });
+    const oldPlan = await buildPlan(oldDef, opts.cfg, {
+        moduleRoot: opts.moduleRoot,
+        boardId: opts.boardId,
+    });
+    const newPlan = await buildPlan(roleDef, opts.cfg, {
+        moduleRoot: opts.moduleRoot,
+        boardId: opts.boardId,
+    });
 
     const oldNames = new Set(oldPlan.ordered.map((m) => m.name));
     const newNames = new Set(newPlan.ordered.map((m) => m.name));

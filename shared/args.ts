@@ -17,10 +17,13 @@ export const argFail = (
 export function arg(name: string): string | undefined;
 export function arg(name: string, fallback: string): string;
 export function arg(name: string, fallback?: string): string | undefined {
-    const prefix = `${name}=`;
+    // Flags are stored with their `--` prefix in argv; accept either form at
+    // the call site so `arg("role")` and `arg("--role")` both resolve.
+    const flag = name.startsWith("--") ? name : `--${name}`;
+    const prefix = `${flag}=`;
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
-        if (a === name) return argv[i + 1] ?? fallback;
+        if (a === flag) return argv[i + 1] ?? fallback;
         if (a.startsWith(prefix)) return a.slice(prefix.length);
     }
     return fallback;

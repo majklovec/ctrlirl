@@ -49,6 +49,24 @@ The handoff sketched role specs with a flat module list. The repo's
 (`client/install/plan.ts`) reads those. `RoleDefinition.install` (added in
 M2) is the role-wide spec, merged as a synthetic `__role__` plan entry.
 
+### Board detection and the per-board delta layer
+
+Board identity lives in [`shared/install/board.ts`](shared/install/board.ts) as
+a pure, injectable `detectBoardId()` (device-tree `model` → CPUinfo fallback,
+never throws) plus `BOARD_IDS`/`isBoardId`. It is the single source of truth:
+the systeminfo module (`client/modules/systeminfo/factory.ts`) reuses the same
+function for provider selection, so install deltas and systeminfo can't drift.
+Detection is read-only (`/proc/device-tree/model`, `/proc/cpuinfo`) and safe on
+the host.
+
+The board is a **third merge layer** — base → role → board (board wins) — read
+from `install/boards/<board>.json` in `loadInstallSpec`. It is applied only
+when the board is non-generic, so `generic` (the default) is a no-op. The board
+id threads through `buildPlan` → `InstallPlan.board` → install state
+(`state.board`) → CLI (`--board` / `BOARD_ID`, validated, exit 1 on unknown).
+`orderByModuleDependencies`/`reverseOrder` spread the plan, so the `board`
+field propagates to reversed/uninstalled plans.
+
 ## Provider notes
 
 ### Root-gated providers are verified through the command seam

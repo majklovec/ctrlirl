@@ -10,6 +10,7 @@ import type {
     ModuleInstallState,
 } from "../../shared/install/types";
 import type { RoleDefinition } from "../../shared/contracts/roles";
+import type { BoardId } from "../../shared/install/board";
 import { buildPlan } from "./plan";
 import { emptyModuleState, loadState, saveState, stateFile, stateRoot } from "./state";
 import { reverseOrder } from "./ordering";
@@ -66,6 +67,12 @@ export interface InstallOpts {
     root?: string;
     /** Module directory (defaults to the repo's `client/modules`). */
     moduleRoot?: string;
+    /**
+     * Board the role is installed on (defaults to auto-detection). Lets the
+     * plan apply `install/boards/<board>.json` deltas and record the board in
+     * state.
+     */
+    boardId?: BoardId;
 }
 
 export interface ModuleResult {
@@ -125,6 +132,7 @@ export async function installPlan(
     opts: InstallOpts,
 ): Promise<InstallResult> {
     const state = await loadState(plan.role);
+    state.board = plan.board;
     const baseOpts: ProviderOpts = {
         installDir: "",
         installDeps: opts.installDeps ?? false,
@@ -207,7 +215,10 @@ export async function install(
     roleDef: RoleDefinition,
     opts: InstallOpts,
 ): Promise<InstallResult> {
-    const plan = await buildPlan(roleDef, opts.cfg, { moduleRoot: opts.moduleRoot });
+    const plan = await buildPlan(roleDef, opts.cfg, {
+        moduleRoot: opts.moduleRoot,
+        boardId: opts.boardId,
+    });
     return installPlan(plan, opts);
 }
 
@@ -216,7 +227,10 @@ export async function uninstall(
     roleDef: RoleDefinition,
     opts: InstallOpts,
 ): Promise<InstallResult> {
-    const plan = await buildPlan(roleDef, opts.cfg, { moduleRoot: opts.moduleRoot });
+    const plan = await buildPlan(roleDef, opts.cfg, {
+        moduleRoot: opts.moduleRoot,
+        boardId: opts.boardId,
+    });
     return uninstallRole(plan.role, plan, opts);
 }
 

@@ -32,7 +32,7 @@ export async function renderDryRun(
         purge: false,
         root: opts.root ?? stateRoot(),
     };
-    const out: string[] = [];
+    const out: string[] = [`role ${plan.role} · board ${plan.board}`];
     for (const mod of plan.ordered) {
         const ctx = makeCtx(plan.role, mod.name, mod.spec, state, {
             ...baseOpts,

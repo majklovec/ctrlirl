@@ -8,6 +8,8 @@ firewall rules, udev rules, config overlays, package dependencies) from
 client/modules/<module>/install/
   install.json              # base spec (applies to every role)
   install.<role>.json       # optional role delta (merged over the base)
+  boards/
+    <board>.json            # optional board delta (merged last, board wins)
   hooks/
     install.sh              # optional, runs after everything else
     uninstall.sh            # optional, runs first on uninstall
@@ -63,10 +65,19 @@ installer simply has nothing to do for them.
 }
 ```
 
-All keys are optional. `version` must be `1`. `install.<role>.json` is merged
-over `install.json` (role wins) — arrays concatenate then dedupe:
-`services` by `name`, `firewall` by `(tool, table, chain, rule)`, `udev` by
-`file` (later entry wins).
+All keys are optional. `version` must be `1`. Three optional layers merge in
+order, **later wins**: `install.json` (base) → `install.<role>.json` (role) →
+`boards/<board>.json` (board). Arrays concatenate then dedupe: `services` by
+`name`, `firewall` by `(tool, table, chain, rule)`, `udev` by `file`
+(later entry wins).
+
+**Board layers** are hardware-specific. The board id is detected at runtime
+from the device tree / CPU (`orange_pi_5_plus`, `raspberry_pi`, `generic`) and
+can be overridden with `--board <id>` or the `BOARD_ID` env var. A
+`boards/<board>.json` delta is only merged when the board is non-generic —
+`generic` (the safe default, and the board for most SBC-agnostic modules)
+applies no board delta. Board ids are validated against the known set; an
+unknown `--board`/`BOARD_ID` is a validation error (exit 1).
 
 **Constraints**
 
@@ -128,7 +139,7 @@ requested role has no state yet — it auto-installs first (opt out with
 ## CLI
 
 ```
-sudo bun client/backend/client.ts --role <role> install   [--dry-run] [--install-deps]
+sudo bun client/backend/client.ts --role <role> install   [--dry-run] [--install-deps] [--board <id>]
 sudo bun client/backend/client.ts --role <role> uninstall [--dry-run] [--purge]
 sudo bun client/backend/client.ts --role <role> reinstall [--dry-run]
 sudo bun client/backend/client.ts --role <new> switch-from <old> [--dry-run]
@@ -139,6 +150,9 @@ bun    client/backend/client.ts install validate
   changes, no root needed)
 - `--install-deps` lets the installer `apt-get install -y` missing packages
   (off by default: a missing package is an error)
+- `--board <id>` (or the `BOARD_ID` env var) overrides board auto-detection;
+  without it the board is derived from the device tree / CPU. An unknown id is
+  a usage error (exit 1). Applies to `install`/`reinstall`/`switch-from`
 - `--purge` on uninstall removes only the packages the installer itself
   added (`packagesAdded` in state) — pre-existing packages are never removed
 - Exit codes: `0` success, `1` validation/usage error, `2` install error
@@ -147,6 +161,7 @@ bun    client/backend/client.ts install validate
 Dry-run output groups artifacts by provider in the fixed step order:
 
 ```
+role encoder · board generic
 [modems] install
   packages:
     * dpkg -s ModemManager  (check)
@@ -175,6 +190,9 @@ All install logic is testable on a developer machine:
 - `CTRLIRL_TEST=1` makes `host.run()` refuse to spawn a real command (an
   injected `fake` must answer) — a test can never hit the host's
   `systemctl`/`nft`/`udevadm`
+- `shared/install/board.ts` is a pure, injectable `detectBoardId()` (device
+  tree → CPU fallback, never throws) — the single source of truth reused by
+  the systeminfo module, so install deltas and systeminfo never drift
 - Tests: `test/install_spec.test.ts` (M1), `test/install_orchestrator.test.ts`
   (M2), `test/install_providers.test.ts` (M3/M4), `test/install_m5.test.ts`
-  (M5)
+  (M5), `test/install_board.test.ts` (board detection + board-delta merge)

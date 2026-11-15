@@ -24,6 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RoleDefinition } from "../../shared/contracts/roles";
 import type { InstallPlan } from "../../shared/install/types";
+import { BOARD_IDS, isBoardId, detectBoardId, type BoardId } from "../../shared/install/board";
 import { buildPlan } from "./plan";
 import { installPlan, uninstallRole, InstallError } from "./installer";
 import { renderDryRun } from "./dryrun";
@@ -43,8 +44,28 @@ const VALUE_FLAGS = new Set([
     "--host",
     "--state-file",
     "--log-file",
+    "--board",
     "switch-from",
 ]);
+
+/**
+ * Resolve the board for the install surface. `--board`/`BOARD_ID` overrides
+ * auto-detection (validated against the known board ids); otherwise the
+ * running board is detected. `generic` is always accepted.
+ */
+const resolveBoard = async (): Promise<BoardId> => {
+    const explicit = arg("board") ?? process.env.BOARD_ID;
+    if (explicit !== undefined) {
+        if (!isBoardId(explicit)) {
+            console.error(
+                `install: unknown board "${explicit}" (expected ${BOARD_IDS.join(" | ")})`,
+            );
+            process.exit(1);
+        }
+        return explicit;
+    }
+    return await detectBoardId();
+};
 
 const positional = (argv: string[]): string[] => {
     const out: string[] = [];
@@ -104,16 +125,18 @@ export async function installCli(): Promise<CliOutcome> {
     const cfg = await loadCfg();
     const providers = realProviderBundle();
     const moduleRoot = appPath(MODULE_ROOTS[0]);
+    const board = await resolveBoard();
     const installOpts = {
         providers,
         cfg,
         installDeps: flag("--install-deps"),
         purge: flag("--purge"),
         moduleRoot,
+        boardId: board,
     };
     let plan: InstallPlan;
     try {
-        plan = await buildPlan(role, cfg, { moduleRoot });
+        plan = await buildPlan(role, cfg, { moduleRoot, boardId: board });
     } catch (err) {
         console.error(
             `install: plan validation failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -197,8 +220,8 @@ export async function installCli(): Promise<CliOutcome> {
             if (dryRun()) {
                 const old = roleDef(oldRole);
                 const [a, b] = await Promise.all([
-                    buildPlan(role, cfg, { moduleRoot }),
-                    buildPlan(old, cfg, { moduleRoot }),
+                    buildPlan(role, cfg, { moduleRoot, boardId: board }),
+                    buildPlan(old, cfg, { moduleRoot, boardId: board }),
                 ]);
                 console.log(
                     await renderDryRun(b, "uninstall", { providers, cfg }),

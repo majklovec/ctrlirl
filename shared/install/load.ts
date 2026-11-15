@@ -1,9 +1,9 @@
 /*
- * Load a module's install spec for one role:
+ * Load a module's install spec for one role on one board:
  *
- *   1. read `install/install.json` (base) and `install/install.<role>.json`
- *      (role delta);
- *   2. merge (role wins — `merge.ts`);
+ *   1. read `install/install.json` (base), `install/install.<role>.json`
+ *      (role delta) and `install/boards/<board>.json` (board delta);
+ *   2. merge — role wins over base, board wins over role (`merge.ts`);
  *   3. validate the merged result against `schema.json`;
  *   4. resolve `{{file:}}` / `{{env:}}` / `{{cfg:}}` placeholders.
  *
@@ -32,24 +32,34 @@ const readJsonIfExists = async (path: string): Promise<Record<string, unknown> |
 };
 
 /**
- * Load + merge + validate + resolve one module's spec for `role`.
+ * Load + merge + validate + resolve one module's spec for `role` on `board`.
  *
  * @param moduleDir the module directory (the parent of its `install/`).
  * @param role the role id this spec is resolved for.
  * @param cfg the role's runtime config (top level of the config file) for `{{cfg:…}}`.
+ * @param board the board id; `install/boards/<board>.json` (when present) is
+ *   merged last (board wins). `undefined`/`"generic"` apply no board delta.
  */
 export async function loadInstallSpec(
     moduleDir: string,
     role: string,
     cfg: Record<string, unknown>,
+    board?: string,
 ): Promise<ModuleInstallSpec | null> {
     const base = await readJsonIfExists(`${moduleDir}/install/install.json`);
     const roleSpec = await readJsonIfExists(`${moduleDir}/install/install.${role}.json`);
-    if (base === null && roleSpec === null) return null;
+    const boardSpec =
+        board && board !== "generic"
+            ? await readJsonIfExists(`${moduleDir}/install/boards/${board}.json`)
+            : null;
+    if (base === null && roleSpec === null && boardSpec === null) return null;
     const merged = validateSpec(
         mergeSpec(
-            (base ?? { version: 1 }) as unknown as ModuleInstallSpec,
-            roleSpec,
+            mergeSpec(
+                (base ?? { version: 1 }) as unknown as ModuleInstallSpec,
+                roleSpec,
+            ),
+            boardSpec,
         ),
     );
     return resolveSpec(merged, `${moduleDir}/install`, cfg);

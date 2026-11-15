@@ -6,6 +6,7 @@
  */
 import { appPath, MODULE_ROOTS } from "../../shared/paths";
 import { loadInstallSpec } from "../../shared/install/load";
+import { detectBoardId, type BoardId } from "../../shared/install/board";
 import type {
     InstallPlan,
     ModuleInstallSpec,
@@ -19,14 +20,17 @@ import { orderByModuleDependencies } from "./ordering";
  *
  * @param roleDef the role definition (module list + role-wide `install`).
  * @param cfg the role's runtime config (top level) for `{{cfg:…}}` resolution.
- * @param opts `moduleRoot`: the directory whose children are modules. Defaults
- *   to the repo's `client/modules`; tests point it at a fixture dir.
+ * @param opts `moduleRoot`: the directory whose children are modules (defaults
+ *   to the repo's `client/modules`; tests point it at a fixture dir).
+ *   `boardId`: the board the role is installed on — `install/boards/<board>.json`
+ *   deltas are applied for matching modules. Defaults to auto-detection.
  */
 export async function buildPlan(
     roleDef: RoleDefinition,
     cfg: Record<string, unknown>,
-    opts: { moduleRoot?: string } = {},
+    opts: { moduleRoot?: string; boardId?: BoardId } = {},
 ): Promise<InstallPlan> {
+    const board = opts.boardId ?? (await detectBoardId());
     const ordered: ModulePlan[] = [];
 
     // 1. Every module the role declares (default-on first, optional later).
@@ -37,7 +41,7 @@ export async function buildPlan(
     const deviceRoot = opts.moduleRoot ?? appPath(MODULE_ROOTS[0]);
     for (const id of moduleIds) {
         const moduleDir = `${deviceRoot}/${id}`;
-        const spec = await loadInstallSpec(moduleDir, roleDef.id, cfg);
+        const spec = await loadInstallSpec(moduleDir, roleDef.id, cfg, board);
         if (spec === null) continue; // no install/ → nothing to install
         ordered.push({ name: id, spec, installDir: `${moduleDir}/install` });
     }
@@ -46,7 +50,7 @@ export async function buildPlan(
     const roleSpec = buildRoleSpec(roleDef);
     if (roleSpec !== null) ordered.push({ name: "__role__", spec: roleSpec });
 
-    return orderByModuleDependencies({ role: roleDef.id, ordered });
+    return orderByModuleDependencies({ role: roleDef.id, board, ordered });
 }
 
 /**
