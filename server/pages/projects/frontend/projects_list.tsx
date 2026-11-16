@@ -410,6 +410,15 @@ function copyToken(value: string): void {
 	void navigator.clipboard?.writeText(value).catch(() => {});
 }
 
+/**
+ * The WebSocket endpoint devices dial into, derived from the page origin
+ * (the control server serves the page and the socket on the same host).
+ */
+function wsEndpointUrl(): string {
+	const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+	return `${scheme}://${window.location.host}/device`;
+}
+
 async function loadJoinProject(): Promise<void> {
 	if (state.joinPreviewBusy || !state.joinToken) return;
 	state.joinPreviewBusy = true;
@@ -761,6 +770,14 @@ const App: m.Component = {
 									</Card>
 								) : null,
 								<Card title={t("projects.tokens.title")}>
+									<p class="muted">{t("projects.tokens.wsEndpoint")}</p>
+									<code
+										class="token-value"
+										title={t("projects.tokens.copy")}
+										onclick={() => copyToken(wsEndpointUrl())}
+									>
+										{wsEndpointUrl()}
+									</code>
 									{state.tokens === undefined ? (
 										<p class="muted">{t("mgmt.loading")}</p>
 									) : state.tokens.length === 0 ? (

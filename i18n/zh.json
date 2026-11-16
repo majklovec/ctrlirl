@@ -308,6 +308,7 @@
   "projects.tokens.remove": "移除",
   "projects.tokens.title": "设备令牌",
   "projects.tokens.value": "令牌",
+  "projects.tokens.wsEndpoint": "WebSocket 服务器端点",
   "projects.you": "您",
   "register.back": "已有账号？登录",
   "register.confirm": "确认密码",

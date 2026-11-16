@@ -7,12 +7,12 @@
  * invite links and the project selector (the shell nav) both talk to.
  */
 import { Elysia } from "elysia";
-import { LOCAL_PROJECT_ID } from "../../core/runtime";
 import type {
     PageModule,
     PageServices,
     ProjectAccess,
 } from "../../../core/contracts";
+import { LOCAL_PROJECT_ID } from "../../core/runtime";
 import { createProjects } from "./backend/registry";
 import { mountProjectRoutes } from "./backend/routes";
 import menu from "./frontend/menu";
@@ -36,25 +36,21 @@ export default {
             // everything lives in the local project (no membership tables).
             const access: ProjectAccess = s.db
                 ? {
-                    role: (user: string, projectId: string) =>
-                        projects.role(user, projectId),
-                    requireRole: (
-                        user: string,
-                        projectId: string,
-                        allowed: readonly (
-                            | "owner"
-                            | "editor"
-                            | "viewer"
-                        )[],
-                    ) => projects.requireRole(user, projectId, allowed),
-                    personalProjectId: (user: string) =>
-                        projects.personalProjectId(user),
-                }
+                      role: (user: string, projectId: string) =>
+                          projects.role(user, projectId),
+                      requireRole: (
+                          user: string,
+                          projectId: string,
+                          allowed: readonly ("owner" | "editor" | "viewer")[],
+                      ) => projects.requireRole(user, projectId, allowed),
+                      personalProjectId: (user: string) =>
+                          projects.personalProjectId(user),
+                  }
                 : {
-                    role: () => "owner",
-                    requireRole: () => "owner",
-                    personalProjectId: () => LOCAL_PROJECT_ID,
-                };
+                      role: () => "owner",
+                      requireRole: () => "owner",
+                      personalProjectId: () => LOCAL_PROJECT_ID,
+                  };
             s.capabilities.provide("projectAccess", access);
             mountProjectRoutes(routes, s, projects);
         },

@@ -308,6 +308,7 @@
   "projects.tokens.remove": "Retirer",
   "projects.tokens.title": "Jetons de périphérique",
   "projects.tokens.value": "Jeton",
+  "projects.tokens.wsEndpoint": "Point d'accès du serveur WebSocket",
   "projects.you": "vous",
   "register.back": "Vous avez déjà un compte ? Se connecter",
   "register.confirm": "Confirmer le mot de passe",

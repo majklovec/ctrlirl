@@ -308,6 +308,7 @@
   "projects.tokens.remove": "Odobrať",
   "projects.tokens.title": "Tokeny zariadenia",
   "projects.tokens.value": "Token",
+  "projects.tokens.wsEndpoint": "Koncový bod WebSocket servera",
   "projects.you": "vy",
   "register.back": "Máte už účet? Prihláste sa",
   "register.confirm": "Potvrďte heslo",

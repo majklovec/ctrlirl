@@ -308,6 +308,7 @@
   "projects.tokens.remove": "Удалить",
   "projects.tokens.title": "Токены устройства",
   "projects.tokens.value": "Токен",
+  "projects.tokens.wsEndpoint": "Эндпоинт WebSocket-сервера",
   "projects.you": "вы",
   "register.back": "Уже есть аккаунт? Войти",
   "register.confirm": "Подтвердите пароль",

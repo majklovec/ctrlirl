@@ -308,6 +308,7 @@
   "projects.tokens.remove": "Entfernen",
   "projects.tokens.title": "Geräte-Tokens",
   "projects.tokens.value": "Token",
+  "projects.tokens.wsEndpoint": "WebSocket-Server-Endpunkt",
   "projects.you": "Sie",
   "register.back": "Haben Sie bereits ein Konto? Anmelden",
   "register.confirm": "Passwort bestätigen",

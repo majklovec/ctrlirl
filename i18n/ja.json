@@ -308,6 +308,7 @@
   "projects.tokens.remove": "削除",
   "projects.tokens.title": "デバイストークン",
   "projects.tokens.value": "トークン",
+  "projects.tokens.wsEndpoint": "WebSocketサーバーのエンドポイント",
   "projects.you": "あなた",
   "register.back": "アカウントをお持ちですか？ログイン",
   "register.confirm": "パスワード確認",
