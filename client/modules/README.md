@@ -17,7 +17,7 @@ cases.
 │   ├── backend/              # device core (client.ts, state, module lifecycle, RPC)
 │   ├── frontend/             # device web UI (index / setup / settings pages)
 │   ├── roles/                # the roles: each declares the modules + capabilities it runs
-│   │   ├── encoder/          #   role.ts, icon.tsx, diagram.svg, i18n/<lang>.json
+│   │   ├── encoder/          #   role.json, icon.svg, diagram.svg, i18n/<lang>.json
 │   │   ├── obs/
 │   │   ├── broadcaster/
 │   │   └── ctrlink_relay/
@@ -43,8 +43,8 @@ cases.
 └── generated/                # gitignored generated manifests / embedded assets
     ├── frontend-assets.ts
     ├── i18n.ts
-    ├── roles.ts              # the role definitions (one import per client/roles/<id>/role.ts)
-    ├── role_icons.ts         # each role's pictogram (client/roles/<id>/icon.tsx)
+    ├── roles.ts              # the role definitions (one import per client/roles/<id>/role.json)
+    ├── role_icons.ts         # each role's pictogram (client/roles/<id>/icon.svg)
     ├── role_diagrams.ts      # each role's architecture diagram (client/roles/<id>/diagram.svg)
     ├── modules.backend.ts
     ├── modules.frontend.ts
@@ -305,8 +305,8 @@ own the knowledge of *which modules run on them and which capabilities those
 modules consume and register*; a **module never names a role**. Roles live in
 `client/roles/<id>/`, one directory per role:
 
--   `role.ts` — a `RoleDefinition` (see `shared/contracts/roles.ts`)
--   `icon.tsx` — the role's pictogram (rendered on role tags, the setup wizard
+-   `role.json` — a `RoleDefinition` (see `shared/contracts/roles.ts`)
+-   `icon.svg` — the role's pictogram (rendered on role tags, the setup wizard
     and the device list)
 -   `diagram.svg` — the role's architecture diagram (shown in the setup wizard)
 -   `i18n/<lang>.json` — the `role.<id>` + `setup.role.<id>_tag` strings
@@ -325,7 +325,7 @@ A `RoleDefinition` declares:
     `services.capabilities` keys.
 
 Discovery and validation mirror the modules: `shared/registry.ts`
-`discoverRoles()` imports each `client/roles/<id>/role.ts` (a compiled binary
+`discoverRoles()` imports each `client/roles/<id>/role.json` (a compiled binary
 uses the generated `generated/roles.ts`), and `validateRole` fails the boot if
 a role lists a module it doesn't provide, requires a module the role doesn't
 run, or has capabilities that don't match. The manifest generator also emits
@@ -357,7 +357,7 @@ depend on `network`. `startModules` / `stopModules` (reverse) /
    `dashboardWidgets` / `dashboardActions`, and `dependencies` if it must start
    after another module. A module never names a role; to make it run on a role,
    add its id to that role's `requires.modules` (or `optionalModules`) in
-   `client/roles/<role>/role.ts` (see [Roles](#roles)).
+   `client/roles/<role>/role.json` (see [Roles](#roles)).
 3. Put the module's translations in `modules/<id>/i18n/<lang>.json` (all
    languages in `shared/languages.ts`) and its wire types in `types.ts`.
 4. **No core edits** — the backend scan picks up the module, and `predev`

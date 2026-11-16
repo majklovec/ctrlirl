@@ -1,0 +1,23 @@
+{
+  "id": "encoder",
+  "titleKey": "role.encoder",
+  "taglineKey": "setup.role.encoder_tag",
+  "order": 10,
+  "default": true,
+  "setupSelectable": true,
+  "requires": {
+    "modules": [
+      "encoder",
+      "ctrlink_streamer",
+      "network",
+      "modems",
+      "ssh",
+      "speedtest",
+      "systeminfo"
+    ],
+    "capabilities": ["network.uplinks", "network.ctrlink", "modems.source"]
+  },
+  "provides": {
+    "capabilities": ["network.uplinks", "network.interfaces", "network.ctrlink", "modems.source"]
+  }
+}

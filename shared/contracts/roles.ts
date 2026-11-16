@@ -19,7 +19,7 @@ export interface RoleDefinition {
     default?: boolean;
     setupSelectable?: boolean;
     /**
-     * Role-wide install rules (JSON-free: the role.ts object literal). Optional;
+     * Role-wide install rules (declared in the role.json file). Optional;
      * the device installer merges it as a synthetic `__role__` spec. Never
      * names `services` or `hooks` (module-scoped).
      */

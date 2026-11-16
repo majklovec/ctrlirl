@@ -31,7 +31,7 @@ export const MODULE_ROOTS = [
 ] as const;
 
 /**
- * Directory whose immediate children are roles (`<root>/<id>/role.ts`).
+ * Directory whose immediate children are roles (`<root>/<id>/role.json`).
  *
  * A role owns the knowledge of which modules and capabilities it requires
  * and provides; modules never reference roles.

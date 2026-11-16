@@ -29,7 +29,7 @@ Every capability is a **self-contained module** that talks to the rest of the sy
 
 ![Roles](docs/img/roles.svg)
 
-A role is a directory under `client/roles/<role>/` with a `role.ts` that lists the modules to load. The device client runs exactly one role at a time, chosen with `--role`.
+A role is a directory under `client/roles/<role>/` with a `role.json` that lists the modules to load. The device client runs exactly one role at a time, chosen with `--role`.
 
 | Role              | What it does                                             | Key modules                           | Capabilities it provides / consumes                                  |
 | ----------------- | -------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- |

@@ -14,7 +14,7 @@
  * at module init). Kept in shared/ui so the module code stays out of the core import
  * graph.
  */
-import type m from "mithril";
+import m from "mithril";
 import MANIFEST from "../../generated/modules.frontend";
 import ROLE_ICONS_MAP from "../../generated/role_icons";
 import ROLES from "../../generated/roles";
@@ -111,17 +111,18 @@ export function destroyDeviceWidget(type: string, widgetId: string): void {
     fleetWidgetForType(type)?.destroy?.(widgetId);
 }
 
-/** Role pictograms, owned by the roles themselves (client/roles/<id>/icon.tsx,
- * emitted to generated/role_icons.ts) — no module draws a role. */
-const ROLE_ICONS = new Map<Role, () => m.Vnode>(
-    Object.entries(
-        ROLE_ICONS_MAP as Record<string, () => m.Vnode>,
-    ),
+/** Role pictograms, owned by the roles themselves (client/roles/<id>/icon.svg,
+ * emitted to generated/role_icons.ts as URL assets) — no module draws a role. */
+const ROLE_ICONS = new Map<Role, string>(
+    Object.entries(ROLE_ICONS_MAP as Record<string, string>),
 );
 
 /** The pictogram of a role, when it ships one. */
 export function roleIcon(role: Role): m.Vnode | undefined {
-    return ROLE_ICONS.get(role)?.();
+    const src = ROLE_ICONS.get(role);
+    return src
+        ? m("img", { class: `role-icon role-icon-${role}`, src, alt: "" })
+        : undefined;
 }
 
 /** Fleet widgets (offered once, not bound to one device) by type. */

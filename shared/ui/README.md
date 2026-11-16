@@ -24,7 +24,7 @@ shared/ui/
 │   ├── modal.tsx         Modal
 │   ├── confirm.tsx       confirmDialog (promise-based, replaces window.confirm)
 │   ├── icons.tsx         Icon (the built-in 24×24 outline set), OutlineIcon
-│   └── role_tag.tsx      RoleTag (pictogram owned by the role: client/roles/<id>/icon.tsx)
+│   └── role_tag.tsx      RoleTag (pictogram owned by the role: client/roles/<id>/icon.svg)
 ├── overlay/              overlay element SDK (element contract, fields, tokens, asset picker)
 ├── api_client.ts         apiJson / apiTry / ApiError — the only way to call /api
 ├── i18n.tsx              t(), LanguageSelect, i18nReady
@@ -58,7 +58,7 @@ provides.
 - **Icons.** `Icon name="…"` for the built-in set; a module's own pictograms
   and overlay element icons are drawn with `OutlineIcon` (the latter via
   `OverlayElementDef.icon`). A **role's** pictogram is owned by the role itself
-  in `client/roles/<id>/icon.tsx` (emitted to `generated/role_icons.ts`), not
+  in `client/roles/<id>/icon.svg` (emitted to `generated/role_icons.ts`), not
   by a module — the kit never names a role or a module.
 - **No module ids in the kit.** The kit renders contributions (role icons,
   cards, widgets, overlay elements) through the registries; it never names a

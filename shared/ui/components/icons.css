@@ -7,9 +7,10 @@
     gap: 0.3rem;
     white-space: nowrap;
 }
-/* Inline SVGs carry only a viewBox, so CSS must size them (1em tracks text size) */
+/* Role pictograms are <img> assets (client/roles/<id>/icon.svg, sized to
+   1em to track text); the stroke rules still size inline <OutlineIcon>
+   usages of the same class (e.g. the encoder module card). */
 .role-icon {
-    /*    width: 1em; */
     height: 1em;
     flex: none;
     fill: none;

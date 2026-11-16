@@ -245,7 +245,7 @@ export const ALL_MODULES: readonly BackendModule[] = resolveOrder([
 for (const mod of ALL_MODULES) if (mod.log) registerLogWording(mod.log);
 
 // ---------------------------------------------------------------------------
-// Roles — discovered from client/roles/<id>/role.ts (ROLE_ROOT), the same two
+// Roles — discovered from client/roles/<id>/role.json (ROLE_ROOT), the same two
 // ways modules are discovered. A role owns the knowledge of which modules run
 // on it and which capabilities they consume/register; modules never name a
 // role.
@@ -333,12 +333,12 @@ async function discoverRoles(): Promise<RoleDefinition[]> {
         const root = appPath(ROLE_ROOT);
         const entries = readdirSync(root)
             .sort()
-            .filter((entry) => existsSync(join(root, entry, "role.ts")));
+            .filter((entry) => existsSync(join(root, entry, "role.json")));
         definitions = (
             await Promise.all(
                 entries.map(async (entry) => {
-                    const file = join(root, entry, "role.ts");
-                    const label = `${ROLE_ROOT}/${entry}/role.ts`;
+                    const file = join(root, entry, "role.json");
+                    const label = `${ROLE_ROOT}/${entry}/role.json`;
                     let ns: { default?: RoleDefinition };
                     try {
                         ns = (await import(file)) as { default?: RoleDefinition };
@@ -402,7 +402,7 @@ export const ROLES: readonly RoleDefinition[] = ROLE_DEFINITIONS;
 export const registeredRoleIds = (): readonly Role[] =>
     ROLE_DEFINITIONS.map((definition) => definition.id);
 
-/** The role declared `default` in its own role.ts. */
+/** The role declared `default` in its own role.json. */
 export const defaultRole = (): Role =>
     ROLE_DEFINITIONS.find((definition) => definition.default)!.id;
 

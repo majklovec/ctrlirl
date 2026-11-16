@@ -205,7 +205,7 @@ control-loop bug. Fixed in code below; **rpi4 is currently locked out** (see the
 
 ### 1. Relay module was not starting (config/role chain)
 
--   `client/roles/ctrlink_relay/role.ts` `requires.modules` was missing `network` (the relay
+-   `client/roles/ctrlink_relay/role.json` `requires.modules` was missing `network` (the relay
     module's `bind()` needs `network.interfaces`/`network.uplinks`). Adding it tripped role
     validation: a role's `requires.capabilities` must EXACTLY equal the union of its modules'
     `services.consumes`, and `provides.capabilities` the union of provided capabilities. Fixed

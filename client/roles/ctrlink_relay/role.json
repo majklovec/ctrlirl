@@ -1,0 +1,20 @@
+{
+  "id": "ctrlink_relay",
+  "titleKey": "role.ctrlink_relay",
+  "taglineKey": "setup.role.ctrlink_relay_tag",
+  "order": 20,
+  "setupSelectable": true,
+  "requires": {
+    "modules": ["network", "modems", "speedtest", "systeminfo"],
+    "optionalModules": ["ctrlink_relay", "obs"],
+    "capabilities": ["modems.source", "network.interfaces", "network.uplinks"]
+  },
+  "provides": {
+    "capabilities": [
+      "modems.source",
+      "network.ctrlink",
+      "network.interfaces",
+      "network.uplinks"
+    ]
+  }
+}
