@@ -1,3 +1,10 @@
+# [8.1.0](https://github.com/majklovec/ctrlirl/compare/v8.0.0...v8.1.0) (2026-11-16)
+
+
+### Features
+
+* **projects:** add device websocket endpoint ([39576e5](https://github.com/majklovec/ctrlirl/commit/39576e505d2367ec424cd4a6852228bf493dfaaa))
+
 # [8.0.0](https://github.com/majklovec/ctrlirl/compare/v7.12.0...v8.0.0) (2026-11-16)
 
 
