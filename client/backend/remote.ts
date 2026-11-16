@@ -174,10 +174,8 @@ function connect(): void {
     // ride along in the hello as display parameters
     const id = state.settings.uuid ?? "";
     const role = state.settings.role ?? ROLE;
-    const headers: Record<string, string> = {
-        "x-device-id": id,
-        "x-device-role": role,
-    };
+    const headers: Record<string, string> = { "x-device-id": id };
+    if (role) headers["x-device-role"] = role;
     if (target.token) headers.authorization = `Bearer ${target.token}`;
 
     console.log(`[remote] connecting to ${safeUrl()} as "${id}"...`);

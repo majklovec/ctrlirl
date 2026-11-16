@@ -22,6 +22,7 @@ import m from "mithril";
 import roleDiagrams from "../../generated/role_diagrams";
 import type { ModuleSetupStep } from "../../shared/contracts/frontend_module";
 import type { Role, SetupInfo } from "../../shared/contracts/wire";
+import type { LogEntry, LogEvent } from "../../shared/log_messages";
 import { attemptedSteps } from "../../shared/setup_progress";
 import { errorMessage } from "../../shared/util";
 import {
@@ -41,7 +42,14 @@ interface WizardStep {
 }
 
 interface CoreStep {
-	id: "language" | "access" | "role" | "identity" | "control" | "finish";
+	id:
+		| "language"
+		| "access"
+		| "role"
+		| "install"
+		| "identity"
+		| "control"
+		| "finish";
 	title: string;
 	subtitle: string;
 }
@@ -59,6 +67,11 @@ const CORE_STEPS: CoreStep[] = [
 	},
 	{ id: "role", title: "set.role", subtitle: "setup.step.role_sub" },
 	{
+		id: "install",
+		title: "setup.step.install",
+		subtitle: "setup.step.install_sub",
+	},
+	{
 		id: "identity",
 		title: "setup.step.identity",
 		subtitle: "setup.step.identity_sub",
@@ -75,6 +88,9 @@ const FINISH_STEP: CoreStep = {
 	subtitle: "setup.save",
 };
 
+/** The install step can take minutes (module package downloads). */
+const INSTALL_TIMEOUT_MS = 30 * 60 * 1000;
+
 const state = {
 	connected: false,
 	loaded: false,
@@ -82,6 +98,16 @@ const state = {
 	message: "",
 	saving: false,
 	info: null as SetupInfo | null,
+	/** The install step: the role's rules applied on this host. */
+	install: {
+		role: undefined as Role | undefined,
+		status: "idle" as "idle" | "running" | "done" | "failed",
+		// Date.now() when the install started — the log only collects
+		// entries from this moment on (the wizard survives restarts and
+		// the log keeps pushing).
+		at: null as number | null,
+	},
+	installLog: [] as LogEntry[],
 };
 
 const f = {
@@ -173,6 +199,12 @@ function coreStep(step: CoreStep): WizardStep {
 			switch (step.id) {
 				case "role":
 					return f.role ? null : t("setup.err_role");
+				case "install":
+					// Blocked while the install runs; a failed install shows
+					// its error in the log and may be retried.
+					return state.install.status === "running"
+						? t("setup.install_wait")
+						: null;
 				case "access":
 					if (!USERNAME_RE.test(f.username)) return t("setup.err_username");
 					if (f.password.length < PASSWORD_MIN) {
@@ -345,6 +377,33 @@ function coreStep(step: CoreStep): WizardStep {
 							}
 						/>,
 					);
+				case "install":
+					return stepFrame(
+						step.id,
+						t("setup.step.install"),
+						t("setup.step.install_sub"),
+						{},
+						<div class="install-log">
+							<span class="install-log-title">
+								{t("setup.install_log")}
+							</span>
+							<code class="install-log-entries">
+								{state.installLog.length
+									? state.installLog.map((entry) => (
+										  <li
+											key={entry.id}
+											class={`install-log-${entry.level}`}
+									  >
+											{entry.message}
+											{(entry.count ?? 1) > 1
+												? ` ×${entry.count}`
+												: null}
+									  </li>
+									  ))
+									: t("setup.install_wait")}
+							</code>
+						</div>,
+					);
 				case "finish":
 					return stepFrame(
 						step.id,
@@ -384,6 +443,8 @@ function goNext(): void {
 	}
 	state.message = "";
 	state.current = Math.min(current + 1, steps.length - 1);
+	// Arriving at the install step kicks off the role's install.
+	if (steps[state.current]?.id === "install") ensureInstallStarted();
 }
 
 function goPrev(): void {
@@ -418,6 +479,63 @@ rpc.on("close", () => {
 	state.connected = false;
 	m.redraw();
 });
+// The install step streams its progress as `log` events (section
+// "Install"); collect them from the moment the install started.
+rpc.on("log", (data?: unknown) => {
+	const startedAt = state.install.at;
+	if (startedAt === null) return;
+	for (const entry of (data as LogEvent | undefined)?.entries ?? []) {
+		if (entry.section !== "Install" || entry.at < startedAt) continue;
+		const at = state.installLog.findIndex((e) => e.id === entry.id);
+		if (at === -1) state.installLog.push(entry);
+		else state.installLog[at] = entry;
+	}
+	m.redraw();
+});
+
+/**
+ * Apply the role's host rules now — the RPC resolves when the install
+ * finishes (it can take minutes). Progress arrives as `log` events and is
+ * shown by the step while it runs.
+ */
+async function startInstall(role: Role): Promise<void> {
+	state.install = { role, status: "running", at: Date.now() };
+	state.installLog = [];
+	state.message = "";
+	m.redraw();
+	try {
+		const res = (await rpc.call(
+			"setup.install",
+			{ role },
+			INSTALL_TIMEOUT_MS,
+		)) as {
+			installed: boolean;
+			missing: string[];
+			skipped?: "skip" | "not-root";
+		};
+		// No modules to install is a clean no-op, not a failure.
+		state.install.status =
+			res.missing.length === 0 || res.skipped !== undefined
+				? "done"
+				: res.installed
+					? "done"
+					: "failed";
+	} catch (error: unknown) {
+		console.error("setup.install failed", error);
+		state.install.status = "failed";
+		state.message = errorMessage(error);
+	}
+	m.redraw();
+}
+
+/** Entering the step: start the install for the picked role — a rerun for
+ * the role if the previous attempt failed or targeted a different role. */
+function ensureInstallStarted(): void {
+	if (!f.role) return;
+	if (state.install.role === f.role && state.install.status !== "idle")
+		return;
+	void startInstall(f.role);
+}
 
 async function complete(): Promise<void> {
 	const role = f.role;
@@ -478,7 +596,15 @@ function wizard(): m.Children {
 					hidden={current === 0}
 					onclick={goPrev}
 				/>
-				<Button label={t("ui.next")} hidden={last} onclick={goNext} />
+				<Button
+					label={t("ui.next")}
+					hidden={last}
+					disabled={
+						steps[current].id === "install" &&
+						state.install.status === "running"
+					}
+					onclick={goNext}
+				/>
 				<Button
 					label={t("setup.save")}
 					type="submit"

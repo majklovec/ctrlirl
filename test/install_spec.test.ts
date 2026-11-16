@@ -186,6 +186,17 @@ describe("validateSpec", () => {
         );
     });
 
+    test("hooks accept script paths or nonempty argument arrays", () => {
+        expect(validateSpecDetailed({
+            version: 1,
+            hooks: { install: ["hooks/install.sh", "arm64", ""], uninstall: "hooks/uninstall.sh" },
+        })).toHaveLength(0);
+        for (const hook of [[], [""], [123], ["hooks/install.sh", 123]]) {
+            expect(validateSpecDetailed({ version: 1, hooks: { install: hook } }).length)
+                .toBeGreaterThan(0);
+        }
+    });
+
     test("a fully valid spec passes and validateSpec returns it", () => {
         const spec: ModuleInstallSpec = {
             version: 1,

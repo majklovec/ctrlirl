@@ -25,7 +25,6 @@ import type { Role } from "../../shared/validate";
 import { runAutostart as runAutostartWith } from "./autostart";
 import { provideCapability } from "../../shared/capabilities";
 import { logEvent } from "./eventlog";
-import { ROLE } from "./config";
 import { buildModuleCore, type ModuleCore } from "./module_core";
 import { pushModuleEvent } from "./push";
 import {
@@ -43,8 +42,6 @@ const DEVICE_MODULES = ALL_MODULES.filter(
     (m) => m.kind === "device",
 ) as Module[];
 
-if (!isRegisteredRole(ROLE))
-    argFail("--role", ROLE, roleDefinitions().map((role) => role.id).join(" | "));
 if (state.settings.role && !isRegisteredRole(state.settings.role))
     argFail(
         "config role",
@@ -68,12 +65,12 @@ export const moduleEnabled = (id: string): boolean => {
 };
 
 /** A role runs `mod` when it lists the module in its own `requires` (the role
- * owns the knowledge; the module never names a role). */
-const servesRole = (mod: BackendModule, role: Role): boolean =>
+ * owns the knowledge; the module never names a role). No role → nothing runs. */
+const servesRole = (mod: BackendModule, role: Role | undefined): boolean =>
     roleServesModule(ROLES, role, mod.id);
 
-/** The slice a fresh device gets for `mod` on `role`. */
-const defaultSlice = (mod: BackendModule, role: Role): ModuleSlice =>
+/** The slice a fresh device gets for `mod` on `role` (no role → disabled). */
+const defaultSlice = (mod: BackendModule, role: Role | undefined): ModuleSlice =>
     deepMerge(
         { enabled: roleEnablesModule(ROLES, role, mod.id) },
         mod.configDefaults,
@@ -88,10 +85,11 @@ export const defaultModules = (role: Role): ModulesState =>
 /**
  * Make sure every device module has a complete slice: missing modules get the
  * role's default, existing slices are backfilled with new default fields
- * (stored values win). Unknown stored keys are kept.
+ * (stored values win). Unknown stored keys are kept. With no role selected a
+ * missing slice is seeded disabled.
  */
 export function ensureModuleSlices(
-    role: Role = effectiveRole(),
+    role: Role | undefined = effectiveRole(),
     mods: Module[] = DEVICE_MODULES,
 ): ModulesState {
     const stored = state.settings.modules ?? {};
@@ -146,7 +144,9 @@ export function setModuleEnabled(mod: Module, enabled: boolean): void {
 // ---------------------------------------------------------------------------
 
 const core = buildModuleCore(moduleEnabled);
-export const effectiveRole = (): Role => core.role();
+/** The role that decides which modules serve the box; `undefined` while no
+ * role has been selected (fresh device) — then no module runs at all. */
+export const effectiveRole = (): Role | undefined => core.role();
 
 for (const mod of ALL_MODULES)
     for (const [name, impl] of Object.entries(mod.services?.capabilities ?? {}))
@@ -186,12 +186,16 @@ const shouldRun = (mod: Module): boolean =>
     servesRole(mod, effectiveRole()) && moduleSlice(mod)?.enabled === true;
 
 /** Start every settings-enabled module that serves the current role, in dependency order.
- * `mods` is a test seam; the process starts with the full registry. */
+ * `mods` is a test seam; the process starts with the full registry. A device
+ * with no role selected (fresh install, wizard not finished) starts nothing —
+ * the web UI stays up so a role can be picked first. */
 export async function startModules(mods: Module[] = DEVICE_MODULES): Promise<void> {
-    // A device without a config file has no stored slices yet; seed the
+    const role = effectiveRole();
+    if (role === undefined) return;
+    // A device without stored slices has no slices yet; seed the role's
     // defaults so its default-enabled modules (speedtest, ...) start and can
     // emit events. The in-memory slices are persisted on the first save.
-    if (!state.settings.modules) ensureModuleSlices(effectiveRole(), mods);
+    if (!state.settings.modules) ensureModuleSlices(role, mods);
     for (const mod of mods)
         if (shouldRun(mod)) {
             started.add(mod);

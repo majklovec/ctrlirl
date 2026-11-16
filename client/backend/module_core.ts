@@ -37,11 +37,12 @@ export interface ModuleCore {
         argv: readonly string[];
         DRY_RUN: boolean;
         LOG_FILE: string;
-        /** The process role from the CLI / config file. */
-        ROLE: Role;
+        /** The process role from the CLI / config file (none when unselected). */
+        ROLE: Role | undefined;
     };
-    /** Effective role: saved settings win over the process argument. */
-    role(): Role;
+    /** Effective role: saved settings win over the process argument;
+     * `undefined` while no role has been selected (no module runs). */
+    role(): Role | undefined;
     /** Settings + module sections (`state.data.<section>`); mutate, then `saveState()`. */
     state: PersistentState;
     saveState(): Promise<void>;

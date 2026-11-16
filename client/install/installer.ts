@@ -4,22 +4,29 @@
  * (reverse of the steps already applied) when one fails. No host mutation
  * happens here — everything real is delegated to the injected `providers`.
  */
+
+import type { RoleDefinition } from "../../shared/contracts/roles";
+import type { BoardId } from "../../shared/install/board";
 import type {
     InstallPlan,
     InstallState,
     ModuleInstallState,
 } from "../../shared/install/types";
-import type { RoleDefinition } from "../../shared/contracts/roles";
-import type { BoardId } from "../../shared/install/board";
-import { buildPlan } from "./plan";
-import { emptyModuleState, loadState, saveState, stateFile, stateRoot } from "./state";
 import { reverseOrder } from "./ordering";
+import { buildPlan } from "./plan";
 import type {
     InstallProvider,
     ModuleCtx,
     ProviderOpts,
     StepKey,
 } from "./provider";
+import {
+    emptyModuleState,
+    loadState,
+    saveState,
+    stateFile,
+    stateRoot,
+} from "./state";
 
 const INSTALL_STEPS: readonly StepKey[] = [
     "packagesCheck",
@@ -73,6 +80,13 @@ export interface InstallOpts {
      * state.
      */
     boardId?: BoardId;
+    /** Receives each module's result lines as the install progresses. */
+    onModuleResult?: (result: ModuleResult) => void;
+    /**
+     * Receives a step's lines as soon as that step finishes (before the
+     * module completes), so a caller can stream a live per-step log.
+     */
+    onStep?: (module: string, step: StepKey, lines: string[]) => void;
 }
 
 export interface ModuleResult {
@@ -90,8 +104,7 @@ export interface InstallResult {
 const providerFor = (
     providers: InstallProvider[],
     step: StepKey,
-): InstallProvider | undefined =>
-    providers.find((p) => p.steps.includes(step));
+): InstallProvider | undefined => providers.find((p) => p.steps.includes(step));
 
 function makeCtx(
     role: string,
@@ -142,18 +155,28 @@ export async function installPlan(
     const results: ModuleResult[] = [];
     for (const mod of plan.ordered) {
         const entryBefore = state.modules[mod.name];
-        const ctx = makeCtx(plan.role, mod.name, mod.spec, state, mod.installDir ?? "", {
-            ...baseOpts,
-            installDir: mod.installDir ?? "",
-        });
+        const ctx = makeCtx(
+            plan.role,
+            mod.name,
+            mod.spec,
+            state,
+            mod.installDir ?? "",
+            {
+                ...baseOpts,
+                installDir: mod.installDir ?? "",
+            },
+        );
         const applied: StepKey[] = [];
         const lines: string[] = [];
         try {
             for (const step of INSTALL_STEPS) {
-                lines.push(...(await runStep(opts.providers, step, ctx)));
+                const stepLines = await runStep(opts.providers, step, ctx);
+                lines.push(...stepLines);
                 applied.push(step);
+                opts.onStep?.(mod.name, step, stepLines);
             }
             results.push({ name: mod.name, ok: true, lines });
+            opts.onModuleResult?.({ name: mod.name, ok: true, lines });
             await saveState(plan.role, state);
         } catch (err) {
             // Roll back the steps that already ran, in reverse.
@@ -162,7 +185,10 @@ export async function installPlan(
                 const rev = REVERSE[step];
                 if (rev === null) continue;
                 rbLines = rbLines.concat(
-                    await runStep(opts.providers, rev, { ...ctx, opts: { ...ctx.opts, rollback: true } }),
+                    await runStep(opts.providers, rev, {
+                        ...ctx,
+                        opts: { ...ctx.opts, rollback: true },
+                    }),
                 );
             }
             // The module is now fully undone → drop its state entry if we created it.
@@ -170,7 +196,11 @@ export async function installPlan(
             await saveState(plan.role, state);
             const msg = err instanceof Error ? err.message : String(err);
             results.push({ name: mod.name, ok: false, lines });
-            throw new InstallError(mod.name, `[${lines.length ? "install" : "rollback"}] ${msg}`);
+            opts.onModuleResult?.({ name: mod.name, ok: false, lines });
+            throw new InstallError(
+                mod.name,
+                `[${lines.length ? "install" : "rollback"}] ${msg}`,
+            );
         }
     }
     return { ok: true, role: plan.role, results };
@@ -194,12 +224,21 @@ export async function uninstallRole(
     };
     const results: ModuleResult[] = [];
     // Reverse of the install order; only modules that have a state entry.
-    const order = reverseOrder(plan).ordered.filter((m) => state.modules[m.name]);
+    const order = reverseOrder(plan).ordered.filter(
+        (m) => state.modules[m.name],
+    );
     for (const mod of order) {
-        const ctx = makeCtx(role, mod.name, mod.spec, state, mod.installDir ?? "", {
-            ...baseOpts,
-            installDir: mod.installDir ?? "",
-        });
+        const ctx = makeCtx(
+            role,
+            mod.name,
+            mod.spec,
+            state,
+            mod.installDir ?? "",
+            {
+                ...baseOpts,
+                installDir: mod.installDir ?? "",
+            },
+        );
         const lines: string[] = [];
         for (const step of UNINSTALL_STEPS)
             lines.push(...(await runStep(opts.providers, step, ctx)));
@@ -247,5 +286,5 @@ export class InstallError extends Error {
     }
 }
 
-export { stateFile };
 export type { InstallState, ModuleInstallState };
+export { stateFile };

@@ -68,7 +68,7 @@ function headerRight(): m.Children[] {
 			/>
 			{` ${t("ui.autostart")}`}
 		</label>,
-		status && (
+		status?.role && (
 			<span class="badge">
 				<RoleTag role={status.role} />
 			</span>

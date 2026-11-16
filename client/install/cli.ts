@@ -29,7 +29,7 @@ import { buildPlan } from "./plan";
 import { installPlan, uninstallRole, InstallError } from "./installer";
 import { renderDryRun } from "./dryrun";
 import { switchRole } from "./switch";
-import { loadState } from "./state";
+import { autoInstallRole } from "./auto_install";
 import { realProviderBundle } from "./providers";
 import { isRoot } from "./host";
 import { validateAllInstallSpecs } from "../../scripts/validate_install";
@@ -256,37 +256,27 @@ export async function installCli(): Promise<CliOutcome> {
 
     // `start` (explicit or implicit): auto-install the role when its state is
     // missing or incomplete, then hand over to the app.
-    if (plan.ordered.length === 0) return "start"; // no rules → nothing to do
-    try {
-        const state = await loadState(roleId);
-        const missing = plan.ordered.filter((m) => !state.modules[m.name]);
-        if (missing.length === 0) return "start";
-        if (flag("--skip-install")) {
-            console.warn(
-                `install: state for role ${roleId} is incomplete (${missing.map((m) => m.name).join(", ")}) but --skip-install was given — continuing`,
-            );
-            return "start";
-        }
-        if (!isRoot()) {
-            // The explicit `install` command hard-requires root, but `start`
-            // must not break non-root dev runs: warn and continue as before.
-            console.warn(
-                `install: state for role ${roleId} is missing (${missing.map((m) => m.name).join(", ")} have no rules applied) and this process is not root — continuing without installing; run \`sudo ${process.argv[1]} --role ${roleId} install\` to apply the rules`,
-            );
-            return "start";
-        }
-        console.log(
-            `install: no state for role ${roleId} — auto-installing before start`,
+    const auto = await autoInstallRole(roleId, installOpts);
+    if (auto.error !== undefined) failInstall(auto.error);
+    if (auto.missing.length === 0) return "start";
+    if (auto.skipped === "skip") {
+        console.warn(
+            `install: state for role ${roleId} is incomplete (${auto.missing.join(", ")}) but --skip-install was given — continuing`,
         );
-        try {
-            await installPlan(plan, installOpts);
-        } catch (err) {
-            failInstall(err);
-        }
         return "start";
-    } catch (err) {
-        failInstall(err);
     }
+    if (auto.skipped === "not-root") {
+        // The explicit `install` command hard-requires root, but `start`
+        // must not break non-root dev runs: warn and continue as before.
+        console.warn(
+            `install: state for role ${roleId} is missing (${auto.missing.join(", ")} have no rules applied) and this process is not root — continuing without installing; run \`sudo ${process.argv[1]} --role ${roleId} install\` to apply the rules`,
+        );
+        return "start";
+    }
+    console.log(
+        `install: no state for role ${roleId} — auto-installing before start`,
+    );
+    for (const line of auto.lines) console.log(line);
     return "start";
 }
 

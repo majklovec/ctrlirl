@@ -2,9 +2,14 @@
     "$schema": "../../../../shared/install/schema.json",
     "version": 1,
     "dependencies": [
+        "curl",
         "gstreamer1.0-plugins-good",
         "gstreamer1.0-plugins-bad",
         "gstreamer1.0-plugins-ugly",
         "gstreamer1.0-tools"
-    ]
+    ],
+    "hooks": {
+        "install": "install.sh",
+        "uninstall": "uninstall.sh"
+    }
 }

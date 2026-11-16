@@ -138,8 +138,8 @@ Poté na [profilové stránce](#113-profil--heslo-tokeny-pozvánky) vytvořte **
 ### 4.2 Zařízení
 
 ```sh
-# Encoder (výchozí role): místní webové rozhraní a API na :8085, sleduje rozhraní a znovu načítá srtla_send
-sudo bun client/backend/client.ts --host 0.0.0.0
+# Encoder: místní webové rozhraní a API na :8085, sleduje rozhraní a znovu načítá srtla_send
+sudo bun client/backend/client.ts --role encoder --host 0.0.0.0
 
 # Encoder: v rozhraní vyberte pipeline a cíl SRTLA (výchozí relay:6000)
 bun client/backend/client.ts --role encoder --pipelines /usr/share/belacoder/pipelines
@@ -188,7 +188,7 @@ docker compose up -d --build
 
 - **server** — ovládací server (`Dockerfile`, image `majkl/ctrlirl-control`), UI na `:8090`.
 - **obs-client** — `client.ts --role obs`, modul `obs` se připojuje k OBS na hostiteli (`ws://host.docker.internal:4455`).
-- **encoder** — `client.ts --role encoder` (výchozí role), běží `ceracoder`/GStreamer a agreguje SRTLA ven přes uplinky pomocí `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
+- **encoder** — `client.ts --role encoder`, běží `ceracoder`/GStreamer a agreguje SRTLA ven přes uplinky pomocí `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
 - **broadcaster** — `client.ts --role broadcaster` spouští přijímač a publikační modul `client/modules/broadcaster`; cíle RTMP se konfigurují v nastavení zařízení a SRTLA přijímač naslouchá na UDP portu `5001`.
 
 Všechny role zařízení používají `Dockerfile.device`, který obsahuje běhové prostředí modulů a potřebné streamovací nástroje. Kontejner **encoder** potřebuje oprávnění `NET_ADMIN`, protože při startu nastavuje směrování podle jednotlivých uplinků (`ip rule add` a tabulky tras) a sleduje rozhraní pomocí `ip monitor`. Bez tohoto oprávnění vypíše `ip rule add … Operation not permitted` a skončí. Role OBS je nepotřebuje. Ve výchozí síti bridge se změny směrování enkodéru projeví pouze v síťovém prostoru kontejneru. Má-li enkodér používat skutečná síťová rozhraní hostitele pro agregaci připojení, spusťte jej s `network_mode: host`.
@@ -214,7 +214,7 @@ Vyberte jazyk rozhraní (k dispozici je 12 jazyků). Lze ho kdykoli změnit v ja
 ### Krok 2 — Role zařízení
 
 Zvolte jednu z rolí zařízení (definované v `client/roles/`):
-- **Encoder** — zachytává obraz přes GStreamer pipeline a odesílá jej přes SRTLA (výchozí role).
+- **Encoder** — zachytává obraz přes GStreamer pipeline a odesílá jej přes SRTLA.
 - **OBS** — připojuje se k OBS Studio a aktivuje jeho řídicí modul.
 - **Broadcaster** — přijímá SRTLA a publikuje RTMP výstupy.
 - **CtrLink Relay** — mostuje sdílená LAN rozhraní k enkodéru.
@@ -275,7 +275,7 @@ Hlavní stránka (`http://<device>:8085/`) zobrazuje kartu pro každou funkci ak
 ### 6.1 Role encoder
 
 ![Hlavní stránka zařízení encoder](screenshots/12-device-main-encoder-cs.png)
-_Role encoder (výchozí): karty Encoder, Interfaces, Modems a Log (SSH je na [stránce nastavení](#74-ssh))._
+_Role encoder: karty Encoder, Interfaces, Modems a Log (SSH je na [stránce nastavení](#74-ssh))._
 
 ### 6.2 Karta Encoder
 
@@ -533,7 +533,7 @@ Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI 
 
 | Volba                     | Proměnná                        | Výchozí                          | Co dělá                                                                                                                                                                          |
 | ------------------------- | ------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--role`                  | `ROLE`                          | `encoder`                        | Role definovaná v `client/roles/` (`encoder`, `obs`, `broadcaster`, `ctrlink_relay`).                                                                                           |
+| `--role`                  | `ROLE`                          | —                                | Role definovaná v `client/roles/` (`encoder`, `obs`, `broadcaster`, `ctrlink_relay`). Bez zvolené role se žádný modul nespouští — po startu běží setup průvodce. |
 | `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Lokální web UI a WebSocket API (`/ws`), vždy zapnuto.                                                                                                                            |
 | `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Další povolené zdroje požadavků prohlížeče pro `/ws` (oddělené čárkami, `*` = libovolný zdroj).                                                                                  |
 | `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Konfigurační soubor zařízení: trvalá identita a nastavení (uživatelské jméno/heslo, hostname, role, ovládací odkaz) a konfigurace jednotlivých modulů. **V produkci použijte trvalou cestu**, protože ji automatické spuštění potřebuje i po restartu. |

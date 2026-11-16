@@ -13,11 +13,10 @@ import {
     argEnv,
     argFail,
     argv,
-    enumArgEnv,
     flagOrEnv,
     intArgEnv,
 } from "../../shared/args";
-import { defaultRole, registeredRoleIds } from "../../shared/registry";
+import { isRegisteredRole, registeredRoleIds } from "../../shared/registry";
 import { REMOTE_URL_RE, type Role } from "../../shared/validate";
 import { removeStaleTmps } from "./files";
 
@@ -92,9 +91,17 @@ export const REMOTE_STATS_INTERVAL = intArgEnv(
 if (REMOTE_URL && !REMOTE_URL_RE.test(REMOTE_URL))
     argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
 
-export const ROLE: Role = enumArgEnv(
-    "--role",
-    registeredRoleIds(),
-    "ROLE",
-    persisted("role") ?? defaultRole(),
-);
+// No role is a valid state: a fresh device (no config file) opens the setup
+// wizard with no role selected and runs no modules until one is picked — the
+// default role is only a CLI/install convenience, never a silent device role.
+const rawRole = argEnv("--role", "ROLE") ?? persisted("role");
+export const ROLE: Role | undefined =
+    rawRole === undefined
+        ? undefined
+        : isRegisteredRole(rawRole)
+          ? rawRole
+          : argFail(
+                "--role",
+                rawRole,
+                registeredRoleIds().join(" | "),
+            );

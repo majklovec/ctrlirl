@@ -58,7 +58,7 @@ installer simply has nothing to do for them.
         "reload": []
     },
     "hooks": {
-        "install": "hooks/install.sh",
+        "install": ["hooks/install.sh", "arm64"],
         "uninstall": "hooks/uninstall.sh"
     }
 }
@@ -176,9 +176,27 @@ Prefix legend: `+` write/create, `~` skip (unchanged), `-` remove
 `install.sh` runs after everything else in the module's install;
 `uninstall.sh` runs first in the uninstall. Both get the environment
 `CTRLIRL_ROLE`, `CTRLIRL_MODULE`, `CTRLIRL_INSTALL_DIR` (absolute path to the
-module's `install/` directory). Hooks are **not** idempotent by design — the
-installer always runs them. State records that an install hook ran, so the
-uninstall counterpart is invoked even when the install partially failed.
+module's `install/` directory), and `CTRLIRL_INSTALL_ROOT` (the destination
+root). Hooks are **not** idempotent by design — the installer always runs
+them. State records that an install hook ran, so the uninstall counterpart is
+invoked even when the install partially failed.
+
+Each hook may be a script path string or an array containing the path followed
+by arguments, e.g. `["hooks/install.sh", "arm64"]`. Arguments are passed
+literally, not evaluated by a shell.
+
+The encoder install hook uses an existing `SRTLA_SEND_BIN` or `srtla_send` on
+`PATH` when available. Otherwise it detects the Debian architecture (`amd64`
+or `arm64`), downloads the latest matching `srtla` package from
+[irlserver/srtla_send releases](https://github.com/irlserver/srtla_send/releases),
+verifies its SHA-256 checksum, and installs it using `apt-get`. A hook argument
+can explicitly select `amd64` or `arm64`; it must match the host architecture.
+Installing this release package is part of the hook even without
+`--install-deps` (which controls the separately declared dependencies such as
+`curl`). It refuses to install a system package with a non-default destination
+root. The package is not tracked by the packages provider and is left in place
+on uninstall, including with `--purge`; remove it with
+`sudo apt-get remove srtla` if it is no longer needed.
 
 ## Testing without root
 

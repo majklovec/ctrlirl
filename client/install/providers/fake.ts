@@ -22,6 +22,7 @@ import type {
     ProviderResult,
     StepKey,
 } from "../provider";
+import { hookArgsDetail, hookParts } from "./hooks";
 
 export interface FakeLog {
     calls: string[];
@@ -329,15 +330,18 @@ export function fakeHooks(log: FakeLog): InstallProvider {
         async (step, ctx) => {
             const h = ctx.spec.hooks?.[step === "hooksInstall" ? "install" : "uninstall"];
             if (!h) return NOOP;
+            const command = hookParts(h).join(" ");
             log.hooks.push(step === "hooksInstall" ? "install" : "uninstall");
-            if (step === "hooksInstall" && !ctx.state.hooksRun.includes(h))
-                ctx.state.hooksRun.push(h);
-            return { changed: true, lines: [`    * ${h}`] };
+            if (step === "hooksInstall" && !ctx.state.hooksRun.includes(command))
+                ctx.state.hooksRun.push(command);
+            return { changed: true, lines: [`    * ${command}`] };
         },
-        async (mode, ctx) =>
-            mode === "install" && ctx.spec.hooks?.install
-                ? [{ mark: "*" as const, target: ctx.spec.hooks.install }]
-                : [],
+        async (mode, ctx) => {
+            if (mode !== "install" || !ctx.spec.hooks?.install) return [];
+            const [script, ...args] = hookParts(ctx.spec.hooks.install);
+            const detail = hookArgsDetail(args);
+            return [{ mark: "*", target: script, ...(detail ? { detail } : {}) }];
+        },
     );
 }
 

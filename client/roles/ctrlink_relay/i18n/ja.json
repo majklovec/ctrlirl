@@ -1,4 +1,4 @@
 {
-    "role.ctrlink_relay": "Relay",
+    "role.ctrlink_relay": "relay",
     "setup.role.ctrlink_relay_tag": "LAN 装置を共有 SRTLA uplink に橋渡しします"
 }

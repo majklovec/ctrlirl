@@ -16,7 +16,8 @@
  *
  * Core methods:
  *   status, log.list
- *   setup.get, setup.complete {...wizard answers}   (only while the device has no config file)
+ *   setup.get, setup.install {role}, setup.complete {...wizard answers}
+ *       (only while the device has no config file)
  *   settings.get, settings.update {hostname?, role?, color?, remoteUrl?, remoteToken?, language?}
  *   modules.list, modules.enable {id}, modules.disable {id}, modules.configure {id, config}
  *   autostart.set {enabled}   resume the last run when the service starts
@@ -45,11 +46,15 @@ import {
 	requireBoolean,
 	requireString,
 } from "../../shared/params";
+import { appPath, MODULE_ROOTS } from "../../shared/paths";
 import { registeredRoleIds, roleDefinitions } from "../../shared/registry";
 import { errorMessage, textOf } from "../../shared/util";
-import { DEFAULT_COLOR } from "../../shared/validate";
+import { DEFAULT_COLOR, type Role } from "../../shared/validate";
+import { autoInstallRole } from "../install/auto_install";
+import { realProviderBundle } from "../install/providers";
 import { authEnabled, hashPassword } from "./auth";
 import { setAutostart } from "./autostart";
+import { CONFIG_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import {
 	callModule,
@@ -119,6 +124,66 @@ const settingFields: ReadonlyArray<
 	["color", "color"],
 ];
 
+/**
+ * Apply the role's host rules (systemd units, firewall, dependencies, …) and
+ * stream the install log to the UI as `log` events (section "Install"). The
+ * wizard's install step awaits it — the response only lands when the install
+ * finishes (it can take minutes). `missing` is the no-op signal: when the
+ * role has no modules to install, nothing ran at all.
+ */
+async function runRoleInstall(role: Role): Promise<{
+	installed: boolean;
+	missing: string[];
+	skipped?: "skip" | "not-root";
+}> {
+	logEvent("info", "Install", t("log.install_started", { role }));
+	let cfg: Record<string, unknown> = {};
+	try {
+		const data: unknown = await Bun.file(CONFIG_FILE).json();
+		if (typeof data === "object" && data !== null)
+			cfg = data as Record<string, unknown>;
+	} catch {
+		cfg = {};
+	}
+	const res = await autoInstallRole(role, {
+		providers: realProviderBundle(),
+		cfg,
+		moduleRoot: appPath(MODULE_ROOTS[0]),
+		// Stream each step's lines the moment it finishes — a live log,
+		// not a dump at the end of the module.
+		onStep: (_module, _step, lines) =>
+			lines.forEach((line) => logEvent("info", "Install", line)),
+	});
+	if (res.error !== undefined) {
+		logEvent(
+			"error",
+			"Install",
+			t("log.install_failed", { role, error: errorMessage(res.error) }),
+		);
+		return { installed: false, missing: res.missing };
+	}
+	if (res.missing.length === 0) {
+		logEvent("info", "Install", t("log.install_up_to_date", { role }));
+		return { installed: false, missing: [] };
+	}
+	if (res.skipped === "not-root") {
+		logEvent("warn", "Install", t("log.install_skipped_not_root", { role }));
+		return { installed: false, missing: res.missing, skipped: "not-root" };
+	}
+	if (res.installed)
+		logEvent("info", "Install", t("log.install_done", { role }));
+	return { installed: res.installed, missing: res.missing, skipped: res.skipped };
+}
+
+/** Wizard install step: apply the picked role's rules now; the step follows
+ * the streamed log and awaits the response. Only while the wizard is open. */
+async function setupInstall(p: Params): Promise<object> {
+	if (!setupRequired)
+		throw new ApiError("Setup has already been completed", 409);
+	const role = oneOf(requireString(p, "role"), "role", registeredRoleIds());
+	return runRoleInstall(role);
+}
+
 /** First-run wizard: validate all fields, write the initial state and bring the role up. */
 async function setupComplete(p: Params): Promise<object> {
 	if (!setupRequired)
@@ -156,6 +221,7 @@ async function setupComplete(p: Params): Promise<object> {
 	setCurrentLanguage(language);
 	await finishSetup(role);
 	if (remoteUrl) applyRemoteSettings(remoteUrl, remoteToken);
+	// The wizard's install step already applied the role's host rules.
 	return { completed: true, restartRequired: true };
 }
 
@@ -237,6 +303,7 @@ const CORE_METHODS: Record<string, Method> = {
 			(role) => role.setupSelectable !== false,
 		),
 	}),
+	"setup.install": setupInstall,
 	"setup.complete": setupComplete,
 	"settings.get": () => ({ settings: settingsView(), restartRequired: true }),
 	"settings.update": updateSettings,

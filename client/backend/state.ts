@@ -35,7 +35,6 @@ import {
 	DRY_RUN,
 	INITIAL_CONFIG,
 	INITIAL_STATE,
-	ROLE,
 	STATE_EXISTS,
 	STATE_FILE,
 } from "./config";
@@ -83,7 +82,8 @@ export interface DeviceConfig {
 	hostname: string;
 	language: Language;
 	remoteUrl: string;
-	role: Role;
+	/** Omitted while no role has been selected (the device runs no modules). */
+	role?: Role;
 	uuid: string;
 	remoteToken?: string;
 	username?: string;
@@ -115,9 +115,9 @@ function projectConfig(s: PersistentState): DeviceConfig {
 		hostname: settings.hostname ?? "",
 		language: asLanguage(settings.language),
 		remoteUrl: settings.remoteUrl ?? "",
-		role: settings.role ?? ROLE,
 		uuid: settings.uuid ?? "",
 	};
+	if (settings.role) cfg.role = settings.role;
 	if (settings.remoteToken) cfg.remoteToken = settings.remoteToken;
 	if (settings.username) cfg.username = settings.username;
 	if (settings.passwordHash) cfg.passwordHash = settings.passwordHash;

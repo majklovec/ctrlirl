@@ -1,4 +1,4 @@
 {
-    "role.ctrlink_relay": "Relay",
+    "role.ctrlink_relay": "relay",
     "setup.role.ctrlink_relay_tag": "Оставляет LAN-устройства на общую SRTLA-линию"
 }

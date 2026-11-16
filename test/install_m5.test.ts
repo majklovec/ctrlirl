@@ -18,6 +18,7 @@ import { buildPlan } from "../client/install/plan";
 import { installPlan } from "../client/install/installer";
 import {
     fakeProviderBundle,
+    fakeHooks,
     freshLog,
 } from "../client/install/providers/fake";
 import { emptyModuleState } from "../client/install/state";
@@ -166,6 +167,44 @@ describe("hooks provider", () => {
         expect(calls[0].cmd).toBe("sh");
         expect(calls[0].args).toEqual([join(installDir, "hooks/install.sh")]);
         expect(c.state.hooksRun).toContain("mod:install");
+    });
+
+    test("passes hook arguments literally on install and uninstall", async () => {
+        const calls: string[][] = [];
+        const p = hooksProvider({
+            fake: (_cmd, args) => {
+                calls.push(args);
+                return { exitCode: 0, stdout: "", stderr: "" };
+            },
+        });
+        const c = ctx({
+            version: 1,
+            hooks: {
+                install: ["hooks/install script.sh", "arm64", "argument with spaces", "", "$(echo unsafe)"],
+                uninstall: ["hooks/uninstall.sh", "arm64"],
+            },
+        });
+        expect(await p.dryRun("install", c)).toEqual([{
+            mark: "*",
+            target: join(installDir, "hooks/install script.sh"),
+            detail: 'arguments: "arm64" "argument with spaces" "" "$(echo unsafe)"',
+        }]);
+        await p.run("hooksInstall", c);
+        await p.run("hooksUninstall", c);
+        expect(calls).toEqual([
+            [join(installDir, "hooks/install script.sh"), "arm64", "argument with spaces", "", "$(echo unsafe)"],
+            [join(installDir, "hooks/uninstall.sh"), "arm64"],
+        ]);
+    });
+
+    test("fake hooks support argument arrays", async () => {
+        const c = ctx({ version: 1, hooks: { install: ["hooks/install.sh", "arm64"] } });
+        const p = fakeHooks(freshLog());
+        expect(await p.dryRun("install", c)).toEqual([
+            { mark: "*", target: "hooks/install.sh", detail: 'arguments: "arm64"' },
+        ]);
+        await p.run("hooksInstall", c);
+        expect(c.state.hooksRun).toEqual(["hooks/install.sh arm64"]);
     });
 
     test("uninstall hook runs only if the install hook ran", async () => {

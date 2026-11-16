@@ -1,4 +1,4 @@
 {
-    "role.ctrlink_relay": "Relay",
+    "role.ctrlink_relay": "relay",
     "setup.role.ctrlink_relay_tag": "Enlaza los dispositivos LAN a un enlace SRTLA compartido"
 }

@@ -88,6 +88,41 @@ describe("install orchestrator (fake providers)", () => {
         expect(await readFile(dest, "utf8")).toBe("A=1\n");
     });
 
+    test("onStep streams each step's lines as it finishes", async () => {
+        await stageModule("a", MOD_A, { "etc/ctrlirl/a.env": "A=1\n" });
+        const providers = fakeProviderBundle(freshLog());
+        const steps: string[] = [];
+        const stepLines = new Map<string, string[]>();
+        const moduleResults: string[][] = [];
+        await install(roleWith(["a"]), {
+            providers,
+            cfg: {},
+            moduleRoot: modRoot,
+            onStep: (module, step, lines) => {
+                steps.push(`${module}/${step}`);
+                stepLines.set(step, lines);
+            },
+            onModuleResult: (result) => moduleResults.push(result.lines),
+        });
+        // Only the steps the fake bundle implements run, in install order.
+        expect(steps).toEqual([
+            "a/packagesCheck",
+            "a/overlayInstall",
+            "a/udevInstall",
+            "a/sysctlInstall",
+            "a/firewallInstall",
+            "a/systemdInstall",
+            "a/overlayReload",
+            "a/hooksInstall",
+        ]);
+        // The per-step lines are exactly the module's lines, in order.
+        expect(
+            steps
+                .map((s) => stepLines.get(s.split("/")[1]) ?? [])
+                .flat(),
+        ).toEqual(moduleResults[0]);
+    });
+
     test("install → uninstall restores the pre-install state (temp root empty of artifacts)", async () => {
         await stageModule("a", MOD_A, { "etc/ctrlirl/a.env": "A=1\n" });
         await stageModule("b", MOD_B);

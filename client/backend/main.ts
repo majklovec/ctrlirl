@@ -29,7 +29,8 @@ async function main(): Promise<void> {
 	}
 
 	await i18nReady;
-	console.log(`=== ctrlirl device (Bun) — role: ${ROLE} ===\n`);
+	// "none": no role selected — the web UI (setup wizard) is up, no module runs.
+	console.log(`=== ctrlirl device (Bun) — role: ${ROLE ?? "none"} ===\n`);
 
 	let shuttingDown = false;
 	const shutdown = async (signal: string) => {
@@ -72,7 +73,7 @@ async function main(): Promise<void> {
 		process.exit(0);
 	};
 
-	logEvent("info", "Service", t("log.started", { role: ROLE }));
+	logEvent("info", "Service", t("log.started", { role: ROLE ?? "none" }));
 
 	// Modules first (in dependency order); signal handlers after, so a signal
 	// during start hits the default kill instead of a half-started module.

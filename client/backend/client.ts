@@ -11,8 +11,9 @@
  * client/modules/README.md). The core names no module.
  *
  * The web UI/API is always on (`--host`/`--port`); the role comes from
- * `--role` (default: the role a module marks `default`) and decides which
- * modules serve the box.
+ * `--role` (CLI / env / config file — no implicit default) and decides which
+ * modules serve the box. Without a selected role no module runs: a fresh
+ * device opens the setup wizard and stays there until a role is picked.
  *
  * Core client files (client/backend/):
  *   main.ts         the process: services, modules, signal handling

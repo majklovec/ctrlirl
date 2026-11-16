@@ -6,12 +6,14 @@
  */
 import type { Role, RoleDefinition } from "./contracts/roles";
 
-/** Whether `moduleId` runs on `role` (listed in `requires.modules` or `optionalModules`). */
+/** Whether `moduleId` runs on `role` (listed in `requires.modules` or
+ * `optionalModules`). `undefined` (no role selected) serves nothing. */
 export const roleServesModule = (
     roles: readonly RoleDefinition[],
-    role: Role,
+    role: Role | undefined,
     moduleId: string,
 ): boolean => {
+    if (role === undefined) return false;
     const def = roles.find((r) => r.id === role);
     if (def === undefined) return false;
     return (
@@ -20,13 +22,18 @@ export const roleServesModule = (
     );
 };
 
-/** Whether `moduleId` is enabled by default on `role` (listed in `requires.modules`). */
+/** Whether `moduleId` is enabled by default on `role` (listed in
+ * `requires.modules`). `undefined` (no role selected) enables nothing. */
 export const roleEnablesModule = (
     roles: readonly RoleDefinition[],
-    role: Role,
+    role: Role | undefined,
     moduleId: string,
 ): boolean =>
-    roles.find((r) => r.id === role)?.requires.modules.includes(moduleId) ?? false;
+    role === undefined
+        ? false
+        : (roles.find((r) => r.id === role)?.requires.modules.includes(
+              moduleId,
+          ) ?? false);
 
 /** The roles on which `moduleId` runs (default-on or optional). */
 export const rolesWithModule = (

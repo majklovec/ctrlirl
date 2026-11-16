@@ -137,8 +137,8 @@ After that, create **device tokens** on the [profile page](#114-profile-password
 ### 4.2 The device
 
 ```sh
-# Encoder (default role): local web UI + API on :8085, watches interfaces, reloads srtla_send
-sudo bun client/backend/client.ts --host 0.0.0.0
+# Encoder: local web UI + API on :8085, watches interfaces, reloads srtla_send
+sudo bun client/backend/client.ts --role encoder --host 0.0.0.0
 
 # Encoder: pick a pipeline and the SRTLA destination (default relay:6000) in the UI
 bun client/backend/client.ts --role encoder --pipelines /usr/share/belacoder/pipelines
@@ -187,7 +187,7 @@ docker compose up -d --build
 
 - **server** — the control server (`Dockerfile`, image `majkl/ctrlirl-control`), UI on `:8090`.
 - **obs-client** — `client.ts --role obs`, using the `obs` module to connect to host OBS (`ws://host.docker.internal:4455`).
-- **encoder** — `client.ts --role encoder` (default role), runs `ceracoder`/GStreamer and bonds SRTLA out over the uplinks via `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
+- **encoder** — `client.ts --role encoder`, runs `ceracoder`/GStreamer and bonds SRTLA out over the uplinks via `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
 - **broadcaster** — `client.ts --role broadcaster`, runs the `client/modules/broadcaster` receiver/publisher; configure RTMP destinations in device settings and expose its SRTLA receiver on UDP `5001`.
 
 All device roles use `Dockerfile.device`, which includes the module runtime and required streaming tools. The **encoder** container grants the `NET_ADMIN` capability because at startup it builds per-uplink policy routing (`ip rule add` + route tables) and watches interfaces with `ip monitor`; without it the encoder logs `ip rule add … Operation not permitted` and exits. The OBS role does not need the capability. On the default bridge network the encoder's routing changes act on the container's own namespace; for real bonded uplinks on the host's raw interfaces run the encoder with `network_mode: host`.
@@ -213,7 +213,7 @@ Pick the interface language (12 languages are available). It can be changed at a
 ### Step 2 — Device role
 
 Choose one of the device roles (defined in `client/roles/`):
-- **Encoder** — "Captures a GStreamer pipeline and sends it over SRTLA" (default role)
+- **Encoder** — "Captures a GStreamer pipeline and sends it over SRTLA"
 - **OBS** — connects to OBS Studio and enables the OBS controller.
 - **Broadcaster** — receives SRTLA and publishes RTMP outputs.
 - **CtrLink Relay** — bridges the shared LAN interfaces to the encoder.
@@ -273,7 +273,7 @@ The main page (`http://<device>:8085/`) shows one card per capability of the act
 ### 6.1 Encoder device
 
 ![Encoder device main page](screenshots/12-device-main-encoder.png)
-_Encoder device (default role): Encoder, Interfaces, Modems and Log cards (SSH lives on the [settings page](#74-ssh))._
+_Encoder device: Encoder, Interfaces, Modems and Log cards (SSH lives on the [settings page](#74-ssh))._
 
 ### 6.2 Encoder card
 
@@ -531,7 +531,7 @@ Every flag has an environment-variable counterpart. Resolution order: **CLI flag
 
 | Option                    | Env                             | Default                          | What it does                                                                                                                                          |
 | ------------------------- | ------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--role`                  | `ROLE`                          | `encoder`                        | A role defined in `client/roles/` (`encoder`, `obs`, `broadcaster`, `ctrlink_relay`).                                                             |
+| `--role`                  | `ROLE`                          | —                                | A role defined in `client/roles/` (`encoder`, `obs`, `broadcaster`, `ctrlink_relay`). Without a selected role no module runs — the web UI (setup wizard) stays up until one is picked. |
 | `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on.                                                                                                    |
 | `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Extra browser origins for `/ws` (comma-separated, `*` = any).                                                                                         |
 | `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Device config — persistent identity and setup (username/password, hostname, role, remote control link, …) plus module config slices. **Use a persistent path in production** (autostart needs it to survive a reboot). |

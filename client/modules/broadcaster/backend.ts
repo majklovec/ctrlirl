@@ -957,7 +957,8 @@ const broadcasterModule: BackendModule<ModuleCore> = {
         await stopStream();
     },
     async resume() {
-        if (!core.roleRuns("broadcaster").includes(core.role())) return false;
+        const role = core.role();
+        if (!role || !core.roleRuns("broadcaster").includes(role)) return false;
         runtime = readConfig();
         if (runtime.outputs.length === 0) return false;
         if (streamState !== "running") await startStream();

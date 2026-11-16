@@ -6,7 +6,8 @@
  * The JSON schema (`schema.json`) is the source of truth; this file is a
  * tiny, dependency-free evaluator for the subset of draft-2020-12 keywords
  * the schema uses (`type`, `properties`, `additionalProperties`, `required`,
- * `items`, `const`, `enum`, `pattern`, `minLength`, `oneOf`, `allOf` +
+ * `items`, `prefixItems`, `const`, `enum`, `pattern`, `minLength`, `minItems`,
+ * `oneOf`, `allOf` +
  * `if`/`then`). It has no third-party deps so it runs in every Bun version
  * and under `bun test` without extra setup.
  */
@@ -25,10 +26,12 @@ const KEYWORDS = new Set([
     "additionalProperties",
     "required",
     "items",
+    "prefixItems",
     "const",
     "enum",
     "pattern",
     "minLength",
+    "minItems",
     "oneOf",
     "allOf",
 ]);
@@ -77,6 +80,11 @@ function check(value: unknown, schema: Schema, path: string, issues: ValidationI
             issues.push({ path, message: `must be at least ${schema.minLength} chars` });
     }
 
+    if (typeof schema.minItems === "number" && Array.isArray(value)) {
+        if (value.length < schema.minItems)
+            issues.push({ path, message: `must have at least ${schema.minItems} items` });
+    }
+
     if (Array.isArray(schema.oneOf)) {
         const branches = schema.oneOf as Schema[];
         if (
@@ -118,9 +126,14 @@ function check(value: unknown, schema: Schema, path: string, issues: ValidationI
         }
     }
 
-    if (typeOf(value) === "array" && schema.items !== undefined) {
-        for (const [i, item] of (value as unknown[]).entries())
-            check(item, schema.items as Schema, `${path}/${i}`, issues);
+    if (Array.isArray(value)) {
+        const prefix = Array.isArray(schema.prefixItems) ? schema.prefixItems as Schema[] : [];
+        for (let i = 0; i < Math.min(prefix.length, value.length); i++)
+            check(value[i], prefix[i], `${path}/${i}`, issues);
+        if (schema.items !== undefined) {
+            for (let i = prefix.length; i < value.length; i++)
+                check(value[i], schema.items as Schema, `${path}/${i}`, issues);
+        }
     }
 }
 

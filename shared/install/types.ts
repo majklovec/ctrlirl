@@ -81,6 +81,9 @@ export interface OverlaySpec {
     allowProtected?: string[];
 }
 
+/** A script path, or a script path followed by literal command-line arguments. */
+export type HookCommand = string | [script: string, ...args: string[]];
+
 export interface ModuleInstallSpec {
     version: 1;
     /** Package names to check (dpkg). Checked, not installed, unless `--install-deps`. */
@@ -94,8 +97,8 @@ export interface ModuleInstallSpec {
     udev?: UdevRule[];
     /** Presence of the module's `install/overlay/` directory is the real signal; this object carries controls only. */
     overlay?: OverlaySpec;
-    /** Shell hooks, relative to `install/` (e.g. `hooks/install.sh`). The escape hatch for logic. */
-    hooks?: { install?: string; uninstall?: string };
+    /** Shell hooks, relative to `install/`; array elements after the path are arguments. */
+    hooks?: { install?: HookCommand; uninstall?: HookCommand };
 }
 
 /** What the installer recorded in the per-role state file for one module. */

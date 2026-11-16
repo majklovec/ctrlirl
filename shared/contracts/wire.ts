@@ -26,7 +26,8 @@ export type ModulesView = Record<string, ModuleSliceView>;
 
 /** The device status envelope; the modules' status fragments are deep-merged in. */
 export interface Status {
-    role: Role;
+    /** Absent while no role has been selected (the device runs no modules). */
+    role?: Role;
     setupRequired: boolean;
     state: {
         autostart: boolean;
