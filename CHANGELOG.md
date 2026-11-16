@@ -1,3 +1,16 @@
+# [8.0.0](https://github.com/majklovec/ctrlirl/compare/v7.12.0...v8.0.0) (2026-11-16)
+
+
+### Features
+
+* **install:** optional role + wizard install ([1bcd7aa](https://github.com/majklovec/ctrlirl/commit/1bcd7aa648b73b79b0b228af59ec4b5519a2a6d2))
+* **vagrant:** add relay uplinks + USB modems ([860d0e9](https://github.com/majklovec/ctrlirl/commit/860d0e9d25d3980069ed6c5550bde95ef6109d1f))
+
+
+### BREAKING CHANGES
+
+* **install:** --role no longer defaults to encoder; devices without a role stay in the setup wizard
+
 # [7.12.0](https://github.com/majklovec/ctrlirl/compare/v7.11.2...v7.12.0) (2026-11-16)
 
 
