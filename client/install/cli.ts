@@ -16,27 +16,35 @@
  * Exit codes: 0 success, 1 validation error, 2 install error (state
  * preserved), 3 not root.
  */
-import { argv as fullArgv, arg, flag } from "../../shared/args";
-import { argEnv } from "../../shared/args";
-import { ROLES, defaultRole } from "../../shared/registry";
-import { appPath, MODULE_ROOTS } from "../../shared/paths";
+
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RoleDefinition } from "../../shared/contracts/roles";
-import type { InstallPlan } from "../../shared/install/types";
-import { BOARD_IDS, isBoardId, detectBoardId, type BoardId } from "../../shared/install/board";
-import { buildPlan } from "./plan";
-import { installPlan, uninstallRole, InstallError } from "./installer";
-import { renderDryRun } from "./dryrun";
-import { switchRole } from "./switch";
-import { autoInstallRole } from "./auto_install";
-import { realProviderBundle } from "./providers";
-import { isRoot } from "./host";
 import { validateAllInstallSpecs } from "../../scripts/validate_install";
+import { arg, argEnv, flag, argv as fullArgv } from "../../shared/args";
+import type { RoleDefinition } from "../../shared/contracts/roles";
+import {
+    BOARD_IDS,
+    type BoardId,
+    detectBoardId,
+    isBoardId,
+} from "../../shared/install/board";
+import type { InstallPlan } from "../../shared/install/types";
+import { appPath, MODULE_ROOTS } from "../../shared/paths";
+import { defaultRole, ROLES } from "../../shared/registry";
+import { autoInstallRole } from "./auto_install";
+import { renderDryRun } from "./dryrun";
+import { isRoot } from "./host";
+import { InstallError, installPlan, uninstallRole } from "./installer";
+import { buildPlan } from "./plan";
+import { realProviderBundle } from "./providers";
+import { switchRole } from "./switch";
 
 export type CliOutcome = "start" | "handled";
 
-/** Flags that consume the next argv token as their value. */
+/** Flags that consume the next argv token as their value.
+ * Must stay in sync with the value-taking args of shared/args.ts and the
+ * modules (e.g. --pipelines, --encoder) — a missing entry makes the flag's
+ * value look like a positional subcommand and `installCli` aborts the start. */
 const VALUE_FLAGS = new Set([
     "--config",
     "--role",
@@ -45,6 +53,13 @@ const VALUE_FLAGS = new Set([
     "--state-file",
     "--log-file",
     "--board",
+    "--remote",
+    "--encoder",
+    "--ceracoder-conf",
+    "--pipelines",
+    "--bitrate-file",
+    "--allow-origin",
+    "--encoder-destination-host",
     "switch-from",
 ]);
 
@@ -74,7 +89,11 @@ const positional = (argv: string[]): string[] => {
         if (a.startsWith("-")) {
             // A dash-flag that consumes a value token: skip the value (when
             // given in `--flag value` form, not `--flag=value`).
-            if (VALUE_FLAGS.has(a) && i + 1 < argv.length && !argv[i + 1].startsWith("-"))
+            if (
+                VALUE_FLAGS.has(a) &&
+                i + 1 < argv.length &&
+                !argv[i + 1].startsWith("-")
+            )
                 i++;
             continue;
         }
@@ -87,7 +106,9 @@ const positional = (argv: string[]): string[] => {
 const roleDef = (roleId: string): RoleDefinition => {
     const def = ROLES.find((r) => r.id === roleId);
     if (!def) {
-        console.error(`unknown role: ${roleId} (registered: ${ROLES.map((r) => r.id).join(", ")})`);
+        console.error(
+            `unknown role: ${roleId} (registered: ${ROLES.map((r) => r.id).join(", ")})`,
+        );
         process.exit(1);
     }
     return def;
@@ -95,8 +116,14 @@ const roleDef = (roleId: string): RoleDefinition => {
 
 /** The device config (top level) for {{cfg:…}} — same file main.ts would read. */
 const loadCfg = async (): Promise<Record<string, unknown>> => {
-    const file = argEnv("--config", "CONFIG_FILE", join(tmpdir(), "config.json"));
-    const data = await Bun.file(file).json().catch((): null => null);
+    const file = argEnv(
+        "--config",
+        "CONFIG_FILE",
+        join(tmpdir(), "config.json"),
+    );
+    const data = await Bun.file(file)
+        .json()
+        .catch((): null => null);
     return (typeof data === "object" && data !== null ? data : {}) as Record<
         string,
         unknown
