@@ -1,3 +1,12 @@
+# [7.12.0](https://github.com/majklovec/ctrlirl/compare/v7.11.2...v7.12.0) (2026-11-16)
+
+
+### Features
+
+* **install:** add board matchers + GStreamer ([085c51e](https://github.com/majklovec/ctrlirl/commit/085c51e9f493e75d62c48d9442005bfa966d3d90))
+* **install:** declarative per-module install/uninstall rules (M1–M6) ([a0263ef](https://github.com/majklovec/ctrlirl/commit/a0263ef242df3562c93feea72e28c6efad2e4cb8))
+* **install:** hardware-specific board deltas + shared board detection ([c1f5697](https://github.com/majklovec/ctrlirl/commit/c1f56973dbf3a1e4c321edb6240e345cf183c281))
+
 ## [7.11.2](https://github.com/majklovec/ctrlirl/compare/v7.11.1...v7.11.2) (2026-11-14)
 
 
