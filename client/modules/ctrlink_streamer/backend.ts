@@ -353,12 +353,42 @@ const isRunning = (): boolean => tunnels.size > 0;
 // Desired targets + reconcile (one TUN per registered shared interface)
 // ----------------------------------------------------------------------
 /**
+ * True when `destIp` is directly on-link on one of THIS host's own interfaces
+ * (the kernel answers `ip route get <destIp>` with a plain `dev <iface>` and no
+ * `via` gateway), and that interface is a real LAN NIC — not loopback, a GRETAP
+ * tunnel, or a relay bridge. Used to skip relay-announced interfaces whose
+ * subnet the encoder already reaches locally: the tunnel would just add a
+ * competing L2 path, so it is not created.
+ *
+ * Fails closed (`false` → keep the tunnel) on `ip` failure, an empty
+ * (DRY_RUN) result, or a gateway route, so an ambiguous routing state never
+ * silently drops an exposure.
+ */
+async function isLocallyOnLink(destIp: string): Promise<boolean> {
+	if (!destIp) return false;
+	let out = "";
+	try {
+		out = (await core.run("ip", ["route", "get", destIp], true)).trim();
+	} catch {
+		return false;
+	}
+	if (!out) return false;
+	if (/\bvia\s/.test(out)) return false; // routed via a gateway, not on-link.
+	const m = out.match(/\bdev\s+([A-Za-z0-9_.-]+)/);
+	return (
+		!!m && m[1] !== "lo" && !/^gretap/.test(m[1]) && !/^br-/.test(m[1])
+	);
+}
+
+/**
  * Compute the ordered set of tunnel targets from the discovered relays. The
  * encoder has no notion of a relay by hand — each relay announces itself, so
  * the targets are exactly the discovered relays' shared interfaces: sorted by
  * host, each interface in announced order, deduped by `${host}:${port}`.
+ * Interfaces whose subnet is already on-link on this host are skipped (no
+ * tunnel needed for a local segment).
  */
-function desiredTargets(): TunnelTarget[] {
+async function desiredTargets(): Promise<TunnelTarget[]> {
 	/** Endpoint → (order index for stable sort ordering + owning relay). */
 	const byKey = new Map<
 		string,
@@ -407,6 +437,9 @@ function desiredTargets(): TunnelTarget[] {
 			// path returns no re-detection is needed — reconcile just
 			// re-creates the TUN for the SAME endpoint.
 			if (ep.state === "down") continue;
+			// A subnet the encoder already reaches on-link (its own NIC) needs
+			// no tunnel — the GRETAP would only add a redundant L2 path.
+			if (ep.address && (await isLocallyOnLink(ep.address))) continue;
 			add(
 				ep.address || r.host,
 				ep.listenPort,
@@ -551,7 +584,7 @@ function targetSignature(t: TunnelTarget): string {
  */
 async function reconcile(): Promise<void> {
 	// Remove TUNs whose target is no longer desired.
-	const desired = desiredTargets();
+	const desired = await desiredTargets();
 	const desiredKeys = new Set(desired.map((d) => d.key));
 	for (const key of [...tunnels.keys()]) {
 		if (!desiredKeys.has(key)) {

@@ -291,6 +291,20 @@ describe("config + status", () => {
 		expect(config.listenPortBase).toBe(4000);
 		expect(config.interfaceIgnore).toEqual(["docker.*", "veth.*"]);
 		expect(config.destination).toBeUndefined();
+		// GRETAP exposure on by default (relays exist to extend a LAN).
+		expect(config.gretap).toBe(true);
+	});
+
+	test("setConfig toggles gretap and it is re-read on the next getConfig", async () => {
+		cfg.bind?.(fakeCore({}));
+		const res = (await cfg.dispatch("ctrlink_relay.setConfig", {
+			gretap: false,
+		})) as { config: { gretap: boolean } };
+		expect(res.config.gretap).toBe(false);
+		const again = (await cfg.dispatch("ctrlink_relay.getConfig", {})) as {
+			config: { gretap: boolean };
+		};
+		expect(again.config.gretap).toBe(false);
 	});
 
 	test("status serializes an idle relay set", async () => {

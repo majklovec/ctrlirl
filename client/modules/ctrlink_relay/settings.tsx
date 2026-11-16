@@ -30,6 +30,7 @@ import type { CtrlinkRelayView } from "./types";
 /** Editable copy of the module's config slice (ports kept as input strings). */
 const draft = {
 	enabled: false,
+	gretap: true,
 	announceHost: "",
 	listenPortBase: "5000",
 	interfaceAllow: "",
@@ -47,6 +48,7 @@ const splitList = (value: string): string[] =>
 async function save(ctx: ModuleContext): Promise<void> {
 	const config: Record<string, unknown> = {
 		enabled: draft.enabled,
+		gretap: draft.gretap,
 		listenPortBase: Number(draft.listenPortBase),
 		announceHost: draft.announceHost.trim(),
 		interfaceAllow: splitList(draft.interfaceAllow),
@@ -74,6 +76,7 @@ const def: ModuleDef = {
 			| CtrlinkRelayView
 			| undefined;
 		draft.enabled = v?.enabled ?? false;
+		draft.gretap = v?.gretap ?? true;
 		draft.announceHost = v?.announceHost ?? "";
 		draft.listenPortBase = String(v?.listenPortBase ?? 5000);
 		draft.interfaceAllow = (v?.interfaceAllow ?? []).join(" ");
@@ -86,6 +89,10 @@ const def: ModuleDef = {
 			<CheckField
 				label={t("dev.ctrlink.enabled")}
 				control={<Checkbox target={draft} prop="enabled" />}
+			/>
+			<CheckField
+				label={t("dev.ctrlink.gretap")}
+				control={<Checkbox target={draft} prop="gretap" />}
 			/>
 			<Field
 				label={t("dev.ctrlink.announce_host")}

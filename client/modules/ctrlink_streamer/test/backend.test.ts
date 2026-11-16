@@ -149,6 +149,49 @@ describe("ctrlink_streamer", () => {
 		expect(uplinks.list()).toEqual([]);
 	});
 
+	test("an interface whose subnet is already on-link on this host is not tunneled", async () => {
+		const { core, uplinks } = await setup();
+		// Simulate the kernel: every announced address is directly on-link on
+		// eth0 (a plain `dev`, no `via` gateway) — the encoder physically sits
+		// on that segment, so the GRETAP tunnels are redundant and must be
+		// skipped.
+		type CoreWithRun = {
+			run: (bin: string, args: string[], ignore?: boolean) => Promise<string>;
+		};
+		(core as unknown as CoreWithRun).run = async (_bin, args) =>
+			args[0] === "route" && args[1] === "get"
+				? `${args[2]} dev eth0 src 203.0.113.5 uid 0\n`
+				: "";
+		await announce(
+			relay("203.0.113.10", [
+				["eth0", "203.0.113.10", 4000],
+				["eth1", "203.0.113.11", 4001],
+			]),
+		);
+		expect(uplinks.added).toEqual([]);
+		const v = await view();
+		expect(v.runtime.tunnels).toEqual([]);
+		await up().stop();
+	});
+
+	test("a gateway-routed (not on-link) interface is still tunneled", async () => {
+		const { core, uplinks } = await setup();
+		// The announced subnet is reached via a gateway → NOT on-link on this
+		// host, so the tunnel is created (the fail-open path).
+		type CoreWithRun = {
+			run: (bin: string, args: string[], ignore?: boolean) => Promise<string>;
+		};
+		(core as unknown as CoreWithRun).run = async (_bin, args) =>
+			args[0] === "route" && args[1] === "get"
+				? `${args[2]} via 192.168.1.1 dev eth0 src 192.168.1.5 uid 0\n`
+				: "";
+		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
+		expect(uplinks.added).toEqual([
+			{ id: "ctrlink:gretap_eth0", source: "10.90.0.1", label: "Ctrlink (gretap_eth0)" },
+		]);
+		await up().stop();
+	});
+
 	test("multiple shared interfaces → one TUN each, IPs derived from the ordinals", async () => {
 		const { uplinks } = await setup();
 		await announce(

@@ -155,6 +155,7 @@ export type CtrlinkRelayState = CtrlinkRuntimeStatus;
 /** The settings-page view of the module's config slice. */
 export interface CtrlinkRelayView {
 	enabled: boolean;
+	gretap: boolean;
 	announceHost: string;
 	listenPortBase: number;
 	portMap: Record<string, number>;

@@ -114,7 +114,7 @@ const DEFAULTS: Required<
 } = {
 	enabled: false,
 	nat: true,
-	gretap: false,
+	gretap: true,
 	announceHost: "",
 	listenPortBase: 4000,
 	interfaceAllow: [],
@@ -1508,6 +1508,8 @@ const registration: BackendModule<ModuleCore> = {
 	events: ["ctrlink_relay.stats"],
 	configDefaults: {
 		enabled: false,
+		nat: true,
+		gretap: true,
 		listenPortBase: 4000,
 		interfaceAllow: [],
 		interfaceIgnore: ["docker.*", "veth.*"],
@@ -1535,6 +1537,10 @@ const registration: BackendModule<ModuleCore> = {
 			s.enabled = patch.enabled;
 		}
 		if (typeof patch.nat === "boolean") next.nat = patch.nat;
+		if (typeof patch.gretap === "boolean") {
+			next.gretap = patch.gretap;
+			s.gretap = patch.gretap;
+		}
 		if (typeof patch.announceHost === "string")
 			next.announceHost = patch.announceHost.trim();
 		if (typeof patch.listenPortBase === "number")
@@ -1642,6 +1648,8 @@ const registration: BackendModule<ModuleCore> = {
 				const patch: Partial<CtrlinkRelayConfig> = {};
 				if (p.enabled !== undefined)
 					patch.enabled = requireBoolean(p, "enabled");
+				if (p.nat !== undefined) patch.nat = requireBoolean(p, "nat");
+				if (p.gretap !== undefined) patch.gretap = requireBoolean(p, "gretap");
 				if (p.announceHost !== undefined) {
 					const ip = String(p.announceHost).trim();
 					patch.announceHost = ip === "" ? "" : requireHost(p, "announceHost");
@@ -1697,6 +1705,9 @@ const registration: BackendModule<ModuleCore> = {
 						if (res.started.length > 0) startAdvertiseAll();
 					} else await stopAll();
 				}
+				// A gretap toggle changes the tunnel set (reads live config) —
+				// reconcile now so tunnels appear/disappear without a re-announce.
+				if (patch.gretap !== undefined) reconcileGretapsNow();
 				return { config: config(), ctrlink: buildStatus() };
 			}
 			default:
