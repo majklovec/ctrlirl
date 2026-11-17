@@ -142,3 +142,29 @@ confirm against the actual fleet before the first real install.
    currently relies on the distro's `ModemManager` service. If the target
    images ship without it, we need a unit under `modems/install/` —
    say the word and I'll add one.
+
+## Tunnel transport: plain UDP IP tunnel (replaces WireGuard)
+
+`shared/lib/udpip` + a small static Go binary `udpip` (source in
+`shared/lib/udpip/src/udpip.go`, built by `build.sh`; the binary is NOT
+committed — scp it to `/usr/local/bin/udpip` on both hosts).
+
+- Kernel WireGuard is unusable on this hardware (vendor kernels lack the
+  `chacha20poly1305`/`x25519` crypto-API transforms) and kernel FOU is a
+  dead end (no `fou.ko` on the relay). The tunnel is a userspace
+  UDP↔TUN pump: **no crypto, no auth** — accepted by decision because the
+  relay↔encoder link is trusted. The relay pump binds the specific
+  ded-link IP and pins a single peer (first datagram / `--allow`), which
+  is the only hardening in place.
+- Netdevs: `utn-<uplink>` (e.g. `utn-eth0`), /30 `10.200.<1+i>.0`, MTU
+  1400, ports from base 51820, per-tunnel tables **201+** (deliberately
+  above the `network` module's 100+ source-routing tables — the monitor
+  must never flush 201+; see the `TUNNEL_TABLE_BASE` cap in
+  `client/modules/network/routing.ts`).
+- Relay per-tunnel egress installs `default via <gw> dev <uplink>` in the
+  tunnel table. A bare `default dev <uplink>` (scope link) is NOT enough:
+  the kernel re-validates the FIB on the output leg and a scope-link
+  default has no nexthop for forwarded traffic → 100% loss (verified
+  live 2026-11).
+- Config key is `tunnel: true`; `wireguard: true` is kept as a compat
+  alias so existing `encoder.json` keeps working.
