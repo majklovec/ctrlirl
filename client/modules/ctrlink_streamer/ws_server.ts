@@ -19,6 +19,13 @@ import {
 /** The WS path relays dial (fixed; the token is a query parameter). */
 export const CTRLINK_RELAY_WS_PATH = "/ctrlink";
 
+/**
+ * Open relay connections (the encoder is the server). Kept so the encoder can
+ * PUSH a control-channel message (currently: `encoder_wg_key`) to a connected
+ * relay without waiting for a relay-initiated frame.
+ */
+const liveRelays = new Set<Bun.ServerWebSocket<RelayWsConn>>();
+
 /** Per-connection state (the relay identity from its hello). */
 export interface RelayWsConn {
 	/** The relay identity (from the `hello`), once known. */
@@ -77,6 +84,7 @@ export function startRelayWsServer(
 			websocket: {
 				open(ws) {
 					const conn = ws.data as RelayWsConn;
+					liveRelays.add(ws);
 					console.log(
 						`ctrlink_streamer: relay WS connected${conn.relayId ? ` (${conn.relayId})` : ""}`,
 					);
@@ -120,6 +128,7 @@ export function startRelayWsServer(
 				},
 				close(ws) {
 					const conn = ws.data;
+					liveRelays.delete(ws);
 					console.log(
 						`ctrlink_streamer: relay WS closed${conn.relayId ? ` (${conn.relayId})` : ""}`,
 					);
@@ -137,4 +146,29 @@ export function startRelayWsServer(
 		);
 		return null;
 	}
+}
+
+/**
+ * Push a control-channel message to a connected relay (e.g. `encoder_wg_key`).
+ * `relayId` undefined = broadcast to every connected relay. Returns the number
+ * of relays the frame was handed to (a send failure on a closing socket does
+ * not count).
+ */
+export function sendRelayWsMessage(
+	relayId: string | undefined,
+	msg: unknown,
+): number {
+	const text = JSON.stringify(msg);
+	let sent = 0;
+	for (const ws of liveRelays) {
+		const conn = ws.data;
+		if (relayId !== undefined && conn.relayId !== relayId) continue;
+		try {
+			ws.send(text);
+			sent++;
+		} catch {
+			/* socket closing — the next frame / reconnect picks it up */
+		}
+	}
+	return sent;
 }

@@ -24,6 +24,37 @@ export type {
     UdpRelayOptions,
 } from "./relay";
 
+// --- Low-level: general command runner (`wg` / `modprobe` / `nft`) ---------
+export { runCommand, execCmd, setCmdRunner } from "./command";
+
+// --- Low-level: WireGuard L3 tunnel (successor to the GRETAP L2 bridge) -----
+export {
+    wireGuardSetupCommands,
+    wireGuardPeerCommand,
+    wireGuardListenPortCommand,
+    wireGuardTeardownCommands,
+    ensureWireGuardModule,
+    setupWireGuardInterface,
+    setWireGuardListenPort,
+    addWireGuardPeer,
+    removeWireGuardPeer,
+    removeWireGuard,
+    generateWireGuardKeyPair,
+    wireGuardTunnelAddress,
+    wgListenPort,
+    wgRouteTable,
+    ensureIpForward,
+    ensureWireGuardRelayEgress,
+    revokeWireGuardRelayEgress,
+    ensureWireGuardEncoderRouting,
+    revokeWireGuardEncoderRouting,
+    DEFAULT_WG_MTU,
+    DEFAULT_WG_KEEPALIVE_SEC,
+    WG_LISTEN_PORT_BASE,
+    IPTABLES_BIN,
+    SYSCTL_BIN,
+} from "./wireguard";
+
 // --- Low-level: gretap topology / `ip` --------------------------------------
 export {
     runIp,

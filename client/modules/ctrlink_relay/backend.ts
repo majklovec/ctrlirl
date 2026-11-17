@@ -51,6 +51,8 @@ import {
 	type IfaceRawSocket,
 	resolveInterfaceAddress,
 	type UdpRelay,
+	runCommand,
+	setCmdRunner,
 } from "../../../shared/lib/gretap_relay";
 import {
 	gretapOuterIpFor,
@@ -61,9 +63,18 @@ import {
 	stopGretaps,
 } from "./gretap";
 import {
+	configureRelayWireGuard,
+	dropRelayWgEncoder,
+	reconcileRelayWireGuardNow,
+	relayWgSpecFor,
+	setRelayWgEncoderKeys,
+	stopRelayWireGuard,
+} from "./wireguard";
+import {
 	CTRLINK_ANNOUNCE_INTERVAL_MS,
 	CTRLINK_DISCOVERY_PORT,
 	CTRLINK_RELAY_WS_PROTOCOL,
+	isCtrlinkRelayWsMessage,
 	type CtrlinkAnnounce,
 	type CtrlinkDiscoveredEncoder,
 	type CtrlinkRelayIface,
@@ -115,6 +126,7 @@ const DEFAULTS: Required<
 	enabled: false,
 	nat: true,
 	gretap: true,
+	wireGuard: true,
 	announceHost: "",
 	listenPortBase: 4000,
 	interfaceAllow: [],
@@ -259,6 +271,7 @@ function config(): ResolvedConfig {
 		enabled: raw.enabled ?? DEFAULTS.enabled,
 		nat: raw.nat ?? DEFAULTS.nat,
 		gretap: raw.gretap ?? DEFAULTS.gretap,
+		wireGuard: raw.wireGuard ?? DEFAULTS.wireGuard,
 		announceHost: raw.announceHost ?? DEFAULTS.announceHost,
 		listenPortBase: raw.listenPortBase ?? DEFAULTS.listenPortBase,
 		interfaceAllow: raw.interfaceAllow ?? DEFAULTS.interfaceAllow,
@@ -302,7 +315,16 @@ export function eligibleInterfaces(
 		// GRETAP's own devices (the `gretap*` tunnels + `br-*` bridges) are
 		// infrastructure, never shareable endpoints — a bridge on the home-LAN
 		// subnet would advertise a duplicate of the pass-through NIC it extends.
-		.filter((i) => !/^gretap/.test(i.name) && !/^br-/.test(i.name))
+		// Same for the WireGuard `wg-*` netdevs: they are the transport itself,
+		// and treating one as an uplink makes the reconcile build `wg-wg-*`
+		// (a second tunnel for the tunnel), colliding listen ports and cascading
+		// the per-index addressing.
+		.filter(
+			(i) =>
+				!/^gretap/.test(i.name) &&
+				!/^br-/.test(i.name) &&
+				!/^wg-/.test(i.name),
+		)
 		.filter((i) =>
 			allow.length > 0
 				? allow.some((re) => re.test(i.name))
@@ -483,13 +505,21 @@ export function effectiveAnnounceHost(): string {
 export function relayIfaceList(): CtrlinkRelayIface[] {
 	const cfg = config();
 	const ifaces = netIfaces?.list() ?? [];
-	return advertisedInterfaces(ifaces, cfg).map((name) => ({
-		iface_name: name,
-		ip: ifaceAddress(name, ifaces, cfg) ?? "",
-		udp_port: allocatePort(name),
-		state: relays.has(name) ? ("up" as const) : ("down" as const),
-		uplink: true,
-	}));
+	return advertisedInterfaces(ifaces, cfg).map((name) => {
+		const i: CtrlinkRelayIface = {
+			iface_name: name,
+			ip: ifaceAddress(name, ifaces, cfg) ?? "",
+			udp_port: allocatePort(name),
+			state: relays.has(name) ? ("up" as const) : ("down" as const),
+			uplink: true,
+		};
+		// Layer-3 WireGuard offer (spec TODO/wireguard.md): when the relay has
+		// a `wg-<if>` netdev up for this uplink, advertise it so the encoder
+		// builds a WG vif (full Internet) instead of a GRETAP L2 bridge.
+		const wg = relayWgSpecFor(name);
+		if (wg) i.wg = wg;
+		return i;
+	});
 }
 
 /** Guard so the relayer closure is wired exactly once (module start). */
@@ -522,6 +552,88 @@ function configureGretap(): void {
 /** Convenience: kick a (coalesced) GRETAP reconcile. No-op when disabled. */
 function reconcileGretapsNow(): void {
 	void reconcileGretaps();
+}
+
+/**
+ * The one place the WG transport's kernel commands get elevated: every `ip`
+ * / `wg` / `iptables` / `modprobe` / `sysctl` run goes through `sudo -n`
+ * (the user runs with `sudo -n` non-interactively on this device). Kept at a
+ * single seam so a host without `sudo` can inject its own runner.
+ */
+const sudoCmdRunner = (bin: string, args: string[]): Promise<string> =>
+	runCommand("/usr/bin/sudo", ["-n", bin, ...args]);
+
+/** Guard so the WireGuard module is wired exactly once (module start). */
+let wgConfigured = false;
+/**
+ * Wire the Layer-3 WireGuard transport (module start, once). The relay's
+ * outer endpoint on the dedicated link is the advertised (`announceHost`)
+ * IP — the encoder dials `<this>:<per-uplink port>` per tunnel (spec §10:
+ * the outer UDP always leaves over the dedicated relay↔encoder link).
+ */
+/**
+ * The relay's WG outer endpoint (the address the encoder dials per uplink).
+ * The outer UDP always leaves over the dedicated relay↔encoder link, so this
+ * is the relay's address on the DIRECTLY-CONNECTED interface (where the
+ * encoder reached us) — not an uplink. A manual `announceHost` overrides;
+ * with no encoder discovered yet we fall back to the advertised host so the
+ * spec's `endpoint` is never empty. Evaluated live on every snapshot (the
+ * ded-link address is only known after discovery and can change).
+ */
+function wgTransportOuterIp(): string {
+	const cfg = config();
+	const manual = cfg.announceHost.trim();
+	if (manual) return manual;
+	const ifaces = netIfaces?.list() ?? [];
+	for (const name of directIfaces) {
+		const addr = ifaceAddress(name, ifaces, cfg);
+		if (addr) return addr;
+	}
+	return effectiveAnnounceHost();
+}
+
+function configureRelayWgNow(): void {
+	if (wgConfigured) return;
+	wgConfigured = true;
+	const cfg = config();
+	setCmdRunner(sudoCmdRunner);
+	configureRelayWireGuard({
+		enabled: cfg.wireGuard && cfg.enabled,
+		// A live getter: the ded-link address is discovered at runtime and
+		// `relayWgSpecFor` resolves it on every snapshot.
+		transportOuterIp: wgTransportOuterIp,
+	});
+}
+
+/** Serialize WG reconciles on a tail promise so passes cannot overlap: an
+ * unserialized pass whose `refreshDirectIfaces` ran before the encoder was
+ * known would compute the uplink set from an empty `directIfaces` and rebuild
+ * a `wg-<dedlink>` tunnel-over-the-tunnel after a correct pass removed it.
+ * Chaining them guarantees the final state always reflects the newest
+ * `directIfaces`. */
+let wgReconcileTail: Promise<void> = Promise.resolve();
+function reconcileWireGuardNow(): void {
+	wgReconcileTail = wgReconcileTail.then(async () => {
+		try {
+			// Refresh the direct-link set FIRST — the single authoritative
+			// ordering point.
+			await refreshDirectIfaces();
+			// No encoder known → tear down all WG devices (nothing to tunnel
+			// to, and leftovers like wg-<dedlink> are useless).
+			if (knownEncoders().length === 0) {
+				await reconcileRelayWireGuardNow([]);
+				return;
+			}
+			const cfg = config();
+			const ifaces = netIfaces?.list() ?? [];
+			const uplinks = advertisedInterfaces(ifaces, cfg).filter(
+				(n) => !directIfaces.has(n),
+			);
+			await reconcileRelayWireGuardNow(uplinks);
+		} catch {
+			// Never break the reconciliation chain.
+		}
+	});
 }
 
 function buildStatus(): CtrlinkRuntimeStatus {
@@ -1068,6 +1180,11 @@ async function onNetworkChange(): Promise<void> {
 	// Endpoints (iface addresses) may have moved — reconcile GRETAP tunnels
 	// too (coalesced no-op when the set is unchanged or gretap is off).
 	reconcileGretapsNow();
+	// The uplink set / addresses may have moved — reconcile the WG netdev set.
+	reconcileWireGuardNow();
+	// A channel that opened before this change carried a stale snapshot —
+	// re-send the full `hello` (the only message carrying `wg` offers).
+	resnapshotStaleChannels();
 }
 
 // ----------------------------------------------------------------------
@@ -1086,12 +1203,70 @@ interface EncoderChannel {
 	timer?: ReturnType<typeof setTimeout>;
 	/** Keepalive ping timer (cleared when the channel closes). */
 	hbeat?: ReturnType<typeof setInterval>;
+	/** Signature of the last `hello`'s interface set (names + IPs + whether
+	 * each carries a Layer-3 `wg` offer). Compared against the live set to
+	 * re-send a full `hello` when it changes — the per-interface events do
+	 * NOT carry the `wg` offers, and the WG netdevs (and thus the specs) are
+	 * built asynchronously AFTER the first snapshot, so an encoder that got a
+	 * bare / pre-WG snapshot would otherwise fall back to GRETAP. */
+	announcedSig?: string;
+	/** The encoder snapshot the channel was started with (needed to rebuild
+	 * a per-encoder `hello` on re-send). */
+	encoder: CtrlinkDiscoveredEncoder;
 }
 /** The live relay → encoder channels, keyed by `encoder_id` (announces are
  * re-sent periodically, so the key is stable). */
 const encoderChannels = new Map<string, EncoderChannel>();
 /** A pending connect (so overlapping reconciles never open two sockets). */
 const pendingConnects = new Set<string>();
+
+/** A stable signature of the current advertise set: each interface's name,
+ * IP, and whether it carries a Layer-3 `wg` offer. Two snapshots with the
+ * same signature are equivalent as far as the encoder's vif reconcile is
+ * concerned. */
+function announcedSig(ifaces?: CtrlinkRelayIface[]): string {
+	const list = ifaces ?? relayIfaceList();
+	return list
+		.map((i) => `${i.iface_name}:${i.ip}:wg=${i.wg ? 1 : 0}`)
+		.sort()
+		.join("|");
+}
+
+/**
+ * Re-send the FULL `hello` snapshot to any live encoder channel whose last
+ * snapshot no longer matches the live set. Closes two races where the
+ * per-interface events are insufficient (they never carry the `wg` offers):
+ * (1) the WS channel opens before the network list is populated (0 ifaces),
+ * and (2) the WG netdevs — and thus the `wg` specs — are built asynchronously
+ * AFTER the first snapshot. A stale / pre-WG snapshot would leave the encoder
+ * on GRETAP. Idempotent + cheap: a full resend only when the signature moved.
+ */
+function resnapshotStaleChannels(): void {
+	const liveSig = announcedSig();
+	for (const [, st] of encoderChannels) {
+		if (st.ws.readyState !== WebSocket.OPEN) continue;
+		if (st.announcedSig === liveSig) continue;
+		// Fresh registry entry (the channel-start snapshot may be stale —
+		// `wsPort` in particular); fall back to the stored one.
+		const enc =
+			knownEncoders().find((x) => x.encoderId === st.encoder.encoderId) ??
+			st.encoder;
+		const hello = helloMessage(enc);
+		let sent: CtrlinkRelayIface[] = [];
+		if (hello.type === "hello") sent = hello.interfaces;
+		st.announcedSig = announcedSig(sent);
+		try {
+			st.ws.send(JSON.stringify(hello));
+			console.log(
+				`ctrlink_relay: re-sent full snapshot to encoder ${enc.encoderId} (${sent.length} iface(s)) — startup snapshot was stale`,
+			);
+		} catch (e) {
+			console.warn(
+				`ctrlink_relay: snapshot re-send to ${enc.encoderId} failed: ${errorMessage(e)}`,
+			);
+		}
+	}
+}
 
 /** The full snapshot message (protocol.md §3/§4: sent on every (re)connect).
  * `outer_ip` is per-encoder (depends on how we reach THAT encoder), so it is
@@ -1160,7 +1335,7 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 		pendingConnects.delete(e.encoderId);
 		return;
 	}
-	const st: EncoderChannel = { ws, gen };
+	const st: EncoderChannel = { ws, gen, encoder: e };
 	encoderChannels.set(e.encoderId, st);
 	ws.onopen = (): void => {
 		pendingConnects.delete(e.encoderId);
@@ -1171,6 +1346,7 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 		// Full snapshot on (re)connect — the encoder has a consistent view.
 		// `outer_ip` is resolved for THIS encoder (per-channel).
 		st.ws.send(JSON.stringify(helloMessage(e)));
+		st.announcedSig = announcedSig();
 		lastWsAdvertiseAt = Date.now();
 		// Keepalive: the encoder replies `pong`; every frame in both
 		// directions refreshes the registry TTL (protocol.md §3).
@@ -1191,11 +1367,32 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 		core.notifyStateChange();
 		void writeStatusFile();
 	};
-	ws.onmessage = (): void => {
+	ws.onmessage = (ev: MessageEvent): void => {
 		// Any frame from the encoder (pong / events) proves the channel is
 		// alive → refresh the registry TTL so the sweep never reaps a live
 		// channel. `e` is a channel-start snapshot — stamp NOW.
 		noteEncoder({ ...e, lastSeen: Date.now() });
+		// Learn this encoder's per-uplink WireGuard keys so we can dial it
+		// as a peer on each `wg-<if>` netdev (spec §12: the encoder sends its
+		// public key over the control channel; the relay dials it).
+		let raw: unknown;
+		try {
+			raw = JSON.parse(String(ev.data));
+		} catch {
+			return;
+		}
+		if (isCtrlinkRelayWsMessage(raw) && raw.type === "encoder_wg_key") {
+			// The encoder's link IP (outer endpoint we dial) is its registry
+			// entry IP (announce / WS source), falling back to the channel
+			// snapshot. `setRelayWgEncoderKeys` triggers a coalesced reconcile.
+			const encIp =
+				knownEncoders().find((x) => x.encoderId === raw.encoder_id)?.ip ?? e.ip;
+			setRelayWgEncoderKeys(raw.encoder_id, encIp, raw.public_keys);
+			// The encoder is now known → recompute the uplink set (excluding
+			// the freshly-learnt transport link) so the WG netdevs + this
+			// peer are built immediately, not on the next sweep.
+			void reconcileWireGuardNow();
+		}
 	};
 	const fail = (why: string): void => {
 		if (encoderChannels.get(e.encoderId) !== st) return; // replaced
@@ -1238,6 +1435,8 @@ function reconcileEncoderChannels(): void {
 	// The encoder set changed (appeared / dropped) — reconcile GRETAP tunnels
 	// (coalesced no-op when the set is unchanged or gretap is off).
 	reconcileGretapsNow();
+	// New encoders may already carry learnt WG keys → reconcile the peer set.
+	reconcileWireGuardNow();
 }
 
 /**
@@ -1300,6 +1499,7 @@ async function ensureControlServerEncoders(): Promise<void> {
 			if (enc) {
 				startEncoderChannel(enc);
 				reconcileGretapsNow();
+				reconcileWireGuardNow();
 			}
 		}
 	} catch {
@@ -1364,6 +1564,11 @@ export function onEncoderAnnounced(e: CtrlinkDiscoveredEncoder): void {
 		// A (new) encoder may sit on one of our segments — reclassify the
 		// direct set before the snapshot/events go out to it.
 		await refreshDirectIfaces();
+		// The encoder is now known → the transport link is classified.
+		// Recompute the WG uplink set NOW (excluding the transport link) so
+		// we never build a `wg-<dedlink>` tunnel-over-the-tunnel; this also
+		// refreshes `lastUplinks` for the encoder-key-driven reconcile below.
+		reconcileWireGuardNow();
 		if (!isNew) return;
 		// Build this encoder's GRETAP tunnels + populate the per-iface
 		// `outer_ip` cache BEFORE the first hello, so the encoder learns the
@@ -1417,12 +1622,22 @@ function startDiscovery(): void {
 		onFound: onMdnsEncoder,
 	});
 	if (!encoderSweep) {
-		encoderSweep = setInterval(() => {
-			sweepEncoders();
+		encoderSweep = setInterval(async () => {
+			const dropped = sweepEncoders();
+			// Drop learnt WG keys for encoders we stopped hearing (their
+			// peers are removed on the next reconcile pass).
+			for (const id of dropped) dropRelayWgEncoder(id);
 			// Self-heal the direct set: a sweep may have dropped encoders,
-			// releasing interfaces that were filtered out for them.
-			void refreshDirectIfaces();
+			// releasing interfaces that were filtered out for them. Await it
+			// so the WG reconcile below sees a fresh transport-link exclusion.
+			await refreshDirectIfaces();
 			reconcileEncoderChannels();
+			reconcileWireGuardNow();
+			// A channel that opened before the network list was populated got
+			// a bare `hello` (0 `wg` offers). Re-send the full snapshot now
+			// that the uplink set is known — this is the guaranteed catch-up
+			// for the startup race (runs every announce tick, idempotent).
+			resnapshotStaleChannels();
 			void ensureControlServerEncoders();
 		}, CTRLINK_ANNOUNCE_INTERVAL_MS);
 		encoderSweep.unref?.();
@@ -1510,6 +1725,7 @@ const registration: BackendModule<ModuleCore> = {
 		enabled: false,
 		nat: true,
 		gretap: true,
+		wireGuard: true,
 		listenPortBase: 4000,
 		interfaceAllow: [],
 		interfaceIgnore: ["docker.*", "veth.*"],
@@ -1541,6 +1757,10 @@ const registration: BackendModule<ModuleCore> = {
 			next.gretap = patch.gretap;
 			s.gretap = patch.gretap;
 		}
+		if (typeof patch.wireGuard === "boolean") {
+			next.wireGuard = patch.wireGuard;
+			s.wireGuard = patch.wireGuard;
+		}
 		if (typeof patch.announceHost === "string")
 			next.announceHost = patch.announceHost.trim();
 		if (typeof patch.listenPortBase === "number")
@@ -1568,6 +1788,12 @@ const registration: BackendModule<ModuleCore> = {
 		// and grows as encoders announce.
 		configureGretap();
 		reconcileGretapsNow();
+		// Layer-3 WireGuard multi-uplink transport (spec TODO/wireguard.md):
+		// one `wg-<if>` netdev per advertised uplink + per-encoder peer +
+		// per-uplink egress policy route / NAT. First pass is empty (no
+		// encoders yet) and grows as they announce their WG keys.
+		configureRelayWgNow();
+		reconcileWireGuardNow();
 		// Sample each relay's live forwarded throughput (bytes/sec) for the
 		// card's "real speed" — the negotiated link speed is not what matters.
 		startRateSampler();
@@ -1589,6 +1815,10 @@ const registration: BackendModule<ModuleCore> = {
 			pushIfaceEvents(res.events);
 			if (res.started.length > 0) startAdvertiseAll();
 			void ensureControlServerEncoders();
+			// A WS channel that opened before the network list was populated
+			// got a `hello` with few/no `wg` offers (the startup race) —
+			// re-send the full snapshot now that the set is known.
+			resnapshotStaleChannels();
 		}
 		// From here on, interface changes are runtime events: first-seen
 		// interfaces are announced `interface_added` to the connected
@@ -1602,6 +1832,7 @@ const registration: BackendModule<ModuleCore> = {
 		stopRateSampler();
 		stopAdvertiseAll();
 		stopDiscovery();
+		void stopRelayWireGuard();
 		await stopAll();
 	},
 	async status() {
@@ -1708,6 +1939,12 @@ const registration: BackendModule<ModuleCore> = {
 				// A gretap toggle changes the tunnel set (reads live config) —
 				// reconcile now so tunnels appear/disappear without a re-announce.
 				if (patch.gretap !== undefined) reconcileGretapsNow();
+				// A wireGuard toggle (re)loads the WG transport: re-bind the
+				// enabled state + reconcile the netdev set now.
+				if (patch.wireGuard !== undefined) {
+					configureRelayWgNow();
+					reconcileWireGuardNow();
+				}
 				return { config: config(), ctrlink: buildStatus() };
 			}
 			default:

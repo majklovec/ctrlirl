@@ -24,6 +24,16 @@ export interface CtrlinkRelayConfig {
 	 */
 	gretap: boolean;
 	/**
+	 * Enable the Layer-3 WireGuard multi-uplink transport (spec
+	 * `TODO/wireguard.md`) — default **true**. When true the relay exposes each
+	 * eligible uplink as an independent `wg-<if>` WireGuard netdev the encoder
+	 * receives as a virtual uplink with per-tunnel policy routing + NAT.
+	 * Mutually exclusive with `gretap` in practice: the encoder builds a WG
+	 * vif from the `wg` spec and falls back to GRETAP only when a `wg` offer
+	 * is absent. Restorable (teardown deletes each `wg-<if>` netdev).
+	 */
+	wireGuard: boolean;
+	/**
 	 * The LAN IP this relay advertises to encoders in its discovery announce.
 	 * Empty = auto-detect (the first bound relay address). A manual value wins
 	 * over the auto-detected one. Always shown (filled) in the UI.
@@ -156,6 +166,7 @@ export type CtrlinkRelayState = CtrlinkRuntimeStatus;
 export interface CtrlinkRelayView {
 	enabled: boolean;
 	gretap: boolean;
+	wireGuard: boolean;
 	announceHost: string;
 	listenPortBase: number;
 	portMap: Record<string, number>;

@@ -17,6 +17,13 @@ export interface CtrlinkStreamerConfig {
 	keepaliveIntervalMs: number;
 	/** Register each TUN IP as a network uplink so srtla_send picks it up. */
 	autoRegisterUplink: boolean;
+	/**
+	 * Build Layer-3 WireGuard virtual uplinks from the relay's `wg` offers
+	 * (spec `TODO/wireguard.md`) — default **true**. When true each offered
+	 * uplink becomes a `wg-<if>` vif with a per-vif routing table (SRTLA-ready).
+	 * Endpoints with NO `wg` offer still use the legacy TUN path.
+	 */
+	wireGuard: boolean;
 	runtimeStatusFile: string;
 	logLevel: CtrlinkLogLevel;
 	/**

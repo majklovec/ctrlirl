@@ -34,6 +34,7 @@ import {
 	type CtrlinkAnnounce,
 	type CtrlinkDiscoveredEncoder,
 } from "../../../shared/ctrlink_discovery";
+import { execCmd } from "../../../shared/lib/gretap_relay";
 
 /** One announce socket PER attached segment: a `255.255.255.255` datagram
  * only egresses on the subnet of the socket's BIND address, so one
@@ -48,6 +49,12 @@ interface AnnounceSocket {
 let announceSockets: AnnounceSocket[] = [];
 /** The re-broadcast timer. */
 let timer: ReturnType<typeof setInterval> | undefined;
+/** One UNBOUND socket dedicated to all unicast announces (ARP neighbors,
+ * known encoders). A segment-bound socket can only reach its own subnet's
+ * addresses, so unicasting a 192.168.10.x neighbor from the 192.168.1.211
+ * socket is dropped by the kernel; the unbound socket lets the routing
+ * table pick the right egress per destination. */
+let unicastSocket: dgram.Socket | undefined;
 /** Epoch ms of the last UDP discovery broadcast (surfaced on the card).
  * `undefined` until the first send; cleared on stop. */
 let udpAnnounceAt: number | undefined;
@@ -65,6 +72,38 @@ function endpointSummary(eps: CtrlinkAnnounce["interfaces"]): string {
 /** Per-target throttle: a permanently-unreachable encoder IP must not spam
  * the log on every announce tick (60 s). */
 const lastUnicastWarn = new Map<string, number>();
+
+/** True once a limited broadcast has been refused (EACCES — the kernel
+ * denies 255.255.255.255 sends without CAP_NET_BROADCAST). Sticky: the
+ * capability does not change at runtime. */
+let broadcastRefused = false;
+/** Cached ARP-neighbor table (30 s TTL) for the unicast fallback. */
+let neighborCache: { at: number; ips: string[] } | undefined;
+const NEIGHBOR_CACHE_MS = 30_000;
+
+/** Refresh the ARP-neighbor cache: the IPv4 addresses of every RESOLVED
+ * neighbor on any local interface. */
+async function refreshNeighbors(): Promise<string[]> {
+	if (neighborCache && Date.now() - neighborCache.at < NEIGHBOR_CACHE_MS)
+		return neighborCache.ips;
+	let out = "";
+	try {
+		out = await execCmd("ip", ["-4", "neigh", "show"]);
+	} catch (e) {
+		neighborCache = { at: Date.now(), ips: neighborCache?.ips ?? [] };
+		return neighborCache.ips;
+	}
+	const ips: string[] = [];
+	for (const line of out.split("\n")) {
+		const m = line.match(/^(\d+\.\d+\.\d+\.\d+)\s/);
+		// Only RESOLVED entries carry a MAC (`lladdr`); stale/FAILED
+		// neighbors are not reachable unicast targets.
+		if (m && line.includes("REACHABLE") && line.includes("lladdr"))
+			ips.push(m[1]);
+	}
+	neighborCache = { at: Date.now(), ips: Array.from(new Set(ips)) };
+	return neighborCache.ips;
+}
 
 /** Open one announce socket bound to `bindIp` ("" = unbound). Resolves to
  * null when the bind fails (segment vanished / busy) — the other segments
@@ -131,6 +170,20 @@ function tickAnnounce(buildPayload: () => CtrlinkAnnounce | null): void {
 		try {
 			a.s.send(payload, CTRLINK_DISCOVERY_PORT, CTRLINK_BROADCAST_ADDR, (e) => {
 				if (!e) return;
+				const code = (e as NodeJS.ErrnoException).code;
+				// EACCES is NOT a dead segment — the kernel only refuses the
+				// limited broadcast (no CAP_NET_BROADCAST). Swallow it (and
+				// remember it for the neighbor-unicast fallback); a dead
+				// interface surfaces as EDESTADDRREQ/ENETUNREACH/ENOBUF.
+				if (code === "EACCES") {
+					if (!broadcastRefused) {
+						broadcastRefused = true;
+						console.warn(
+							"ctrlink_relay: discovery broadcast denied (EACCES); falling back to ARP-neighbor unicast",
+						);
+					}
+					return;
+				}
 				// The segment's socket is dead (interface vanished): drop it
 				// — the other segments keep advertising.
 				dropDeadSocket(a.s);
@@ -142,30 +195,60 @@ function tickAnnounce(buildPayload: () => CtrlinkAnnounce | null): void {
 			dropDeadSocket(a.s);
 			console.warn(`ctrlink_relay: discovery announce failed: ${String(e)}`);
 		}
-		if (i !== 0) return;
-		// Unicast to every KNOWN encoder: the limited broadcast does not
-		// cross subnets and mDNS is L2-only — once any path (same-L2
-		// broadcast, mDNS, control server) seeds an entry, this keeps the
-		// pair alive across routed links. Symmetric mirror of the
-		// encoder's unicast fallback.
-		for (const ip of knownEncoderIps()) {
+	});
+	// Unicast (ARP neighbors + known encoders) goes through the dedicated
+	// UNBOUND socket: a segment-bound socket can only reach its own subnet's
+	// addresses, so the 192.168.10.x neighbor is unreachable from the
+	// 192.168.1.211 socket — the unbound socket lets the routing table pick
+	// the egress per destination.
+	const us = unicastSocket;
+	if (!us) return;
+	// Unicast to every ARP neighbor UNCONDITIONALLY: the limited
+	// broadcast (255.255.255.255) needs CAP_NET_BROADCAST and, on this
+	// runtime, Bun's dgram swallows the refusal — no callback, no packet.
+	// A neighbor that merely answered ARP is a live candidate encoder on a
+	// directly-connected segment; on a point-to-point relay link this
+	// unicast IS the entire discovery path. Cheap (a few small datagrams
+	// per 5 s) and non-encoder neighbors simply drop the port-10333 UDP.
+	void (async (): Promise<void> => {
+		for (const ip of await refreshNeighbors()) {
 			try {
-				a.s.send(payload, CTRLINK_DISCOVERY_PORT, ip, (e) => {
+				us.send(payload, CTRLINK_DISCOVERY_PORT, ip, (e) => {
 					if (!e) return;
 					const now = Date.now();
 					if (now - (lastUnicastWarn.get(ip) ?? 0) < 60_000) return;
 					lastUnicastWarn.set(ip, now);
 					console.warn(
-						`ctrlink_relay: encoder announce to ${ip} failed: ${e.message}`,
+						`ctrlink_relay: neighbor unicast ${ip} failed: ${e.message}`,
 					);
 				});
-			} catch (e) {
-				console.warn(
-					`ctrlink_relay: encoder unicast announce failed: ${String(e)}`,
-				);
+			} catch {
+				/* socket gone mid-tick — next tick retries */
 			}
 		}
-	});
+	})();
+	// Unicast to every KNOWN encoder: the limited broadcast does not
+	// cross subnets and mDNS is L2-only — once any path (same-L2
+	// broadcast, mDNS, control server) seeds an entry, this keeps the
+	// pair alive across routed links. Symmetric mirror of the
+	// encoder's unicast fallback.
+	for (const ip of knownEncoderIps()) {
+		try {
+			us.send(payload, CTRLINK_DISCOVERY_PORT, ip, (e) => {
+				if (!e) return;
+				const now = Date.now();
+				if (now - (lastUnicastWarn.get(ip) ?? 0) < 60_000) return;
+				lastUnicastWarn.set(ip, now);
+				console.warn(
+					`ctrlink_relay: encoder announce to ${ip} failed: ${e.message}`,
+				);
+			});
+		} catch (e) {
+			console.warn(
+				`ctrlink_relay: encoder unicast announce failed: ${String(e)}`,
+			);
+		}
+	}
 }
 
 /**
@@ -198,7 +281,11 @@ export function startAnnouncing(
 				if (payload.host) binds.add(payload.host);
 			}
 		}
-		const opened = await Promise.all([...binds].map(openAnnounceSocket));
+		const [unicast, ...opened] = await Promise.all([
+			openAnnounceSocket(""),
+			...[...binds].map(openAnnounceSocket),
+		]);
+		if (unicast) unicastSocket = unicast.s;
 		announceSockets = opened.filter((s): s is AnnounceSocket => s !== null);
 		if (announceSockets.length === 0) {
 			// No segment bindable (all down at startup): fall back to one
@@ -234,10 +321,20 @@ export function stopAnnouncing(): void {
 	udpAnnounceAt = undefined;
 	const socks = announceSockets;
 	announceSockets = [];
+	neighborCache = undefined;
 	if (had) console.log("ctrlink_relay: discovery advertise stopped");
 	for (const a of socks) {
 		try {
 			a.s.close();
+		} catch {
+			/* already closed */
+		}
+	}
+	const us = unicastSocket;
+	unicastSocket = undefined;
+	if (us) {
+		try {
+			us.close();
 		} catch {
 			/* already closed */
 		}

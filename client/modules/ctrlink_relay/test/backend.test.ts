@@ -243,6 +243,8 @@ describe("eligibleInterfaces (allow/ignore filtering)", () => {
 	const base = {
 		enabled: true,
 		nat: false,
+		gretap: true,
+		wireGuard: true,
 		announceHost: "",
 		listenPortBase: 5000,
 		runtimeStatusFile: "/tmp/ctrlink-status.json",
@@ -392,16 +394,13 @@ describe("relay lifecycle (real loopback UDP)", () => {
 			// fails and the announcer must fall back to one unbound
 			// (default-route) socket.
 			startAnnouncing(() => ({
-				id: "r",
+				v: 1,
 				host: "192.0.2.1",
-				proto: "",
-				token: "",
-				relayPort: 4000,
-				websocketPort: 8732,
 				interfaces: [
 					{ name: "a", address: "192.0.2.1", listenPort: 4000 },
 					{ name: "b", address: "192.0.2.2", listenPort: 4001 },
 				],
+				ts: 1,
 			}));
 			await new Promise((r) => setTimeout(r, 300));
 			stopAnnouncing();
