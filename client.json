@@ -86,7 +86,6 @@
       "docker.*",
       "veth.*",
       "br-mob",
-      "gretapmob",
       "wg0"
     ]
   }

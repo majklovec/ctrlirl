@@ -210,16 +210,16 @@ function tunnelStatuses(): CtrlinkStreamerTunnelStatus[] {
 	const { vifs } = encoderWireGuardStateForTest();
 	const out: CtrlinkStreamerTunnelStatus[] = [];
 	for (const v of vifs) {
-		// Which relay offered this uplink (for display); cleared once a relay
-		// goes away (pre-teardown) — then it reads as no relay.
-		const relayHost = [...wgOffers.entries()].find(([, list]) =>
-			list.some((e) => e.ip === v.localIp),
-		)?.[0];
+		// The relay that owns this vif (its WS control-channel host). The
+		// spec — if the relay is still offering it — carries the WG port.
+		const spec = (wgOffers.get(v.relayId) ?? []).find(
+			(e) => e.spec.peerAddr === v.localIp,
+		)?.spec;
 		out.push({
 			interfaceName: v.name,
 			interfaceAddress: v.localIp,
-			relayHost: relayHost ?? "",
-			relayPort: 0,
+			relayHost: v.relayId,
+			relayPort: spec?.udpPort ?? 0,
 			uplinkRegistered: wgUplinkIds.has(v.localIp),
 			// Per-vif L3 counters live in the kernel (`wg show`); the module
 			// surfaces none, so these read 0 by design.
@@ -256,14 +256,14 @@ const isRunning = (): boolean =>
 /**
  * True when `destIp` is directly on-link on one of THIS host's own interfaces
  * (the kernel answers `ip route get <destIp>` with a plain `dev <iface>` and no
- * `via` gateway), and that interface is a real LAN NIC — not loopback, a GRETAP
- * tunnel, or a relay bridge. Used to skip relay-announced interfaces whose
- * subnet the encoder already reaches locally: the tunnel would just add a
- * competing L2 path, so it is not created.
+ * `via` gateway), and that interface is a real LAN NIC — not loopback, a
+ * WireGuard vif, or a relay bridge. Used to skip relay-announced interfaces
+ * whose subnet the encoder already reaches locally: the tunnel would just add
+ * a competing path, so it is not created.
  *
  * Fails closed (`false` → keep the tunnel) on `ip` failure, an empty
  * (DRY_RUN) result, or a gateway route, so an ambiguous routing state never
- * silently drops an exposure.
+ * silently drops a path.
  */
 async function isLocallyOnLink(destIp: string): Promise<boolean> {
 	if (!destIp) return false;
@@ -276,9 +276,7 @@ async function isLocallyOnLink(destIp: string): Promise<boolean> {
 	if (!out) return false;
 	if (/\bvia\s/.test(out)) return false; // routed via a gateway, not on-link.
 	const m = out.match(/\bdev\s+([A-Za-z0-9_.-]+)/);
-	return (
-		!!m && m[1] !== "lo" && !/^gretap/.test(m[1]) && !/^br-/.test(m[1])
-	);
+	return !!m && m[1] !== "lo" && !/^br-/.test(m[1]);
 }
 
 /**
@@ -288,7 +286,7 @@ async function isLocallyOnLink(destIp: string): Promise<boolean> {
  * so the relay can dial us), and register each vif IP as an SRTLA uplink.
  * Coalesced + best-effort: a failure never blocks the TUN reconcile.
  */
-async function syncEncoderWireGuard(): Promise<void> {
+async function doSyncEncoderWireGuard(): Promise<void> {
 	const c = config();
 	configureEncoderWireGuard({ enabled: c.wireGuard, transportDev: wgTransportDev });
 	const offers: EncoderWgOffer[] = [];
@@ -317,6 +315,21 @@ async function syncEncoderWireGuard(): Promise<void> {
 	await syncVifUplinks(c.autoRegisterUplink);
 }
 
+// Single-flight + re-run: the WG reconcile is triggered from several
+// asynchronous paths (boot, WS hello, relay updates). The wireguard module's
+// `inFlight` guard would silently drop a reconcile that arrives while one is
+// already running — losing any offers that landed in the gap. Serializing here
+// and re-running after each flush guarantees the freshest `wgOffers` always
+// wins, so a WS hello is never dropped and the state converges.
+let wgSyncChain: Promise<void> = Promise.resolve();
+function syncEncoderWireGuard(): Promise<void> {
+	const run = wgSyncChain.then(() => doSyncEncoderWireGuard());
+	// Keep the chain alive even if one pass throws, and never surface the
+	// (best-effort) failure to callers.
+	wgSyncChain = run.catch(() => {});
+	return run.catch(() => {});
+}
+
 /** Register / drop the WG vif IPs as SRTLA uplinks (spec §11). */
 async function syncVifUplinks(autoRegister: boolean): Promise<void> {
 	const live = new Map<string, string>(); // vif IP → uplink id
@@ -338,7 +351,8 @@ async function syncVifUplinks(autoRegister: boolean): Promise<void> {
 	for (const [ip, id] of live) {
 		if (wgUplinkIds.has(ip)) continue;
 		try {
-			await uplinks.add({ id, source: ip, label: `Ctrlink WG (${ip})` });
+			const name = id.replace("ctrlink:wg:", "");
+			await uplinks.add({ id, source: ip, label: `Ctrlink (${name})` });
 			wgUplinkIds.set(ip, id);
 		} catch (e) {
 			console.warn(`ctrlink_streamer: wg uplink add failed: ${e}`);
@@ -423,9 +437,8 @@ let mdnsAdvertiseStop: (() => void) | undefined;
 let lastMdnsAnnounceAt: number | undefined;
 /** True once the discovery UDP socket + mDNS browser are up. `startDiscovering`
  * wipes the registry (see `stopDiscovering`), so re-running it on every 5s
- * autostart `resume()` evicted the WS relay (and its `outer_ip`) — the
- * exposed-IP path fell back to legacy. Guard it like `ensureControlPlane`
- * (GRETAP-RESEARCH.md). */
+ * autostart `resume()` evicted the WS relay (and its tunnel state) — the
+ * tunnel path fell back to nothing. Guard it like `ensureControlPlane`. */
 let discoveryStarted = false;
 
 function ensureDiscovery(): void {
@@ -492,7 +505,7 @@ let wsServer: Bun.Server<RelayWsConn> | null = null;
  * Identity of the control plane currently running (port + token), so
  * `ensureControlPlane()` is idempotent: the per-5s autostart retry re-runs
  * `resume()` → `ensureControlPlane()`, and naively recreating the server
- * every time dropped the live relay WS mid-handshake (GRETAP-RESEARCH.md).
+ * every time dropped the live relay WS mid-handshake.
  * Null = no (usable) control plane → build below.
  */
 let controlPlaneKey: string | null = null;
@@ -510,8 +523,7 @@ function ensureControlPlane(): void {
 	// Idempotent guard: a live server with the same port/token is left
 	// untouched. The per-5s autostart retry (resume → ensureControlPlane)
 	// otherwise tore down the server every cycle, dropping the live relay
-	// WS mid-handshake before it could deliver the exposed-IP hello
-	// (GRETAP-RESEARCH.md).
+	// WS mid-handshake before it could deliver the tunnel-offer hello.
 	const key = `${c.wsPort}\u0000${c.announceToken}`;
 	if (wsServer !== null && controlPlaneKey === key) return;
 	controlPlaneKey = key;
@@ -594,18 +606,23 @@ function setWgOffers(
 
 /** Record / drop one `wg` offer (WS single-interface event). */
 function upsertWgOffer(host: string, iface: CtrlinkRelayIface, removed: boolean): void {
-	const list = wgOffers.get(host) ?? [];
-	const idx = list.findIndex((e) => e.spec.virtualInterface === iface.wg?.virtualInterface);
-	if (iface.wg) {
+	const list = [...(wgOffers.get(host) ?? [])];
+	// The vif name is `wg-<ifname>`; a down/removed event may not re-echo the
+	// spec, so derive it from the iface name when absent.
+	const vi = iface.wg?.virtualInterface ?? `wg-${iface.iface_name}`;
+	const idx = list.findIndex((e) => e.spec.virtualInterface === vi);
+	if (removed) {
+		// The relay dropped this uplink (down / removed) → tear the vif down.
+		if (idx >= 0) {
+			list.splice(idx, 1);
+			if (list.length) wgOffers.set(host, list);
+			else wgOffers.delete(host);
+		}
+	} else if (iface.wg) {
 		if (idx >= 0) list[idx] = { ip: iface.ip, spec: iface.wg };
 		else list.push({ ip: iface.ip, spec: iface.wg });
 		wgOffers.set(host, list);
-	} else if (idx >= 0) {
-		list.splice(idx, 1);
-		if (!list.length) wgOffers.delete(host);
-		else wgOffers.set(host, list);
 	}
-	void removed;
 }
 
 /** Learn the encoder's dedicated-link iface (reaches the relay) once. */
@@ -657,10 +674,6 @@ export function onRelayWsMessage(
 				address: f.ip,
 				listenPort: f.udp_port,
 				state: f.state,
-				// GRETAP exposure: on-path IP + exposed prefix (GRETAP-
-				// RESEARCH.md). Absent → this endpoint is a direct uplink.
-				outer_ip: f.outer_ip,
-				prefix: f.prefix,
 			})),
 			lastSeen: Date.now(),
 		});
@@ -702,9 +715,6 @@ export function onRelayWsMessage(
 		address: msg.iface.ip,
 		listenPort: msg.iface.udp_port,
 		state: msg.iface.state,
-		// GRETAP exposure: on-path IP + exposed prefix (GRETAP-RESEARCH.md).
-		outer_ip: msg.iface.outer_ip,
-		prefix: msg.iface.prefix,
 	};
 	if (msg.type === "interface_removed") {
 		if (idx >= 0) next.splice(idx, 1);

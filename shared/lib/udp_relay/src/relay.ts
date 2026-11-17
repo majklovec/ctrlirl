@@ -1,18 +1,13 @@
-/* The relay-box side under GRETAP: a NO-OP.
+/* A per-uplink relay handle (data-path state surface).
  *
- * The legacy `createUdpRelay` bound a UDP socket + a raw interface socket and
- * forwarded framed IP packets in userspace. GRETAP replaces the whole data
- * path with the kernel (bridge + gretap on each box), so there is nothing for
- * the relay process to do: the factory validates the (legacy) options, then
- * returns a handle whose `start()`/`stop()` are idempotent no-ops.
- *
- * The object keeps the full legacy surface (`stats()`, `isRunning()`, `nat`,
- * `onVifLearned`, …) so downstream modules and dev scripts compile unchanged.
- * Counter semantics: the legacy per-plane counters stay 0 — there is no
- * userspace loop; the tunneled traffic shows on the box's own
- * `createVirtualInterface` counters (kernel stats).
+ * The WireGuard tunnels own the transport, so there is no userspace packet
+ * loop: this is a lightweight handle the relay module uses to track a live
+ * uplink slot (its resolved address + bookkeeping). The factory validates its
+ * options and returns a handle whose `start()`/`stop()` are idempotent no-ops.
+ * `createUdpRelay` keeps the historical surface (`stats()`, `isRunning()`, …)
+ * so the relay module compiles unchanged.
  */
-import { IFACE_NAME_RE, resolveInterfaceAddress } from "./gretap";
+import { IFACE_NAME_RE, resolveInterfaceAddress } from "./ifaces";
 import { isValid as isValidIpv4 } from "./ip";
 import { newRelayStats } from "./stats";
 import type { IfaceRawSocket } from "./net_linux";
@@ -24,8 +19,8 @@ export interface UdpRelayOptions {
     /** UDP port (legacy: the encoder-facing socket port; ignored). */
     listenPort: number;
     /**
-     * The GRETAP peer's WDS-link IPv4 (was: the relay's listen address).
-     * Accepted and validated; the kernel routes GRE to it.
+     * The uplink's peer IPv4 (was: the relay's listen address). Accepted and
+     * validated; the WireGuard tunnel is reached at it over the transport IP.
      */
     destination?: { host: string; port: number };
     /** Override the resolved interface IPv4 (skips os.networkInterfaces()). */
@@ -47,7 +42,7 @@ export interface UdpRelay {
     /** SNAT source (defaults to `interfaceAddress`). Legacy compat. */
     readonly natAddress: string;
     readonly listenPort: number;
-    /** Resolved GRETAP peer (WDS-link) IP. */
+    /** Resolved uplink peer IP. */
     readonly destination: string;
     start(): Promise<void>;
     stop(): Promise<void>;
@@ -73,7 +68,7 @@ export async function createUdpRelay(
     )
         throw new Error(`listenPort ${opts.listenPort} out of [1,65535]`);
     // Optional: relay-box slots created by the relay module carry no peer
-    // (the GRETAP remote is fixed per tunnel); validate only when provided.
+    // (the uplink peer is fixed per slot); validate only when provided.
     if (opts.destination && !isValidIpv4(opts.destination.host))
         throw new Error(
             `destination.host ${JSON.stringify(
@@ -107,7 +102,7 @@ class NoopRelay implements UdpRelay {
         this.destination = opts.destination?.host ?? "";
     }
 
-    /** No-op: the kernel (bridge + gretap) owns the data path. */
+    /** No-op: the WireGuard tunnel owns the data path. */
     async start(): Promise<void> {
         if (this.running) return;
         this.running = true;

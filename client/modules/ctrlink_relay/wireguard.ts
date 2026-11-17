@@ -3,9 +3,9 @@
  * §8,§10,§12). One `wg-<uplink>` netdev per eligible uplink (the relay owns
  * the physical uplinks); one PEER per discovered encoder on each netdev.
  *
- * Model (differs from GRETAP's per-pair tunnel): WG natively supports many
- * peers per netdev, and the per-uplink egress policy route + NAT depend only
- * on the netdev, not on which encoder is using it. So we:
+ * Model: WG natively supports many peers per netdev, and the per-uplink
+ * egress policy route + NAT depend only on the netdev, not on which encoder
+ * is using it. So we:
  *   - create/keep one `wg-<if>` per uplink (netdev + local /30 + listen port
  *     + relay-egress policy route + MASQUERADE);
  *   - add a peer per encoder when its WireGuard public key is known (from the
@@ -96,7 +96,7 @@ export function configureRelayWireGuard(cfg: RelayWgConfig): void {
 	transportOuterIp = cfg.transportOuterIp;
 }
 
-/** Is the relay running the WG transport? (Gates gretap + announce `wg`). */
+/** Is the relay running the WG transport? (Gates the announce `wg` offer). */
 export function relayWireGuardEnabled(): boolean {
 	return configured;
 }
@@ -278,8 +278,7 @@ export async function stopRelayWireGuard(): Promise<void> {
 
 /**
  * The `wg` offer for one uplink (the announce payload attaches it). `undefined`
- * when the netdev isn't up (the encoder then falls back to GRETAP for that
- * uplink, if offered).
+ * when the netdev isn't up (the encoder then has no tunnel for that uplink).
  */
 export function relayWgSpecFor(uplink: string): CtrlinkRelayWgSpec | undefined {
 	const nd = netdevs.get(uplink);

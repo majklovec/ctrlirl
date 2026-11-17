@@ -42,18 +42,16 @@ export const CTRLINK_ANNOUNCE_TTL_MS = 15_000;
 export const CTRLINK_BROADCAST_ADDR = "255.255.255.255";
 
 /**
- * Name pattern of an ENCODER-side CtrLink tunnel interface (the
- * `ctrlink_streamer` names them `m${slot}_${relayIface}`, e.g. `m0_wg0`).
- * Pre-GRETAP these were TUNs (`relay0_wg0`, 15-char limit); after the cutover
- * the kernel device is `gretap<name>` (e.g. `gretapm0_wg0`). Both shapes are
- * tunnels to a relay's shared uplink, not the machine's own interfaces, so any
+ * Name pattern of an ENCODER-side CtrLink tunnel interface. The
+ * `ctrlink_streamer` raises a per-uplink `wg-<iface>` WireGuard netdev (e.g.
+ * `wg-eth0`); historically these were TUNs (`relay0_wg0`, 15-char limit). Any
  * interface listing that means "the device's real interfaces" (the network
- * card's "Own interfaces" group, relay eligibility) must exclude them. This is
- * the single source of truth shared by the `network` backend
+ * card's "Own interfaces" group, relay eligibility) must exclude the tunnels —
+ * they are paths to a relay's shared uplink, not the machine's own links. This
+ * is the single source of truth shared by the `network` backend
  * (`listNetworkInterfaces`) and the network card.
  */
-export const CTRLINK_TUN_NAME_RE =
-	/^(?:relay|gretapm)\d+_[a-z0-9]+$/u;
+export const CTRLINK_TUN_NAME_RE = /^(?:relay\d+_|wg-)[a-z0-9_.-]+$/u;
 
 /** True when `name` is an encoder-side CtrLink tunnel TUN (see the RE above). */
 export const isCtrlinkTun = (name: string): boolean =>
@@ -72,15 +70,6 @@ export interface CtrlinkSharedEndpoint {
 	/** Path state (protocol.md §4/§5): `down` = the encoder must stop using
 	 * this path (the port mapping is kept on the relay); `up`/absent = usable. */
 	state?: "up" | "down";
-	/**
-	 * The relay's ON-PATH IP the encoder must address GRETAP outer headers at
-	 * for a frame on this interface (GRETAP exposure, `GRETAP-RESEARCH.md`).
-	 * Absent when the encoder reaches this interface directly on-link — then
-	 * it is a plain uplink, not a tunnel.
-	 */
-	outer_ip?: string;
-	/** The exposed subnet's prefix length (GRETAP exposure); default /24. */
-	prefix?: number;
 }
 
 /** The discoverable payload a relay broadcasts. */
@@ -213,7 +202,7 @@ export const CTRLINK_RELAY_WS_PROTOCOL = 1;
  * The Layer-3 WireGuard spec for ONE relay uplink, carried to the encoder so
  * it can build the matching `wg-<if>` virtual interface (spec TODO/wireguard.md
  * §4/§5/§8/§16). Present on `CtrlinkRelayIface.wg` when the relay is offering
- * its uplinks as WireGuard tunnels; absent in the legacy GRETAP mode.
+ * its uplinks as WireGuard tunnels; absent on direct-uplink interfaces.
  *
  * Addressing is a per-tunnel /30: the relay owns `<localAddr>` and the encoder
  * is told its `<peerAddr>` (e.g. relay `10.200.1.1/30`, encoder `10.200.1.2/30`).
@@ -260,20 +249,9 @@ export interface CtrlinkRelayIface {
 	state: "up" | "down";
 	uplink: true;
 	/**
-	 * The relay's **on-path** source IP for THIS encoder — the address of the
-	 * relay interface the kernel uses to reach the encoder (`ip route get
-	 * <enc.ip>`). The encoder's GRETAP `remote` MUST be this; the advertised
-	 * `ip` above is the pass-through-LAN identity (GRE key material), which
-	 * the encoder's kernel usually cannot route to. Absent for direct on-link
-	 * paths and legacy relays.
-	 */
-	outer_ip?: string;
-	/** Prefix length of this relay interface's subnet (e.g. `24`). */
-	prefix?: number;
-	/**
 	 * Layer-3 WireGuard offer for this uplink (spec TODO/wireguard.md). When
-	 * present the encoder builds a `wg-<if>` virtual interface from it instead
-	 * of a GRETAP L2 bridge. Absent in GRETAP mode / for legacy relays.
+	 * present the encoder builds a `wg-<if>` virtual interface from it.
+	 * Absent for direct-uplink interfaces / legacy relays.
 	 */
 	wg?: CtrlinkRelayWgSpec;
 }

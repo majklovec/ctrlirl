@@ -26,7 +26,7 @@ import type {
 } from "../../../../shared/contracts/module_capabilities";
 import {
 	makeMockIfaceRawSocket,
-} from "../../../../shared/lib/gretap_relay";
+} from "@ctrlirl/udp-relay";
 import * as mod from "../backend";
 import {
 	knownEncoderIps,

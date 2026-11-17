@@ -116,8 +116,8 @@ Documented in docs/install-rules.md.
 | Module | Rules | Source |
 |---|---|---|
 | `network` | sysctl `ip_forward=1`, `rp_filter=2` (loose mode for the bridged L2 traffic); nft `forward` rules for the `10.7.0.0/16` ctrlirl tunnel range | inferred from `client/modules/network/*` (routing/bridge handling) and the handoff's table |
-| `ctrlink_relay` | udev rule pinning `gretap*` kernel names (relay side of the GRETAP data plane) | inferred from `client/modules/ctrlink_relay/gretap.ts` (`gretap_<iface>`, `br_gretap`) |
-| `ctrlink_streamer` (M6) | same `gretap*` udev pin + `CAP_NET_ADMIN` (ambient, informational) | inferred from `client/modules/ctrlink_streamer/backend.ts` |
+| `ctrlink_relay` | `CAP_NET_ADMIN` (per-uplink `wg-<if>` netdev + egress route + NAT) | inferred from `client/modules/ctrlink_relay/backend.ts` + `shared/lib/wireguard` |
+| `ctrlink_streamer` (M6) | `CAP_NET_ADMIN` (per-uplink `wg-<if>` vif management) | inferred from `client/modules/ctrlink_streamer/backend.ts` + `shared/lib/wireguard` |
 | `modems` | `ModemManager` dependency; udev `55-ctrlirl-modem.rules` (usb dialout/uucp group, AT port access) with `usb` `change` trigger; content via `contentFile` | inferred from `client/modules/modems/modems.ts` (ModemManager D-Bus + AT port) |
 | `encoder` | `ffmpeg` + `libav-tools` dependency check only (no host config of its own) | inferred from `client/modules/encoder/encoder.ts` (`Bun.spawn([this.bin …])` of ffmpeg) |
 | `ssh` | **not ported** | the repo's ssh module manages its *own* plain sshd (pid file, no init system — `client/modules/ssh/backend.ts`), so there is no system unit/config to install. The handoff's ssh pilot predates that design. |

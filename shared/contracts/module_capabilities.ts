@@ -82,11 +82,6 @@ export interface CtrlinkSharedEndpoint {
 	address: string;
 	/** The UDP relay port for this interface. */
 	listenPort: number;
-	/** The relay's on-path IP for the GRETAP tunnel over this endpoint (see
-	 * `GRETAP-RESEARCH.md`); absent when the endpoint is a direct on-link path. */
-	outer_ip?: string;
-	/** The exposed subnet's prefix length (GRETAP exposure). */
-	prefix?: number;
 	state?: "up" | "down";
 }
 

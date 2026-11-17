@@ -1,15 +1,13 @@
-/* Shared types for @ctrlirl/gretap-relay.
+/* Shared stat/endpoint types for @ctrlirl/udp-relay.
  *
- * The library is a transport primitive: it brings up a kernel GRETAP tunnel
- * (L2 over GRE, IP protocol 47) and bridges the tunnel device into the local
- * LAN. It knows nothing about SRTLA, Ctrlink, auth, discovery, or
- * configuration.
+ * The library exposes the data-path surface (per-uplink relay handle, raw
+ * socket seam, IP framing helpers, stat counters). It knows nothing about
+ * SRTLA, Ctrlink, auth, discovery, or configuration.
  */
 
 /**
- * Tunnel statistics. Counter values are read from the tunneled interface's
- * kernel statistics; `drops` is the kernel's dropped-packets counter plus any
- * local drops the library notes.
+ * Statistics counter bag. `drops` is the dropped-packets counter plus any
+ * local drops the caller notes.
  */
 export interface Stats {
     rxBytes: number;
@@ -26,9 +24,7 @@ export interface Endpoint {
 }
 
 /**
- * Stats of a virtual interface (both tunnel sides). The counters are the
- * kernel's GRETAP interface counters, so they count L2 frames — not the
- * userspace-packet counters of the legacy UDP transport.
+ * Stats of a virtual interface (both tunnel sides).
  */
 export interface VifStats {
     txPackets: number;
@@ -43,9 +39,9 @@ export interface VifStats {
 }
 
 /**
- * Stats of the relay-box side. Under GRETAP the box has no userspace relay
- * loop; the legacy per-plane counters stay zero and the tunneled traffic shows
- * on the `VifStats`-shaped counters below.
+ * Stats of the relay-box side. The per-plane counters stay zero (the transport
+ * is owned by the WireGuard netdevs); traffic shows on the tunnel counters
+ * below.
  */
 export interface RelayStats {
     encRxPackets: number;
@@ -57,7 +53,7 @@ export interface RelayStats {
     encTxPackets: number;
     encTxBytes: number;
     drops: number;
-    /** GRETAP tunnel counters (kernel) for the box's own tunnel side. */
+    /** Tunnel counters (kernel) for the box's own tunnel side. */
     rxPackets: number;
     rxBytes: number;
     txPackets: number;

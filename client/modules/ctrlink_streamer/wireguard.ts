@@ -42,6 +42,7 @@ export interface EncoderWgOffer {
 }
 
 interface EncoderVif {
+	relayId: string;
 	name: string;
 	uplink: string;
 	index: number;
@@ -89,11 +90,11 @@ export async function reconcileEncoderWireGuard(
 
 		// Desired: one offer per uplink, skipping any that collide with an
 		// interface the encoder already owns (on-link filter).
-		const desired = new Map<string, CtrlinkRelayWgSpec>();
-		for (const { spec } of offers) {
+		const desired = new Map<string, { spec: CtrlinkRelayWgSpec; relayId: string }>();
+		for (const { spec, relayId } of offers) {
 			const uplink = spec.virtualInterface.replace(/^wg-/, "");
 			if (ownIfaces.has(uplink)) continue; // on-link: don't tunnel it
-			if (!desired.has(uplink)) desired.set(uplink, spec);
+			if (!desired.has(uplink)) desired.set(uplink, { spec, relayId });
 		}
 
 		// Remove vifs no longer offered.
@@ -101,8 +102,8 @@ export async function reconcileEncoderWireGuard(
 			if (!desired.has(uplink)) await teardownVif(uplink);
 
 		// Build the rest (idempotent: existing vifs are kept as-is).
-		for (const [uplink, spec] of desired)
-			if (!vifs.has(uplink)) await ensureVif(uplink, spec);
+		for (const [uplink, d] of desired)
+			if (!vifs.has(uplink)) await ensureVif(uplink, d.spec, d.relayId);
 
 		return keyPayload();
 	} catch (e) {
@@ -115,7 +116,7 @@ export async function reconcileEncoderWireGuard(
 	}
 }
 
-async function ensureVif(uplink: string, spec: CtrlinkRelayWgSpec): Promise<void> {
+async function ensureVif(uplink: string, spec: CtrlinkRelayWgSpec, relayId: string): Promise<void> {
 	const name = spec.virtualInterface;
 	const { publicKey } = await generateWireGuardKeyPair();
 	const listenPort = wgListenPort(spec.uplinkIndex);
@@ -142,6 +143,7 @@ async function ensureVif(uplink: string, spec: CtrlinkRelayWgSpec): Promise<void
 		endpointDev: transportDev,
 	});
 	vifs.set(uplink, {
+		relayId,
 		name,
 		uplink,
 		index: spec.uplinkIndex,
@@ -195,10 +197,17 @@ export async function stopEncoderWireGuard(): Promise<void> {
 // --- Test seams -------------------------------------------------------------
 
 export function encoderWireGuardStateForTest(): {
-	vifs: Array<{ uplink: string; name: string; localIp: string; listenPort: number }>;
+	vifs: Array<{
+		relayId: string;
+		uplink: string;
+		name: string;
+		localIp: string;
+		listenPort: number;
+	}>;
 } {
 	return {
 		vifs: [...vifs.values()].map((v) => ({
+			relayId: v.relayId,
 			uplink: v.uplink,
 			name: v.name,
 			localIp: v.localIp,

@@ -1,8 +1,8 @@
 /*
- * WireGuard transport primitive (L3). The Layer-3 successor to the GRETAP
- * L2 bridge: one independent WireGuard tunnel per relay uplink, each with its
- * own /30 addressing, so the encoder gets a `wg-<if>` virtual interface that
- * provides full Internet egress through that relay uplink.
+ * WireGuard transport primitive (L3): one independent WireGuard tunnel per
+ * relay uplink, each with its own /30 addressing, so the encoder gets a
+ * `wg-<if>` virtual interface that provides full Internet egress through that
+ * relay uplink.
  *
  * There is NO userspace packet path — the kernel WireGuard module owns the
  * data path. This module only programs the kernel (`ip` for the netdev +
@@ -71,7 +71,7 @@ export function wireGuardTunnelAddress(uplinkIndex: number): {
 	};
 }
 
-/** Binaries (absolute, matching the `ip` convention in gretap.ts). */
+/** Binaries (absolute paths). */
 const IP_BIN = "/usr/sbin/ip";
 const WG_BIN = "/usr/bin/wg";
 const MODPROBE_BIN = "/sbin/modprobe";
@@ -165,7 +165,7 @@ export async function ensureWireGuardModule(): Promise<void> {
  * Bring up ONE side of a WireGuard tunnel: netdev `name` (e.g. `wg-eth0`),
  * addressed `localIp/prefix`, MTU `mtu`, with a single peer. Idempotent-ish:
  * a `File exists` from a leftover netdev is healed by tearing down and
- * retrying once (mirrors GRETAP's `createGretapTunnel`).
+ * retrying once.
  *
  * Returns the netdev name. Callers add/remove further peers with
  * `addWireGuardPeer` / `removeWireGuardPeer`.
@@ -586,10 +586,16 @@ export async function revokeWireGuardRelayEgress(opts: {
 		}
 }
 
-export async function generateWireGuardKeyPair(): Promise<{
+/** A WireGuard key pair (base64 private + derived public key). */
+export interface WireGuardKeyPair {
 	privateKey: string;
 	publicKey: string;
-}> {
+}
+
+type KeyGenFn = () => Promise<WireGuardKeyPair>;
+
+/** Real key generation: `wg genkey` → private key, `wg pubkey` → public. */
+async function realKeyGen(): Promise<WireGuardKeyPair> {
 	// `wg genkey` → private key (32 raw bytes, base64). `wg pubkey` derives the
 	// public key from the private one fed on stdin.
 	const { spawn } = await import("node:child_process");
@@ -614,4 +620,19 @@ export async function generateWireGuardKeyPair(): Promise<{
 	const priv = (await run(["genkey"])).trim();
 	const pub = (await run(["pubkey"], priv)).trim();
 	return { privateKey: priv, publicKey: pub };
+}
+
+let keyGenFn: KeyGenFn = realKeyGen;
+
+/**
+ * Inject a key generator (unit tests return a fixed pair without shelling out
+ * to `wg`, which may be absent). `undefined` restores the real `wg` runner.
+ */
+export function setKeyGen(fn: KeyGenFn | undefined): void {
+	keyGenFn = fn ?? realKeyGen;
+}
+
+/** Generate a WireGuard key pair (through the injectable seam). */
+export async function generateWireGuardKeyPair(): Promise<WireGuardKeyPair> {
+	return keyGenFn();
 }

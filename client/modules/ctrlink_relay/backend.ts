@@ -49,7 +49,7 @@ import {
 	type IfaceRawSocket,
 	resolveInterfaceAddress,
 	type UdpRelay,
-} from "../../../shared/lib/gretap_relay";
+} from "@ctrlirl/udp-relay";
 import {
 	configureRelayWireGuard,
 	dropRelayWgEncoder,
@@ -219,7 +219,7 @@ const lastIfaceAddr = new Map<string, string>();
  * Relay interfaces that sit on a known encoder's own segment (the kernel
  * routes to the encoder on-link, no gateway): that encoder reaches the
  * relay through them directly, so the relay must not advertise them — the
- * encoder uses such a path as a plain direct uplink, not a gretap tunnel.
+ * encoder uses such a path as a plain direct uplink, not a tunnel.
  * Kept fresh by `refreshDirectIfaces()`.
  */
 const directIfaces = new Set<string>();
@@ -299,19 +299,13 @@ export function eligibleInterfaces(
 	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
 	return ifaces
 		.filter((i) => i.addresses.length > 0)
-		// GRETAP's own devices (the `gretap*` tunnels + `br-*` bridges) are
-		// infrastructure, never shareable endpoints — a bridge on the home-LAN
-		// subnet would advertise a duplicate of the pass-through NIC it extends.
-		// Same for the WireGuard `wg-*` netdevs: they are the transport itself,
-		// and treating one as an uplink makes the reconcile build `wg-wg-*`
-		// (a second tunnel for the tunnel), colliding listen ports and cascading
-		// the per-index addressing.
-		.filter(
-			(i) =>
-				!/^gretap/.test(i.name) &&
-				!/^br-/.test(i.name) &&
-				!/^wg-/.test(i.name),
-		)
+		// LAN bridges are infrastructure, never shareable endpoints — a bridge
+		// on the home-LAN subnet would advertise a duplicate of the pass-through
+		// NIC it extends. Same for the WireGuard `wg-*` netdevs: they are the
+		// transport itself, and treating one as an uplink makes the reconcile
+		// build `wg-wg-*` (a second tunnel for the tunnel), colliding listen
+		// ports and cascading the per-index addressing.
+		.filter((i) => !/^br-/.test(i.name) && !/^wg-/.test(i.name))
 		.filter((i) =>
 			allow.length > 0
 				? allow.some((re) => re.test(i.name))
@@ -502,7 +496,7 @@ export function relayIfaceList(): CtrlinkRelayIface[] {
 		};
 		// Layer-3 WireGuard offer (spec TODO/wireguard.md): when the relay has
 		// a `wg-<if>` netdev up for this uplink, advertise it so the encoder
-		// builds a WG vif (full Internet) instead of a GRETAP L2 bridge.
+		// builds a WG vif (full Internet).
 		const wg = relayWgSpecFor(name);
 		if (wg) i.wg = wg;
 		return i;
@@ -1157,7 +1151,7 @@ interface EncoderChannel {
 	 * re-send a full `hello` when it changes — the per-interface events do
 	 * NOT carry the `wg` offers, and the WG netdevs (and thus the specs) are
 	 * built asynchronously AFTER the first snapshot, so an encoder that got a
-	 * bare / pre-WG snapshot would otherwise fall back to GRETAP. */
+	 * bare / pre-WG snapshot would otherwise have no tunnel. */
 	announcedSig?: string;
 	/** The encoder snapshot the channel was started with (needed to rebuild
 	 * a per-encoder `hello` on re-send). */
@@ -1188,7 +1182,7 @@ function announcedSig(ifaces?: CtrlinkRelayIface[]): string {
  * (1) the WS channel opens before the network list is populated (0 ifaces),
  * and (2) the WG netdevs — and thus the `wg` specs — are built asynchronously
  * AFTER the first snapshot. A stale / pre-WG snapshot would leave the encoder
- * on GRETAP. Idempotent + cheap: a full resend only when the signature moved.
+ * with no tunnel. Idempotent + cheap: a full resend only when the signature moved.
  */
 function resnapshotStaleChannels(): void {
 	const liveSig = announcedSig();
@@ -1286,7 +1280,6 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 		// NOW — `e` is a snapshot from channel start and goes stale.
 		noteEncoder({ ...e, lastSeen: Date.now() });
 		// Full snapshot on (re)connect — the encoder has a consistent view.
-		// `outer_ip` is resolved for THIS encoder (per-channel).
 		st.ws.send(JSON.stringify(helloMessage(e)));
 		st.announcedSig = announcedSig();
 		lastWsAdvertiseAt = Date.now();

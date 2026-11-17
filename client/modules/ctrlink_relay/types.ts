@@ -1,6 +1,6 @@
 /* Types for the ctrlink_relay module: config, runtime status, and the
  * frontend view. The transport types (VifStats, RelayStats, Endpoint) live in
- * `shared/lib/gretap_relay`; only the module-specific envelopes are here. */
+ * `shared/lib/udp-relay`; only the module-specific envelopes are here. */
 import type { CtrlinkDiscoveryMethod } from "../../../shared/ctrlink_discovery";
 
 /** The persisted `ctx.state.ctrlink` config slice. */

@@ -71,14 +71,14 @@ describe("board delta merge", () => {
         version: 1,
         udev: [
             {
-                file: "50-ctrlirl-gre.rules",
-                content: "SUBSYSTEM==\"net\", KERNEL==\"gretap*\", NAME=\"%k\"\n",
+                file: "50-ctrlirl-wg.rules",
+                content: "SUBSYSTEM==\"net\", KERNEL==\"wg*\", NAME=\"%k\"\n",
             },
         ],
     };
     const piRule = {
         file: "51-ctrlirl-pi-bridge.rules",
-        content: "SUBSYSTEM==\"net\", KERNEL==\"br-gre*\", NAME=\"%k\"\n",
+        content: "SUBSYSTEM==\"net\", KERNEL==\"br-wg*\", NAME=\"%k\"\n",
     };
 
     async function stageWithBoard(): Promise<string> {
@@ -96,7 +96,7 @@ describe("board delta merge", () => {
         const dir = await stageWithBoard();
         const pi = await loadInstallSpec(dir, "ctrlink_streamer", {}, "raspberry_pi");
         expect(pi?.udev?.map((u) => u.file)).toEqual([
-            "50-ctrlirl-gre.rules",
+            "50-ctrlirl-wg.rules",
             "51-ctrlirl-pi-bridge.rules",
         ]);
         const opi = await loadInstallSpec(
@@ -105,9 +105,9 @@ describe("board delta merge", () => {
             {},
             "orange_pi_5_plus",
         );
-        expect(opi?.udev?.map((u) => u.file)).toEqual(["50-ctrlirl-gre.rules"]);
+        expect(opi?.udev?.map((u) => u.file)).toEqual(["50-ctrlirl-wg.rules"]);
         const gen = await loadInstallSpec(dir, "ctrlink_streamer", {}, "generic");
-        expect(gen?.udev?.map((u) => u.file)).toEqual(["50-ctrlirl-gre.rules"]);
+        expect(gen?.udev?.map((u) => u.file)).toEqual(["50-ctrlirl-wg.rules"]);
     });
 
     test("the plan carries the board and applies the delta", async () => {
@@ -126,7 +126,7 @@ describe("board delta merge", () => {
         expect(plan.board).toBe("raspberry_pi");
         const spec = plan.ordered.find((m) => m.name === "streamer")?.spec;
         expect(spec?.udev?.map((u) => u.file)).toEqual([
-            "50-ctrlirl-gre.rules",
+            "50-ctrlirl-wg.rules",
             "51-ctrlirl-pi-bridge.rules",
         ]);
     });

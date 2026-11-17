@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ModuleCore } from "../../../../client/backend/module_core";
 import {
 	clearCapabilities,
@@ -11,9 +11,16 @@ import type {
 } from "../../../../shared/contracts/module_capabilities";
 import type {
 	CtrlinkDiscoveredRelay,
+	CtrlinkRelayIface,
+	CtrlinkRelayWgSpec,
 	CtrlinkSharedEndpoint,
 } from "../../../../shared/ctrlink_discovery";
+import { setCmdRunner, setKeyGen } from "@ctrlirl/wireguard";
 import * as mod from "../backend";
+import {
+	encoderWireGuardStateForTest,
+	resetEncoderWireGuardTestState,
+} from "../wireguard";
 import {
 	knownRelays,
 	noteMdnsRelay,
@@ -102,8 +109,53 @@ async function announce(r: CtrlinkDiscoveredRelay): Promise<void> {
 	await Bun.sleep(10);
 }
 
+/** Build a Layer-3 WireGuard offer for uplink `index` of relay `host`
+ * (the /30 the relay hands the encoder: `10.200.<i+1>.1` relay / `.2` encoder).
+ * WG arrives only over the WS control channel, so these attach to a
+ * `CtrlinkRelayIface` (the announce payload carries no `wg`). */
+function wgSpec(index: number, host: string): CtrlinkRelayWgSpec {
+	return {
+		virtualInterface: `wg-eth${index}`,
+		publicKey: "RELAY_PUBKEY",
+		endpoint: host,
+		udpPort: 5222 + index,
+		localAddr: `10.200.${index + 1}.1`,
+		peerAddr: `10.200.${index + 1}.2`,
+		prefix: 30,
+		uplinkIndex: index,
+		mtu: 1360,
+		keepaliveSec: 25,
+	};
+}
+
+// Build a relay `CtrlinkRelayIface`. `index` (when given) attaches the Layer-3
+// WG offer so the encoder builds a `wg-<if>` vif for this uplink (WG arrives
+// only over the WS control channel, never the UDP announce).
+const iface = (
+	name: string,
+	ip: string,
+	port: number,
+	state: "up" | "down" = "up",
+	index?: number,
+): CtrlinkRelayIface => ({
+	iface_name: name,
+	ip,
+	udp_port: port,
+	state,
+	uplink: true,
+	...(index === undefined ? {} : { wg: wgSpec(index, ip) }),
+});
+
 beforeEach(() => {
 	clearCapabilities();
+});
+
+// The WG reconcile shells out (`wg`/`ip`/`modprobe`) through the lib's runner
+// seam and generates a key pair. Both are injectable — a no-op runner + a fixed
+// key pair let the reconcile populate the vif map with no live kernel.
+afterEach(() => {
+	setCmdRunner(undefined);
+	setKeyGen(undefined);
 });
 
 /** Bind a fresh core + fake uplinks + registry, flush leftover state and start
@@ -114,38 +166,75 @@ async function setup(data: Record<string, unknown> = {}) {
 	const ctrlink = fakeCtrlinkRegistry();
 	provideCapability<Uplinks>("network.uplinks", uplinks);
 	provideCapability<CtrlinkRegistry>("network.ctrlink", ctrlink);
+	setCmdRunner(async () => "");
+	setKeyGen(async () => ({ privateKey: "PRIVKEY", publicKey: "ENC_PUBKEY" }));
 	up().bind?.(core);
-	await up().stop(); // idempotent: clears TUNs/uplinks + the discovery registry
+	await up().stop(); // idempotent: clears vifs/uplinks + the discovery registry
 	await up().start({ config: {}, emit: () => {}, log: () => {}, core });
+	// `start()` fires a fire-and-forget WG reconcile (0 offers) that latches
+	// the module-level `inFlight` guard. Let it drain, then hard-reset the
+	// module state so a hello sent by the test isn't dropped by the in-flight
+	// guard and no vifs leak across tests.
+	await Bun.sleep(10);
+	resetEncoderWireGuardTestState();
 	return { core, uplinks, ctrlink };
 }
 
 const view = async (): Promise<CtrlinkStreamerView> =>
 	(await up().dispatch("ctrlink_streamer.status", {})) as CtrlinkStreamerView;
 
+/**
+ * The WG vif reconcile is fire-and-forget (a best-effort background task the
+ * WS hello triggers). Poll until the vif count settles to `n` (bounded), so a
+ * test never races the async `ip`/`wg` runner.
+ */
+async function awaitVifs(n: number): Promise<boolean> {
+	for (let i = 0; i < 100; i++) {
+		if (encoderWireGuardStateForTest().vifs.length === n) return true;
+		await Bun.sleep(5);
+	}
+	return encoderWireGuardStateForTest().vifs.length === n;
+}
+
 describe("ctrlink_streamer", () => {
-	test("starts one TUN per announced shared interface and registers the uplink", async () => {
+	test("a WS offer for an uplink builds a wg-<if> vif and registers its uplink", async () => {
 		const { uplinks } = await setup();
-		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
-		expect(uplinks.added).toEqual([
+		// WG offers arrive over the relay WS control channel (protocol §3) —
+		// a UDP announce alone carries no `wg` and builds nothing.
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
+		});
+		await awaitVifs(1);
+		expect(encoderWireGuardStateForTest().vifs).toEqual([
 			{
-				id: "ctrlink:gretap_eth0",
-				source: "10.90.0.1",
-				label: "Ctrlink (gretap_eth0)",
+				relayId: "relay-1",
+				uplink: "eth0",
+				name: "wg-eth0",
+				localIp: "10.200.1.2",
+				listenPort: 51820,
 			},
 		]);
 		const v = await view();
 		expect(v.runtime.running).toBe(true);
 		expect(v.runtime.tunnels[0]).toMatchObject({
-			interfaceName: "gretap_eth0",
-			interfaceAddress: "10.90.0.1",
-			relayHost: "203.0.113.10",
-			relayPort: 4000,
+			interfaceName: "wg-eth0",
+			interfaceAddress: "10.200.1.2",
+			relayHost: "relay-1",
 			uplinkRegistered: true,
 		});
+		expect(uplinks.added).toEqual([
+			{
+				id: "ctrlink:wg:wg-eth0",
+				source: "10.200.1.2",
+				label: "Ctrlink (wg-eth0)",
+			},
+		]);
 		// The learned relay is mirrored to the network card registry.
 		await up().stop();
-		expect(uplinks.removed).toContain("ctrlink:gretap_eth0");
+		expect(uplinks.removed).toContain("ctrlink:wg:wg-eth0");
 		expect(uplinks.list()).toEqual([]);
 	});
 
@@ -153,8 +242,7 @@ describe("ctrlink_streamer", () => {
 		const { core, uplinks } = await setup();
 		// Simulate the kernel: every announced address is directly on-link on
 		// eth0 (a plain `dev`, no `via` gateway) — the encoder physically sits
-		// on that segment, so the GRETAP tunnels are redundant and must be
-		// skipped.
+		// on that segment, so the tunnels are redundant and must be skipped.
 		type CoreWithRun = {
 			run: (bin: string, args: string[], ignore?: boolean) => Promise<string>;
 		};
@@ -174,10 +262,10 @@ describe("ctrlink_streamer", () => {
 		await up().stop();
 	});
 
-	test("a gateway-routed (not on-link) interface is still tunneled", async () => {
+	test("a gateway-routed (not on-link) uplink is still tunneled", async () => {
 		const { core, uplinks } = await setup();
-		// The announced subnet is reached via a gateway → NOT on-link on this
-		// host, so the tunnel is created (the fail-open path).
+		// The WG /30 endpoint is reached via a gateway (not on any local
+		// iface) → NOT on-link → the vif is built (the fail-open path).
 		type CoreWithRun = {
 			run: (bin: string, args: string[], ignore?: boolean) => Promise<string>;
 		};
@@ -185,33 +273,46 @@ describe("ctrlink_streamer", () => {
 			args[0] === "route" && args[1] === "get"
 				? `${args[2]} via 192.168.1.1 dev eth0 src 192.168.1.5 uid 0\n`
 				: "";
-		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
-		expect(uplinks.added).toEqual([
-			{ id: "ctrlink:gretap_eth0", source: "10.90.0.1", label: "Ctrlink (gretap_eth0)" },
-		]);
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
+		});
+		await awaitVifs(1);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
+		expect(encoderWireGuardStateForTest().vifs).toHaveLength(1);
 		await up().stop();
 	});
 
-	test("multiple shared interfaces → one TUN each, IPs derived from the ordinals", async () => {
+	test("multiple WG uplinks → one vif each, derived from the spec", async () => {
 		const { uplinks } = await setup();
-		await announce(
-			relay("203.0.113.10", [
-				["eth0", "203.0.113.10", 4000],
-				["eth1", "203.0.113.10", 4001],
-			]),
-		);
-		const v = await view();
-		expect(v.runtime.tunnels.map((t) => t.interfaceAddress)).toEqual([
-			"10.90.0.1",
-			"10.90.1.1",
+		// WG uplinks are keyed by iface name. Two distinct uplinks (eth0/eth1)
+		// with their own specs → one vif each.
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [
+				iface("eth0", "198.51.100.9", 4000, "up", 0),
+				iface("eth1", "198.51.100.9", 4001, "up", 1),
+			],
+		});
+		await awaitVifs(2);
+		const { vifs } = encoderWireGuardStateForTest();
+		expect(vifs.map((v) => v.name).sort()).toEqual(["wg-eth0", "wg-eth1"]);
+		expect(vifs.map((v) => v.localIp).sort()).toEqual([
+			"10.200.1.2",
+			"10.200.2.2",
 		]);
-		expect(v.runtime.tunnels.map((t) => t.relayPort)).toEqual([4000, 4001]);
+		const v = await view();
+		expect(v.runtime.running).toBe(true);
 		expect(
 			uplinks
 				.list()
 				.map((e) => e.id)
 				.sort(),
-		).toEqual(["ctrlink:gretap_eth0", "ctrlink:gretap_eth1"]);
+		).toEqual(["ctrlink:wg:wg-eth0", "ctrlink:wg:wg-eth1"]);
 		await up().stop();
 	});
 
@@ -223,66 +324,39 @@ describe("ctrlink_streamer", () => {
 		expect(v.runtime.tunnels).toEqual([]);
 	});
 
-	test("a relay announced while running re-reconciles and adds a TUN", async () => {
+	test("an updated hello offering a new uplink re-reconciles and adds a vif", async () => {
 		const { uplinks } = await setup();
-		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
+		});
+		await awaitVifs(1);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
 
-		await announce(relay("198.51.100.7", [["eth0", "198.51.100.7", 4000]]));
+		// The relay sends a newer hello that now also offers eth1 → the
+		// encoder re-reconciles and builds a second vif (wg-eth1) alongside.
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [
+				iface("eth0", "198.51.100.9", 4000, "up", 0),
+				iface("eth1", "198.51.100.9", 4001, "up", 1),
+			],
+		});
+		await awaitVifs(2);
 		const v = await view();
 		expect(
 			uplinks
 				.list()
 				.map((e) => e.id)
 				.sort(),
-		).toEqual(["ctrlink:gretap_eth0", "ctrlink:gretap_eth0_1"]);
-		expect(v.runtime.tunnels.some((t) => t.relayHost === "198.51.100.7")).toBe(
-			true,
-		);
-		await up().stop();
-	});
-
-	test("a WS hello exposing an iface (outer_ip) rebuilds it to the remote-LAN IP", async () => {
-		await setup();
-		// UDP announce first: eno2 on the relay's home LAN, NO outer_ip yet →
-		// the tunnel gets the legacy `10.x` address.
-		await announce(relay("203.0.113.10", [["eno2", "192.168.1.136", 4005]]));
-		let v = await view();
-		const legacy = v.runtime.tunnels.find(
-			(t) => t.interfaceName === "gretap_eno2",
-		);
-		expect(legacy?.interfaceAddress).toBe("10.90.0.1");
-
-		// The relay's WS hello re-announces the SAME iface (same name/address/
-		// port/state) but now carries `outer_ip`, exposing the remote LAN.
-		// This must change the discovery signature and rebuild the tunnel
-		// into the relay's subnet (192.168.1.200), NOT stay on 10.90.0.1.
-		await announce({
-			host: "203.0.113.10",
-			hostname: "203.0.113.10",
-			interfaces: [
-				{
-					name: "eno2",
-					address: "192.168.1.136",
-					listenPort: 4005,
-					outer_ip: "192.168.10.1",
-					prefix: 24,
-				},
-			],
-			lastSeen: Date.now(),
-		});
-		// The rebuild is a stop+start cycle (a longer async path than the
-		// single start above) — poll until it settles, then assert.
-		let exposed: { interfaceName: string; interfaceAddress: string } | undefined;
-		for (let i = 0; i < 50; i++) {
-			await Bun.sleep(10);
-			v = await view();
-			exposed = v.runtime.tunnels.find(
-				(t) => t.interfaceName === "gretap_eno2",
-			);
-			if (exposed?.interfaceAddress === "192.168.1.200") break;
-		}
-		expect(exposed?.interfaceAddress).toBe("192.168.1.200");
+		).toEqual(["ctrlink:wg:wg-eth0", "ctrlink:wg:wg-eth1"]);
+		expect(
+			v.runtime.tunnels.some((t) => t.interfaceName === "wg-eth1"),
+		).toBe(true);
 		await up().stop();
 	});
 
@@ -298,13 +372,21 @@ describe("ctrlink_streamer", () => {
 		expect(uplinks.list()).toEqual([]);
 	});
 
-	test("teardown removes the uplinks and leaves nothing registered", async () => {
+	test("teardown stops the vifs and unregisters their uplinks", async () => {
 		const { uplinks } = await setup();
-		await announce(relay("203.0.113.10", [["eth0", "203.0.113.10", 4000]]));
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
+		});
+		await awaitVifs(1);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
+		expect(encoderWireGuardStateForTest().vifs).toHaveLength(1);
 		await up().stop();
 		expect(uplinks.list()).toEqual([]);
-		expect(uplinks.removed).toContain("ctrlink:gretap_eth0");
+		expect(uplinks.removed).toContain("ctrlink:wg:wg-eth0");
+		expect(encoderWireGuardStateForTest().vifs).toHaveLength(0);
 	});
 
 	test("the learned relays are reported in the view's discoveredRelays", async () => {
@@ -341,36 +423,34 @@ describe("ctrlink_streamer", () => {
 });
 
 describe("relay WS control channel (protocol.md §3–§5)", () => {
-	const iface = (
-		name: string,
-		ip: string,
-		port: number,
-		state: "up" | "down" = "up",
-	) => ({
-		iface_name: name,
-		ip,
-		udp_port: port,
-		state,
-		uplink: true as const,
-	});
-
-	test("a hello snapshot registers the relay and starts its TUNs", async () => {
+	test("a hello snapshot registers the relay and builds its WG vifs", async () => {
 		const { uplinks } = await setup();
+		// The hello carries a `wg` offer per uplink → the encoder builds a
+		// `wg-<if>` vif per uplink that isn't already on-link (protocol §3).
 		mod.onRelayWsMessage("wan-relay", {
 			type: "hello",
 			relay_id: "wan-relay",
 			proto: 1,
-			interfaces: [iface("eth0", "198.51.100.9", 4000)],
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
-		await Bun.sleep(10);
+		await awaitVifs(1);
 		const v = await view();
 		expect(v.discoveredRelays.map((r) => r.host)).toContain("wan-relay");
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
-		// The TUN dials the INTERFACE address the relay advertised, not its id.
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
+		expect(encoderWireGuardStateForTest().vifs).toEqual([
+			{
+				relayId: "wan-relay",
+				uplink: "eth0",
+				name: "wg-eth0",
+				localIp: "10.200.1.2",
+				listenPort: 51820,
+			},
+		]);
+		// The vif's status dials the offering relay (its WS host id).
 		expect(v.runtime.tunnels[0]).toMatchObject({
-			interfaceName: "gretap_eth0",
-			relayHost: "198.51.100.9",
-			relayPort: 4000,
+			interfaceName: "wg-eth0",
+			interfaceAddress: "10.200.1.2",
+			relayHost: "wan-relay",
 		});
 		await up().stop();
 	});
@@ -439,28 +519,27 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 		await up().stop();
 	});
 
-	test("interface_down stops the TUN; interface_up reuses the same slot (protocol.md §1)", async () => {
+	test("interface_down tears the vif; a re-hello rebuilds the same slot (protocol.md §1)", async () => {
 		const { uplinks } = await setup();
 		mod.onRelayWsMessage("wan-relay", {
 			type: "hello",
 			relay_id: "wan-relay",
 			proto: 1,
-			interfaces: [iface("eth0", "198.51.100.9", 4000)],
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
-		await Bun.sleep(10);
-		const before = (await view()).runtime.tunnels[0];
-		expect(before).toMatchObject({
-			interfaceName: "gretap_eth0",
-			interfaceAddress: "10.90.0.1",
-		});
+		await awaitVifs(1);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
+		expect(encoderWireGuardStateForTest().vifs).toHaveLength(1);
 
+		// The uplink goes down → its vif is torn down (the offer is dropped).
 		mod.onRelayWsMessage("wan-relay", {
 			type: "interface_down",
 			iface: iface("eth0", "198.51.100.9", 4000, "down"),
 		});
-		await Bun.sleep(10);
+		await awaitVifs(0);
 		expect((await view()).runtime.tunnels).toEqual([]);
 		expect(uplinks.list()).toEqual([]);
+		expect(encoderWireGuardStateForTest().vifs).toHaveLength(0);
 		// The (down) endpoint stays in the registry → the port mapping keeps.
 		expect(
 			(await view()).discoveredRelays.find((r) => r.host === "wan-relay")
@@ -473,52 +552,61 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			}),
 		]);
 
+		// A fresh hello re-offering eth0 rebuilds the SAME vif slot (wg-eth0).
 		mod.onRelayWsMessage("wan-relay", {
-			type: "interface_up",
-			iface: iface("eth0", "198.51.100.9", 4000),
+			type: "hello",
+			relay_id: "wan-relay",
+			proto: 1,
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
-		await Bun.sleep(10);
-		const after = (await view()).runtime.tunnels[0];
-		expect(after).toMatchObject({
-			interfaceName: "gretap_eth0",
-			interfaceAddress: "10.90.0.1",
-		});
-		expect(after).toEqual(before);
+		await awaitVifs(1);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
+		expect(encoderWireGuardStateForTest().vifs).toEqual([
+			{
+				relayId: "wan-relay",
+				uplink: "eth0",
+				name: "wg-eth0",
+				localIp: "10.200.1.2",
+				listenPort: 51820,
+			},
+		]);
 		await up().stop();
 	});
 
-	test("interface_added opens a new TUN; interface_removed stops it (protocol.md §4.2)", async () => {
+	test("interface_added opens a new vif; interface_removed tears it (protocol.md §4.2)", async () => {
 		const { uplinks } = await setup();
 		mod.onRelayWsMessage("wan-relay", {
 			type: "hello",
 			relay_id: "wan-relay",
 			proto: 1,
-			interfaces: [iface("eth0", "198.51.100.9", 4000)],
+			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
-		await Bun.sleep(10);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
+		await awaitVifs(1);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
 
+		// The relay adds a NEW uplink (eth1) carrying its own `wg` spec → a
+		// second vif is built alongside.
 		mod.onRelayWsMessage("wan-relay", {
 			type: "interface_added",
-			iface: iface("eth1", "198.51.100.9", 4001),
+			iface: iface("eth1", "198.51.100.9", 4001, "up", 1),
 		});
-		await Bun.sleep(10);
-		expect(
-			uplinks
-				.list()
-				.map((e) => e.id)
-				.sort(),
-		).toEqual(["ctrlink:gretap_eth0", "ctrlink:gretap_eth1"]);
+		await awaitVifs(2);
+		expect(uplinks.list().map((e) => e.id).sort()).toEqual([
+			"ctrlink:wg:wg-eth0",
+			"ctrlink:wg:wg-eth1",
+		]);
 		expect(
 			(await view()).runtime.tunnels.map((t) => t.interfaceAddress),
-		).toEqual(["10.90.0.1", "10.90.1.1"]);
+		).toEqual(["10.200.1.2", "10.200.2.2"]);
 
+		// The relay drops eth1 (the event carries no spec — the vif name is
+		// derived from the iface) → its vif is torn down.
 		mod.onRelayWsMessage("wan-relay", {
 			type: "interface_removed",
-			iface: iface("eth1", "198.51.100.9", 4001),
+			iface: iface("eth1", "198.51.100.9", 4001, "down"),
 		});
-		await Bun.sleep(10);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:gretap_eth0"]);
+		await awaitVifs(1);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:wg:wg-eth0"]);
 		expect(
 			(await view()).discoveredRelays
 				.find((r) => r.host === "wan-relay")
@@ -642,9 +730,9 @@ describe("registry dedupe (one entry per relay)", () => {
 		await up().stop();
 	});
 
-	test("an mDNS refresh drops the WS-provided outer_ip (GRETAP exposure)", async () => {
+	test("an mDNS refresh of a WS-registered relay stays a single entry", async () => {
 		await setup();
-		// 1) WS hello: the relay exposes eno2 onto its home LAN (outer_ip set).
+		// 1) WS hello registers the relay with one endpoint.
 		mod.onRelayWsMessage(
 			"bigcml",
 			{
@@ -658,21 +746,21 @@ describe("registry dedupe (one entry per relay)", () => {
 						udp_port: 4000,
 						state: "up",
 						uplink: true,
-						outer_ip: "192.0.2.1",
 					},
 				],
 			},
 			"192.0.2.10",
 		);
-		expect(knownRelays()[0].interfaces[0].outer_ip).toBe("192.0.2.1");
-		// 2) mDNS for the SAME relay (same host + hostname) carries a compact
-		// endpoint list WITHOUT outer_ip. It must merge into the single entry
-		// WITHOUT stripping the exposure the WS channel provided.
+		expect(knownRelays()).toHaveLength(1);
+		// 2) mDNS for the SAME relay (same host + hostname) must merge into the
+		// single entry — not accumulate a duplicate — and keep the endpoint.
 		noteMdnsRelay("192.0.2.10", "bigcml", [
 			{ name: "eno2", address: "192.0.2.10", listenPort: 4000 },
 		]);
 		expect(knownRelays()).toHaveLength(1);
-		expect(knownRelays()[0].interfaces[0].outer_ip).toBe("192.0.2.1");
+		expect(knownRelays()[0].interfaces).toHaveLength(1);
+		expect(knownRelays()[0].interfaces[0].name).toBe("eno2");
+		expect(knownRelays()[0].interfaces[0].address).toBe("192.0.2.10");
 		await up().stop();
 	});
 

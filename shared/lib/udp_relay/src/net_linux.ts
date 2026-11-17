@@ -1,10 +1,4 @@
-/* Test seam: a mock raw interface socket.
- *
- * GRETAP owns the data path in the kernel, so the legacy raw-socket transport
- * is gone. This mock exists purely so the relay-box module's tests (and any
- * caller that injects an `IfaceRawSocket`) keep compiling and running: the
- * no-op relay accepts the socket and simply never reads from it.
- */
+/* A raw interface socket seam (test mock + the interface the relay accepts). */
 
 export interface IfaceRawSocket {
     /** Readable stream of incoming raw IP datagrams (header included). */

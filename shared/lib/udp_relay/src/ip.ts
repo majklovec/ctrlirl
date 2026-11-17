@@ -1,11 +1,7 @@
 /* IPv4 / UDP header parse & build, with correct checksums.
  *
- * Byte-exact port of the legacy `@ctrlirl/udp-relay` IP helpers — the dev
- * scripts and the relay module's tests still build the old wire packets with
- * them. GRETAP itself carries no such framing (the kernel GRE header is the
- * whole overhead); this module exists so call sites keep compiling unchanged.
- *
- * `isValid` is the GRETAP-era addition: a dotted-quad format check.
+ * The IP framing helpers the relay module and its tests use to build and
+ * inspect wire packets. `isValid` is a dotted-quad format check.
  */
 
 // --- IP address helpers ------------------------------------------------------

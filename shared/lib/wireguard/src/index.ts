@@ -8,8 +8,7 @@
  * `modprobe`, `iptables`) through the `command.ts` runner seam so unit tests
  * record the exact argv with no live kernel.
  *
- * This is the sole transport primitive. The legacy L2 GRETAP / userspace-UDP
- * transports have been removed.
+ * This is the sole transport primitive.
  */
 
 // --- Command runner seam (`ip` / `wg` / `modprobe` / `iptables` / `sysctl`) ---
@@ -36,6 +35,7 @@ export {
     ensureWireGuardEncoderRouting,
     revokeWireGuardEncoderRouting,
     generateWireGuardKeyPair,
+    setKeyGen,
     IFACE_NAME_RE,
     DEFAULT_WG_MTU,
     DEFAULT_WG_KEEPALIVE_SEC,
@@ -43,3 +43,5 @@ export {
     IPTABLES_BIN,
     SYSCTL_BIN,
 } from "./wireguard";
+
+export type { WireGuardKeyPair } from "./wireguard";

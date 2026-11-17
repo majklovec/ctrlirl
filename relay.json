@@ -18,7 +18,6 @@
     },
     "ctrlink_relay": {
       "enabled": true,
-      "gretap": true,
       "listenPortBase": 4000,
       "logLevel": "info",
       "interfaceAllow": [],

@@ -36,7 +36,7 @@ A role is a directory under `client/roles/<role>/` with a `role.json` that lists
 | `encoder` (default) | Runs belacoder/ceracoder and its local `srtla_send`    | `encoder`, `network`, `modems`, `obs` | provides `stream.encoder`; consumes `network.uplinks`, `modems.source` |
 | `obs`             | Connects to OBS Studio and exposes a scene switcher      | `obs`                                 | provides `obs.events`                                                |
 | `broadcaster`     | SRTLA ingress + RTMP output via ffmpeg                   | `broadcaster`                         | provides `broadcast.outputs`                                         |
-| `ctrlink_relay`   | Transparent L2 bridging of LAN interfaces to the encoder | `ctrlink_relay`                       | provides `ctrlink.lan` (per-interface GRETAP tunnels)                |
+| `ctrlink_relay`   | Extends the relay's LAN uplinks to the encoder over WireGuard     | `ctrlink_relay`                       | provides `ctrlink.lan` (per-uplink WireGuard tunnels)                |
 
 <!-- IMAGE: device dashboard / role picker — e.g. ![Roles](docs/img/roles.png) -->
 
@@ -64,8 +64,8 @@ These run on the box, under `client/modules/`.
 | `obs`              | Native obs-websocket v5 connection; forwards events into the device event stream.                                                                    |
 | `broadcaster`      | SRTLA ingress + RTMP publishing via ffmpeg.                                                                                                          |
 | `ssh`              | sshd management and SSH account password handling.                                                                                                   |
-| `ctrlink_relay`    | Creates GRETAP tunnels on the relay box and bridges its LAN interfaces into them, for transparent L2 bridging (see **Ctrlink** below).               |
-| `ctrlink_streamer` | Creates the matching GRETAP interfaces on the encoder and bridges them, so the relay's LAN segments appear as local Ethernet.                        |
+| `ctrlink_relay`    | Creates one WireGuard tunnel per uplink on the relay box (see **Ctrlink** below).                                                                                   |
+| `ctrlink_streamer` | Creates the matching `wg-<if>` virtual interfaces on the encoder, so each relay uplink provides full Internet egress.                                           |
 
 ### Server modules
 
@@ -91,18 +91,18 @@ Modules communicate **only over the capability bus** — never by direct import.
 
 This is what makes modules replaceable and roles declarative: swapping an implementation is a matter of providing the same capability name under a different module.
 
-## Ctrlink — transparent L2 bridging
+## Ctrlink — WireGuard uplink transport
 
 ![Ctrlink](docs/img/ctrlink.svg)
 
-Ctrlink lets you carry Ethernet traffic from the CtrLink box to the encoder **without configuring routing on the CtrLink box**. It is built on **GRETAP** (Ethernet over GRE) tunnels and consists of two cooperating modules:
+Ctrlink extends the CtrLink box's LAN uplinks to the encoder so the encoder can reach the Internet (or other destinations) through them. It is built on **WireGuard** and consists of two cooperating modules:
 
--   **`ctrlink_relay`** (on the CtrLink box) — creates one GRETAP interface per shared LAN segment and bridges the corresponding LAN interface into it. Ethernet frames are encapsulated over GRE and sent to the encoder.
--   **`ctrlink_streamer`** (on the encoder) — creates the matching GRETAP interfaces and bridges them locally. The encoder sees the CtrLink box's LAN segments as local Ethernet interfaces, with the same MAC addresses and broadcast domain.
+-   **`ctrlink_relay`** (on the CtrLink box) — creates one `wg-<uplink>` WireGuard tunnel per uplink, each with its own `/30` point-to-point addressing, an egress policy route and NAT.
+-   **`ctrlink_streamer`** (on the encoder) — creates the matching `wg-<if>` virtual interfaces. Each becomes a routable uplink the encoder can use for full Internet egress through that relay uplink.
 
-Because this is L2, the CtrLink box does not need to know which IPs the encoder wants to reach — it just bridges frames. The SRTLA destination stays on the encoder; the CtrLink box only transparently forwards traffic. This is useful when the encoder needs to reach devices on the CtrLink box's LAN (cameras, sensors, …) without a complex routing setup.
+Because this is L3 (routed, not bridged), each tunnel gets its own `/30` and the encoder routes traffic per uplink, so a vif is a first-class uplink for SRTLA as well. This is useful when the encoder needs a reliable Internet (or site) path through the CtrLink box's uplinks — for example as a cellular fallback.
 
-GRETAP is configured over the same transport that carries SRTLA, so no additional ports need to be opened between the two boxes beyond what SRTLA already uses.
+The WireGuard tunnel is negotiated over the same control channel that carries SRTLA discovery, so no additional ports need to be opened between the two boxes beyond what SRTLA already uses.
 
 ## Requirements
 
