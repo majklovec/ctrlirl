@@ -1,3 +1,16 @@
+# [8.2.0](https://github.com/majklovec/ctrlirl/compare/v8.1.0...v8.2.0) (2026-11-17)
+
+
+### Bug Fixes
+
+* **udpip:** keep tunnel peer pin valid across pump restarts ([41f9f56](https://github.com/majklovec/ctrlirl/commit/41f9f56d0fb33c8c3cb6256e17d988878c95c188))
+
+
+### Features
+
+* **ctrlink:** replace kernel WireGuard with plain-UDP IP tunnels ([ea2a863](https://github.com/majklovec/ctrlirl/commit/ea2a8632e0e0377c3f43729db0b5ee699e169b39))
+* **vagrant:** make relay a gateway for encoder ([b24ee02](https://github.com/majklovec/ctrlirl/commit/b24ee02a8e0feb511d509bfcece52c21f0274316))
+
 # [8.1.0](https://github.com/majklovec/ctrlirl/compare/v8.0.0...v8.1.0) (2026-11-16)
 
 
