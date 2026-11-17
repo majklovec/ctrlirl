@@ -125,7 +125,10 @@ const DEFAULTS: Required<
 } = {
 	enabled: false,
 	nat: true,
-	gretap: true,
+	// WireGuard is the default transport: it REPLACES the legacy L2 GRETAP
+	// bridges. GRETAP stays available only as an explicit legacy opt-in
+	// (gretap on, wireGuard off).
+	gretap: false,
 	wireGuard: true,
 	announceHost: "",
 	listenPortBase: 4000,
@@ -538,7 +541,11 @@ function configureGretap(): void {
 		const cfg = config();
 		const ifaces = netIfaces?.list() ?? [];
 		return {
-			enabled: cfg.gretap && cfg.enabled,
+			// WireGuard REPLACES GRETAP: when the Layer-3 WG transport is on
+			// (the default), the legacy L2 GRETAP bridges are suppressed so the
+			// uplinks are never bridged/stripped. GRETAP only runs in an
+			// explicit legacy mode (gretap on, wireGuard off).
+			enabled: cfg.gretap && !cfg.wireGuard && cfg.enabled,
 			dryRun: core.config.DRY_RUN,
 			endpoints: advertisedInterfaces(ifaces, cfg)
 				.filter((n) => !directIfaces.has(n))
@@ -1724,7 +1731,8 @@ const registration: BackendModule<ModuleCore> = {
 	configDefaults: {
 		enabled: false,
 		nat: true,
-		gretap: true,
+		// WireGuard is the default transport (replaces GRETAP).
+		gretap: false,
 		wireGuard: true,
 		listenPortBase: 4000,
 		interfaceAllow: [],

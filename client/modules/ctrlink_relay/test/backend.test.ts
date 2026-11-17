@@ -293,8 +293,10 @@ describe("config + status", () => {
 		expect(config.listenPortBase).toBe(4000);
 		expect(config.interfaceIgnore).toEqual(["docker.*", "veth.*"]);
 		expect(config.destination).toBeUndefined();
-		// GRETAP exposure on by default (relays exist to extend a LAN).
-		expect(config.gretap).toBe(true);
+		// WireGuard is the default transport; it replaces GRETAP, so GRETAP
+		// exposure is off by default (opt-in for legacy L2 LAN extension).
+		expect(config.gretap).toBe(false);
+		expect(config.wireGuard).toBe(true);
 	});
 
 	test("setConfig toggles gretap and it is re-read on the next getConfig", async () => {
