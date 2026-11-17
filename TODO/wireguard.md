@@ -587,9 +587,12 @@ Preserve the existing deployment and security model wherever possible.
 
 # 19. Migration
 
-The previous GRETAP implementation must not be assumed to represent the final architecture.
+> **Status: complete.** The GRETAP L2 transport has been fully removed; per-uplink
+> WireGuard vifs (`wg-<if>`) are now the sole ctrlink transport. The legacy
+> GRETAP implementation never represented the final architecture and is no longer
+> present in the tree.
 
-Migration requirements:
+Migration requirements (all done):
 
 1. Inspect existing GRETAP code.
 2. Preserve the currently working relay-to-encoder connection.
@@ -598,7 +601,7 @@ Migration requirements:
 5. Implement independent relay egress routing.
 6. Verify each virtual uplink.
 7. Verify SRTLA compatibility.
-8. Remove obsolete GRETAP uplink functionality only after successful migration.
+8. ~~Remove obsolete GRETAP uplink functionality only after successful migration.~~ — done.
 9. Provide rollback.
    Do not let the new virtual uplink routes replace or disrupt the physical relay-to-encoder management connection.
 
@@ -723,9 +726,9 @@ Implement uplink announcement, configuration synchronization, status and diagnos
 
 Implement failure recovery and execute all acceptance tests.
 
-**Phase 9 – Migration**
+**Phase 9 – Migration (complete)**
 
-Replace the old GRETAP-based uplink architecture with the new unified L3 solution.
+The old GRETAP-based uplink architecture was replaced with the unified L3 WireGuard solution and GRETAP was removed.
 
 # 22. Engineering Constraints
 
