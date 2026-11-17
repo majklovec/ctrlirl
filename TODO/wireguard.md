@@ -6,7 +6,20 @@
 **Component:** `client-arm`
 **Target roles:** `encoder`, `ctrlink_relay`
 **Priority:** High
-**Status:** Architecture defined – implementation required
+**Status:** ~~Architecture defined – implementation required~~ — **superseded.**
+
+> **Superseded by the plain-UDP↔TUN IP tunnel.** Both host kernels
+> (`5.10.160-belabox`, `5.15.61-v8+`) lack the `chacha20poly1305`/`x25519`
+> kernel crypto-API transforms, so kernel WireGuard can never handshake on this
+> hardware. The transport is now a small static Go pump
+> ([`shared/lib/udpip/src/udpip.go`](../shared/lib/udpip/src/udpip.go)) that
+> bridges a `utn-<if>` TUN and a UDP endpoint — no crypto, no kernel module,
+> no key exchange (acceptable on the trusted relay↔encoder link; the relay pins
+> a single peer). The per-uplink `/30` addressing, policy-route tables
+> (`101+i`), and ports (base `51820`) from this spec are unchanged; netdevs are
+> now `utn-<if>` (not `wg-<if>`) and the config key is `tunnel`
+> (`wireGuard` kept as a compat alias). See
+> [`shared/lib/udpip/`](../shared/lib/udpip/) and the two `ctrlink_*` modules.
 
 ---
 

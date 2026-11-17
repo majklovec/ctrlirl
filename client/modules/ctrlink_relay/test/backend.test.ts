@@ -242,7 +242,7 @@ describe("eligibleInterfaces (allow/ignore filtering)", () => {
 	const base = {
 		enabled: true,
 		nat: false,
-		wireGuard: true,
+		tunnel: true,
 		announceHost: "",
 		listenPortBase: 5000,
 		runtimeStatusFile: "/tmp/ctrlink-status.json",
@@ -291,8 +291,8 @@ describe("config + status", () => {
 		expect(config.listenPortBase).toBe(4000);
 		expect(config.interfaceIgnore).toEqual(["docker.*", "veth.*"]);
 		expect(config.destination).toBeUndefined();
-		// WireGuard is the default (and only) uplink transport.
-		expect(config.wireGuard).toBe(true);
+		// The UDP IP tunnel is the default (and only) uplink transport.
+		expect(config.tunnel).toBe(true);
 	});
 
 	test("status serializes an idle relay set", async () => {
@@ -435,10 +435,10 @@ describe("relay lifecycle (real loopback UDP)", () => {
 });
 
 describe("relay slots forward no user-space traffic", () => {
-	// WireGuard cutover: the per-interface relay slot is a no-op. Data flows
-	// through the kernel WireGuard tunnel (set up on the streamer side), so
-	// the slot never installs vif forward-routes — sending an encoder frame to
-	// its announced port must not trigger a single `ip rule`/`ip route`.
+	// Tunnel cutover: the per-interface relay slot is a no-op. Data flows
+	// through the plain-UDP↔TUN tunnel (pumped on the relay side), so the slot
+	// never installs vif forward-routes — sending an encoder frame to its
+	// announced port must not trigger a single `ip rule`/`ip route`.
 	test("a data frame to the relay port installs no vif forward-route", async () => {
 		const base = 45410;
 		const runCalls: Array<{ cmd: string; args: string[] }> = [];
@@ -463,7 +463,7 @@ describe("relay slots forward no user-space traffic", () => {
 		expect(config.portMap.lo).toBe(base);
 
 		// The slot performs NO user-space forwarding and installs NO vif
-		// forward-route — the WireGuard tunnel is kernel-side.
+		// forward-route — the tunnel is pumped by the `udpip` child.
 		await Bun.sleep(100);
 		expect(runCalls.some((c) => c.cmd === "ip" && c.args[0] === "rule")).toBe(
 			false,

@@ -1,11 +1,11 @@
 /*
  * ctrlink_streamer module (encoder side). For every relay-announced uplink
- * carrying a `wg` offer (spec TODO/wireguard.md), the encoder builds one
- * per-uplink `wg-<if>` WireGuard vif (wireguard.ts), and, with
- * `autoRegisterUplink` on, registers each vif IP as a `network.uplinks`
- * entry via `syncVifUplinks` so `srtla_send` picks the extra paths up
- * without user intervention (spec 100-ctrlink §6, §7.2, §8.3). The WireGuard
- * vifs ARE the transport — there is no GRETAP L2/TUN path.
+ * carrying a `tunnel` offer, the encoder builds one per-uplink `utn-<if>`
+ * plain-UDP↔TUN vif (udpip.ts), and, with `autoRegisterUplink` on, registers
+ * each vif IP as a `network.uplinks` entry via `syncVifUplinks` so
+ * `srtla_send` picks the extra paths up without user intervention (spec
+ * 100-ctrlink §6, §7.2, §8.3). The tunnel vifs ARE the transport — there is
+ * no GRETAP L2/TUN path.
  *
  * The module runs permanently on encoders: discovery listens for relay
  * announces and the vifs reconcile to the offered set as it changes, so the
@@ -22,11 +22,10 @@
  * small WebSocket server (ws_server.ts) on the configured `wsPort`: each
  * relay connects, sends a `hello` snapshot + `interface_added` /
  * `interface_removed` / `interface_up` / `interface_down` events, which are
- * merged into the same registry (onRelayWsMessage). The `wg` offers in
+ * merged into the same registry (onRelayWsMessage). The `tunnel` offers in
  * those messages drive the per-uplink vif reconcile — down/removed paths
- * stop their vifs (the port mapping survives), re-up paths rebuild them,
- * and the encoder pushes its per-uplink keys back to the relay via
- * `encoder_wg_key`.
+ * stop their vifs (the port mapping survives), re-up paths rebuild them.
+ * No key exchange: the relay pins this encoder as a single peer on its side.
  */
 import { unlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
@@ -87,17 +86,16 @@ import {
 import {
 	type RelayWsConn,
 	startRelayWsServer,
-	sendRelayWsMessage,
 } from "./ws_server";
 import {
-	configureEncoderWireGuard,
-	reconcileEncoderWireGuard,
-	stopEncoderWireGuard,
-	encoderWireGuardStateForTest,
-	type EncoderWgOffer,
-} from "./wireguard";
+	configureEncoderTunnels,
+	reconcileEncoderTunnels,
+	stopEncoderTunnels,
+	encoderTunnelStateForTest,
+	type EncoderTunnelOffer,
+} from "./udpip";
 import type {
-	CtrlinkRelayWgSpec,
+	CtrlinkTunnelSpec,
 	CtrlinkRelayIface,
 } from "../../../shared/ctrlink_discovery";
 
@@ -116,17 +114,20 @@ let uplinks: Uplinks;
 /** The network module's Ctrlink relays registry (surfaced on the network card). */
 let ctrlinkReg: CtrlinkRegistry;
 /**
- * The relay `wg` offers (spec TODO/wireguard.md §12), keyed by relay host.
- * Populated from the WS `hello` + `interface_*` events; drives the encoder's
- * `wg-<if>` vifs. Each entry carries the relay iface IP (for the on-link
- * filter) + the full `wg` spec.
+ * The relay `tunnel` offers, keyed by relay host. Populated from the WS
+ * `hello` + `interface_*` events; drives the encoder's `utn-<if>` vifs. Each
+ * entry carries the relay iface IP (for the on-link filter) + the full
+ * `tunnel` spec.
  */
-const wgOffers = new Map<string, { ip: string; spec: CtrlinkRelayWgSpec }[]>();
+const tunnelOffers = new Map<
+	string,
+	{ ip: string; spec: CtrlinkTunnelSpec }[]
+>();
 /** The encoder's ded-link iface (destination of the transport-isolation
  * route). Derived from the first relay's WS peer address's iface. */
-let wgTransportDev = "eth0";
-/** SRTLA uplink ids registered for the WG vifs (vif IP → id), for cleanup. */
-const wgUplinkIds = new Map<string, string>();
+let tunnelTransportDev = "eth0";
+/** SRTLA uplink ids registered for the tunnel vifs (vif IP → id), for cleanup. */
+const tunnelUplinkIds = new Map<string, string>();
 
 // ----------------------------------------------------------------------
 // Config (persisted as `state.data.ctrlinkStreamer`; §6.4)
@@ -137,7 +138,7 @@ function defaultConfig(): CtrlinkStreamerConfig {
 		mtu: 1400,
 		keepaliveIntervalMs: 5_000,
 		autoRegisterUplink: true,
-		wireGuard: true,
+		tunnel: true,
 		runtimeStatusFile: "/tmp/ctrlink-status.json",
 		logLevel: "info",
 		wsPort: 8190,
@@ -207,12 +208,12 @@ function writeStatusFile(): void {
 // Runtime status
 // ----------------------------------------------------------------------
 function tunnelStatuses(): CtrlinkStreamerTunnelStatus[] {
-	const { vifs } = encoderWireGuardStateForTest();
+	const { vifs } = encoderTunnelStateForTest();
 	const out: CtrlinkStreamerTunnelStatus[] = [];
 	for (const v of vifs) {
 		// The relay that owns this vif (its WS control-channel host). The
-		// spec — if the relay is still offering it — carries the WG port.
-		const spec = (wgOffers.get(v.relayId) ?? []).find(
+		// spec — if the relay is still offering it — carries the UDP port.
+		const spec = (tunnelOffers.get(v.relayId) ?? []).find(
 			(e) => e.spec.peerAddr === v.localIp,
 		)?.spec;
 		out.push({
@@ -220,9 +221,9 @@ function tunnelStatuses(): CtrlinkStreamerTunnelStatus[] {
 			interfaceAddress: v.localIp,
 			relayHost: v.relayId,
 			relayPort: spec?.udpPort ?? 0,
-			uplinkRegistered: wgUplinkIds.has(v.localIp),
-			// Per-vif L3 counters live in the kernel (`wg show`); the module
-			// surfaces none, so these read 0 by design.
+			uplinkRegistered: tunnelUplinkIds.has(v.localIp),
+			// Per-vif L3 counters live in the kernel; the module surfaces
+			// none, so these read 0 by design.
 			stats: { txPackets: 0, rxPackets: 0 },
 		});
 	}
@@ -236,7 +237,7 @@ function runtimeStatus(): CtrlinkStreamerRuntimeStatus {
 		state: running ? "running" : "idle",
 		running,
 		tunnels: statuses,
-		// The kernel owns the WG vifs' L3 counters; the module surfaces none.
+		// The kernel owns the tunnel vifs' L3 counters; the module surfaces none.
 		txPackets: 0,
 		rxPackets: 0,
 		txBytes: 0,
@@ -248,18 +249,18 @@ function runtimeStatus(): CtrlinkStreamerRuntimeStatus {
 }
 
 const isRunning = (): boolean =>
-	encoderWireGuardStateForTest().vifs.length > 0;
+	encoderTunnelStateForTest().vifs.length > 0;
 
 // ----------------------------------------------------------------------
-// Encoder WireGuard vif sync (one vif per offered uplink)
+// Encoder tunnel vif sync (one vif per offered uplink)
 // ----------------------------------------------------------------------
 /**
  * True when `destIp` is directly on-link on one of THIS host's own interfaces
  * (the kernel answers `ip route get <destIp>` with a plain `dev <iface>` and no
  * `via` gateway), and that interface is a real LAN NIC — not loopback, a
- * WireGuard vif, or a relay bridge. Used to skip relay-announced interfaces
- * whose subnet the encoder already reaches locally: the tunnel would just add
- * a competing path, so it is not created.
+ * tunnel vif, or a relay bridge. Used to skip relay-announced interfaces whose
+ * subnet the encoder already reaches locally: the tunnel would just add a
+ * competing path, so it is not created.
  *
  * Fails closed (`false` → keep the tunnel) on `ip` failure, an empty
  * (DRY_RUN) result, or a gateway route, so an ambiguous routing state never
@@ -280,17 +281,19 @@ async function isLocallyOnLink(destIp: string): Promise<boolean> {
 }
 
 /**
- * Reconcile the encoder's Layer-3 WireGuard vifs (spec TODO/wireguard.md):
- * build a `wg-<if>` per offered uplink (skipping on-link ones), push this
- * encoder's per-uplink public keys to every connected relay (`encoder_wg_key`
- * so the relay can dial us), and register each vif IP as an SRTLA uplink.
+ * Reconcile the encoder's tunnel vifs: build a `utn-<if>` per offered uplink
+ * (skipping on-link ones) and register each vif IP as an SRTLA uplink.
  * Coalesced + best-effort: a failure never blocks the TUN reconcile.
  */
-async function doSyncEncoderWireGuard(): Promise<void> {
+async function doSyncEncoderTunnels(): Promise<void> {
 	const c = config();
-	configureEncoderWireGuard({ enabled: c.wireGuard, transportDev: wgTransportDev });
-	const offers: EncoderWgOffer[] = [];
-	for (const [host, list] of wgOffers) {
+	// Compat alias: `tunnel` replaces `wireGuard`; read `tunnel ?? wireGuard`.
+	configureEncoderTunnels({
+		enabled: c.tunnel ?? c.wireGuard ?? true,
+		transportDev: tunnelTransportDev,
+	});
+	const offers: EncoderTunnelOffer[] = [];
+	for (const [host, list] of tunnelOffers) {
 		for (const { ip, spec } of list) {
 			// On-link filter (explicit requirement): an uplink the encoder
 			// already reaches directly is not tunnelled.
@@ -298,64 +301,51 @@ async function doSyncEncoderWireGuard(): Promise<void> {
 			offers.push({ relayId: host, spec });
 		}
 	}
-	const keys = await reconcileEncoderWireGuard(
-		offers,
-		new Set<string>(), // on-link filtering done above
-	);
-	// Tell every connected relay our per-uplink keys so it can add us as a
-	// peer on each of its `wg-<if>` netdevs.
-	if (keys.length > 0) {
-		const info = encoderInfo();
-		sendRelayWsMessage(undefined, {
-			type: "encoder_wg_key",
-			encoder_id: info?.encoderId ?? hostname(),
-			public_keys: keys,
-		});
-	}
+	await reconcileEncoderTunnels(offers, new Set<string>());
 	await syncVifUplinks(c.autoRegisterUplink);
 }
 
-// Single-flight + re-run: the WG reconcile is triggered from several
-// asynchronous paths (boot, WS hello, relay updates). The wireguard module's
+// Single-flight + re-run: the tunnel reconcile is triggered from several
+// asynchronous paths (boot, WS hello, relay updates). The udpip module's
 // `inFlight` guard would silently drop a reconcile that arrives while one is
 // already running — losing any offers that landed in the gap. Serializing here
-// and re-running after each flush guarantees the freshest `wgOffers` always
-// wins, so a WS hello is never dropped and the state converges.
-let wgSyncChain: Promise<void> = Promise.resolve();
-function syncEncoderWireGuard(): Promise<void> {
-	const run = wgSyncChain.then(() => doSyncEncoderWireGuard());
+// and re-running after each flush guarantees the freshest `tunnelOffers`
+// always wins, so a WS hello is never dropped and the state converges.
+let tunnelSyncChain: Promise<void> = Promise.resolve();
+function syncEncoderTunnels(): Promise<void> {
+	const run = tunnelSyncChain.then(() => doSyncEncoderTunnels());
 	// Keep the chain alive even if one pass throws, and never surface the
 	// (best-effort) failure to callers.
-	wgSyncChain = run.catch(() => {});
+	tunnelSyncChain = run.catch(() => {});
 	return run.catch(() => {});
 }
 
-/** Register / drop the WG vif IPs as SRTLA uplinks (spec §11). */
+/** Register / drop the tunnel vif IPs as SRTLA uplinks. */
 async function syncVifUplinks(autoRegister: boolean): Promise<void> {
 	const live = new Map<string, string>(); // vif IP → uplink id
-	const { vifs } = encoderWireGuardStateForTest();
-	for (const v of vifs) live.set(v.localIp, `ctrlink:wg:${v.name}`);
+	const { vifs } = encoderTunnelStateForTest();
+	for (const v of vifs) live.set(v.localIp, `ctrlink:tun:${v.name}`);
 	// Drop stale uplink registrations.
-	for (const [ip, id] of [...wgUplinkIds]) {
+	for (const [ip, id] of [...tunnelUplinkIds]) {
 		if (!live.has(ip)) {
 			try {
 				await uplinks.remove(id);
 			} catch (e) {
-				console.warn(`ctrlink_streamer: wg uplink remove failed: ${e}`);
+				console.warn(`ctrlink_streamer: tunnel uplink remove failed: ${e}`);
 			}
-			wgUplinkIds.delete(ip);
+			tunnelUplinkIds.delete(ip);
 		}
 	}
 	if (!autoRegister) return;
 	// Add missing ones.
 	for (const [ip, id] of live) {
-		if (wgUplinkIds.has(ip)) continue;
+		if (tunnelUplinkIds.has(ip)) continue;
 		try {
-			const name = id.replace("ctrlink:wg:", "");
+			const name = id.replace("ctrlink:tun:", "");
 			await uplinks.add({ id, source: ip, label: `Ctrlink (${name})` });
-			wgUplinkIds.set(ip, id);
+			tunnelUplinkIds.set(ip, id);
 		} catch (e) {
-			console.warn(`ctrlink_streamer: wg uplink add failed: ${e}`);
+			console.warn(`ctrlink_streamer: tunnel uplink add failed: ${e}`);
 		}
 	}
 }
@@ -418,9 +408,9 @@ async function onDiscoveredRelays(
 		`ctrlink_streamer: ${relays.length} relays discovered — notifying + reconciling vifs`,
 	);
 	core.notifyStateChange();
-	// Reconcile the WG vif set in the background: a stuck/failed vif never
+	// Reconcile the tunnel vif set in the background: a stuck/failed vif never
 	// blocks the UI, and the state is pushed once it settles.
-	void syncEncoderWireGuard()
+	void syncEncoderTunnels()
 		.catch((error) => {
 			console.warn(
 				`ctrlink_streamer: vif reconcile after discovery failed: ${errorMessage(error)}`,
@@ -592,46 +582,50 @@ const wsLivePeers = new Set<string>();
  * TUN (re)started. The `hello` (full snapshot) replaces the relay's
  * interface list wholesale.
  */
-/** Record a relay's full `wg` offer set (WS `hello` — replaces prior). */
-function setWgOffers(
+/** Record a relay's full `tunnel` offer set (WS `hello` — replaces prior). */
+function setTunnelOffers(
 	host: string,
 	ifaces: CtrlinkRelayIface[],
 ): void {
 	const specs = ifaces
-		.filter((f) => f.wg !== undefined)
-		.map((f) => ({ ip: f.ip, spec: f.wg! }));
-	if (specs.length) wgOffers.set(host, specs);
-	else wgOffers.delete(host);
+		.filter((f) => f.tunnel !== undefined)
+		.map((f) => ({ ip: f.ip, spec: f.tunnel! }));
+	if (specs.length) tunnelOffers.set(host, specs);
+	else tunnelOffers.delete(host);
 }
 
-/** Record / drop one `wg` offer (WS single-interface event). */
-function upsertWgOffer(host: string, iface: CtrlinkRelayIface, removed: boolean): void {
-	const list = [...(wgOffers.get(host) ?? [])];
-	// The vif name is `wg-<ifname>`; a down/removed event may not re-echo the
+/** Record / drop one `tunnel` offer (WS single-interface event). */
+function upsertTunnelOffer(
+	host: string,
+	iface: CtrlinkRelayIface,
+	removed: boolean,
+): void {
+	const list = [...(tunnelOffers.get(host) ?? [])];
+	// The vif name is `utn-<ifname>`; a down/removed event may not re-echo the
 	// spec, so derive it from the iface name when absent.
-	const vi = iface.wg?.virtualInterface ?? `wg-${iface.iface_name}`;
+	const vi = iface.tunnel?.virtualInterface ?? `utn-${iface.iface_name}`;
 	const idx = list.findIndex((e) => e.spec.virtualInterface === vi);
 	if (removed) {
 		// The relay dropped this uplink (down / removed) → tear the vif down.
 		if (idx >= 0) {
 			list.splice(idx, 1);
-			if (list.length) wgOffers.set(host, list);
-			else wgOffers.delete(host);
+			if (list.length) tunnelOffers.set(host, list);
+			else tunnelOffers.delete(host);
 		}
-	} else if (iface.wg) {
-		if (idx >= 0) list[idx] = { ip: iface.ip, spec: iface.wg };
-		else list.push({ ip: iface.ip, spec: iface.wg });
-		wgOffers.set(host, list);
+	} else if (iface.tunnel) {
+		if (idx >= 0) list[idx] = { ip: iface.ip, spec: iface.tunnel };
+		else list.push({ ip: iface.ip, spec: iface.tunnel });
+		tunnelOffers.set(host, list);
 	}
 }
 
 /** Learn the encoder's dedicated-link iface (reaches the relay) once. */
-async function learnWgTransportDev(relayHost: string): Promise<void> {
-	if (wgTransportDev !== "eth0" || !relayHost) return;
+async function learnTunnelTransportDev(relayHost: string): Promise<void> {
+	if (tunnelTransportDev !== "eth0" || !relayHost) return;
 	try {
 		const out = (await core.run("ip", ["route", "get", relayHost], true)).trim();
 		const m = out.match(/\bdev\s+([A-Za-z0-9_.-]+)/);
-		if (m && m[1] !== "lo") wgTransportDev = m[1];
+		if (m && m[1] !== "lo") tunnelTransportDev = m[1];
 	} catch {
 		/* keep the default */
 	}
@@ -681,12 +675,12 @@ export function onRelayWsMessage(
 		// SAME interface set over WS leaves the registry shape unchanged, so
 		// `noteRelay` alone would not re-sync the network card's flag.
 		pushWsStatus();
-		// Layer-3 WG offers (spec TODO/wireguard.md §12): record this relay's
-		// `wg` specs (drive the vif reconcile) + learn the ded-link iface
-		// (transport-isolation route destination).
-		setWgOffers(host, msg.interfaces);
-		void learnWgTransportDev(host);
-		void syncEncoderWireGuard();
+		// Tunnel offers: record this relay's `tunnel` specs (drive the vif
+		// reconcile) + learn the ded-link iface (transport-isolation route
+		// destination).
+		setTunnelOffers(host, msg.interfaces);
+		void learnTunnelTransportDev(host);
+		void syncEncoderTunnels();
 		return;
 	}
 	// Keepalive frame (protocol.md §3): proof the channel is live → refresh
@@ -698,10 +692,6 @@ export function onRelayWsMessage(
 		if (relay) noteRelay({ ...relay, lastSeen: Date.now() });
 		return;
 	}
-	// `encoder_wg_key` is ENCODER→RELAY (the encoder SENDS it, never receives
-	// it). Guard the union narrowing so the block below only sees the
-	// single-interface events.
-	if (msg.type === "encoder_wg_key") return;
 	// A single-interface event: patch the owning relay's endpoint set
 	// (insert on added, drop on removed, replace on up/down).
 	const host = wsRelayHosts.get(relayId);
@@ -729,14 +719,14 @@ export function onRelayWsMessage(
 		interfaces: next,
 		lastSeen: Date.now(),
 	});
-	// Keep the WG offer set in step with the single-interface event, then
+	// Keep the tunnel offer set in step with the single-interface event, then
 	// reconcile the vifs (coalesced no-op when nothing changed).
-	upsertWgOffer(
+	upsertTunnelOffer(
 		host,
 		msg.iface,
 		msg.type === "interface_removed" || msg.type === "interface_down",
 	);
-	void syncEncoderWireGuard();
+	void syncEncoderTunnels();
 }
 
 // ----------------------------------------------------------------------
@@ -746,9 +736,9 @@ async function setRuntimeConfig(
 	patch: Partial<CtrlinkStreamerConfig>,
 ): Promise<CtrlinkStreamerView> {
 	await save(patch);
-	// A wireGuard / autoRegisterUplink toggle rebuilds the vifs + their SRTLA
-	// uplinks. `syncEncoderWireGuard()` is best-effort and never blocks.
-	void syncEncoderWireGuard().catch((e) =>
+	// A tunnel / autoRegisterUplink toggle rebuilds the vifs + their SRTLA
+	// uplinks. `syncEncoderTunnels()` is best-effort and never blocks.
+	void syncEncoderTunnels().catch((e) =>
 		core.logEvent("warn", "Relay tunnels", `reconcile failed: ${e}`),
 	);
 	core.notifyStateChange();
@@ -799,6 +789,7 @@ const registration: BackendModule<ModuleCore> = {
 			next.keepaliveIntervalMs = patch.keepaliveIntervalMs;
 		if (typeof patch.autoRegisterUplink === "boolean")
 			next.autoRegisterUplink = patch.autoRegisterUplink;
+		if (typeof patch.tunnel === "boolean") next.tunnel = patch.tunnel;
 		if (typeof patch.wireGuard === "boolean")
 			next.wireGuard = patch.wireGuard;
 		if (typeof patch.runtimeStatusFile === "string")
@@ -824,9 +815,9 @@ const registration: BackendModule<ModuleCore> = {
 		ensureDiscovery();
 		syncRegistry(knownRelays());
 		ensureControlPlane();
-		// Build the per-uplink WG vifs + register the SRTLA uplinks.
+		// Build the per-uplink tunnel vifs + register the SRTLA uplinks.
 		try {
-			await syncEncoderWireGuard();
+			await syncEncoderTunnels();
 		} catch (e) {
 			core.logEvent(
 				"warn",
@@ -846,24 +837,24 @@ const registration: BackendModule<ModuleCore> = {
 		wsServer?.stop(true);
 		wsServer = null;
 		controlPlaneKey = null; // force a rebuild on the next start/resume
-		// Tear down the Layer-3 WG vifs + their SRTLA uplink registrations.
-		for (const id of [...wgUplinkIds.values()]) {
+		// Tear down the tunnel vifs + their SRTLA uplink registrations.
+		for (const id of [...tunnelUplinkIds.values()]) {
 			try {
 				await uplinks.remove(id);
 			} catch {
 				/* already gone */
 			}
 		}
-		wgUplinkIds.clear();
-		wgOffers.clear();
-		await stopEncoderWireGuard();
+		tunnelUplinkIds.clear();
+		tunnelOffers.clear();
+		await stopEncoderTunnels();
 	},
-	/** Resume the WG vifs across process restarts. */
+	/** Resume the tunnel vifs across process restarts. */
 	async resume() {
 		ensureDiscovery();
 		syncRegistry(knownRelays());
 		ensureControlPlane();
-		if (!isRunning()) await syncEncoderWireGuard();
+		if (!isRunning()) await syncEncoderTunnels();
 		return true;
 	},
 	async dispatch(method: string, p: Params) {
@@ -898,6 +889,8 @@ const registration: BackendModule<ModuleCore> = {
 					);
 				if (p.autoRegisterUplink !== undefined)
 					patch.autoRegisterUplink = requireBoolean(p, "autoRegisterUplink");
+				if (p.tunnel !== undefined)
+					patch.tunnel = requireBoolean(p, "tunnel");
 				if (p.wireGuard !== undefined)
 					patch.wireGuard = requireBoolean(p, "wireGuard");
 				if (p.runtimeStatusFile !== undefined)

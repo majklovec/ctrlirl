@@ -43,15 +43,16 @@ export const CTRLINK_BROADCAST_ADDR = "255.255.255.255";
 
 /**
  * Name pattern of an ENCODER-side CtrLink tunnel interface. The
- * `ctrlink_streamer` raises a per-uplink `wg-<iface>` WireGuard netdev (e.g.
- * `wg-eth0`); historically these were TUNs (`relay0_wg0`, 15-char limit). Any
- * interface listing that means "the device's real interfaces" (the network
- * card's "Own interfaces" group, relay eligibility) must exclude the tunnels —
- * they are paths to a relay's shared uplink, not the machine's own links. This
- * is the single source of truth shared by the `network` backend
+ * `ctrlink_streamer` raises a per-uplink `utn-<iface>` TUN netdev (e.g.
+ * `utn-eth0`); historically these were WireGuard netdevs (`wg-eth0`) and
+ * before that TUNs (`relay0_wg0`, 15-char limit). Any interface listing that
+ * means "the device's real interfaces" (the network card's "Own interfaces"
+ * group, relay eligibility) must exclude the tunnels — they are paths to a
+ * relay's shared uplink, not the machine's own links. This is the single
+ * source of truth shared by the `network` backend
  * (`listNetworkInterfaces`) and the network card.
  */
-export const CTRLINK_TUN_NAME_RE = /^(?:relay\d+_|wg-)[a-z0-9_.-]+$/u;
+export const CTRLINK_TUN_NAME_RE = /^(?:relay\d+_|wg-|utn-)[a-z0-9_.-]+$/u;
 
 /** True when `name` is an encoder-side CtrLink tunnel TUN (see the RE above). */
 export const isCtrlinkTun = (name: string): boolean =>
@@ -199,28 +200,23 @@ export function isCtrlinkEncoderAnnounce(
 export const CTRLINK_RELAY_WS_PROTOCOL = 1;
 
 /**
- * The Layer-3 WireGuard spec for ONE relay uplink, carried to the encoder so
- * it can build the matching `wg-<if>` virtual interface (spec TODO/wireguard.md
- * §4/§5/§8/§16). Present on `CtrlinkRelayIface.wg` when the relay is offering
- * its uplinks as WireGuard tunnels; absent on direct-uplink interfaces.
+ * The plain-UDP↔TUN tunnel spec for ONE relay uplink, carried to the encoder
+ * so it can build the matching `utn-<if>` virtual interface. Present on
+ * `CtrlinkRelayIface.tunnel` when the relay is offering its uplinks as UDP IP
+ * tunnels; absent on direct-uplink interfaces.
  *
  * Addressing is a per-tunnel /30: the relay owns `<localAddr>` and the encoder
- * is told its `<peerAddr>` (e.g. relay `10.200.1.1/30`, encoder `10.200.1.2/30`).
- * The relay's AllowedIPs on this side is ONLY its tunnel peer (the /30) — it
- * never installs a default route via the WG netdev (egress is policy+routed
- * on the relay). The encoder's AllowedIPs is `0.0.0.0/0` so Internet exits the
- * tunnel.
+ * is told its `<peerAddr>` (e.g. relay `10.200.1.1/30`, encoder
+ * `10.200.1.2/30`). No crypto, no key exchange — the relay pins a single peer
+ * (first datagram source wins) on its side.
  */
-export interface CtrlinkRelayWgSpec {
-	/** The virtual interface name the encoder must create (e.g. `wg-eth0`). */
+export interface CtrlinkTunnelSpec {
+	/** The virtual interface name the encoder must create (e.g. `utn-eth0`). */
 	virtualInterface: string;
-	/** The relay's WireGuard PUBLIC key for this tunnel — the encoder adds it
-	 * as the peer on its matching netdev. (Private keys never leave the host.) */
-	publicKey: string;
 	/** The relay's outer endpoint on the dedicated relay↔encoder link
-	 * (e.g. `192.168.10.100`) the encoder sends WG UDP to. */
+	 * (e.g. `192.168.10.100`) the encoder sends tunnel UDP to. */
 	endpoint: string;
-	/** The relay's WG UDP listen port for THIS tunnel (distinct per uplink). */
+	/** The relay's tunnel UDP listen port for THIS uplink (distinct per uplink). */
 	udpPort: number;
 	/** The relay's tunnel IP, e.g. `10.200.1.1`. */
 	localAddr: string;
@@ -229,12 +225,10 @@ export interface CtrlinkRelayWgSpec {
 	/** The /30 prefix length (default `30`). */
 	prefix: number;
 	/** 0-based stable uplink index (relay-assigned) the encoder uses to pick
-	 * its per-vif routing table number (spec §8: table `100 + index + 1`). */
+	 * its per-vif routing table number (table `101 + index`). */
 	uplinkIndex: number;
-	/** Netdev MTU (cellular-friendly `1360`). */
+	/** Netdev MTU (relay default `1400`). */
 	mtu: number;
-	/** Persistent keepalive in seconds (cellular NAT pin; `25`). */
-	keepaliveSec: number;
 }
 
 /** One relay uplink interface as the relay reports it to an encoder. */
@@ -249,11 +243,11 @@ export interface CtrlinkRelayIface {
 	state: "up" | "down";
 	uplink: true;
 	/**
-	 * Layer-3 WireGuard offer for this uplink (spec TODO/wireguard.md). When
-	 * present the encoder builds a `wg-<if>` virtual interface from it.
-	 * Absent for direct-uplink interfaces / legacy relays.
+	 * Plain-UDP↔TUN tunnel offer for this uplink. When present the encoder
+	 * builds a `utn-<if>` virtual interface from it. Absent for direct-uplink
+	 * interfaces / legacy relays.
 	 */
-	wg?: CtrlinkRelayWgSpec;
+	tunnel?: CtrlinkTunnelSpec;
 }
 
 /** A relay → encoder control-channel message (protocol.md §3–§4). */
@@ -270,25 +264,6 @@ export type CtrlinkRelayWsMessage =
 	| { type: "interface_removed"; iface: CtrlinkRelayIface }
 	| { type: "interface_up"; iface: CtrlinkRelayIface }
 	| { type: "interface_down"; iface: CtrlinkRelayIface }
-	/** ENCODER → RELAY (spec TODO/wireguard.md): the encoder's WireGuard
-	 * PUBLIC key, sent on (re)connect after the relay's `hello`. The relay
-	 * needs it to add the encoder as the peer on the RELAY side of each
-	 * `wg-<if>` tunnel (the relay already knows the encoder's on-path end-
-	 * point from discovery, so no endpoint is needed here). Private keys
-	 * never cross the wire. */
-	| {
-			type: "encoder_wg_key";
-			encoder_id: string;
-			/** One entry per uplink the encoder has a WireGuard netdev
-			 * (`wg-<uplink>`) for: the encoder's public key and the UDP port
-			 * that netdev listens on. The relay dials `<encoder link ip>:
-			 * <listen_port>` for each. */
-			public_keys: {
-				uplink: string;
-				public_key: string;
-				listen_port: number;
-			}[];
-	  }
 	/** WS keepalive (protocol.md §3): relay → encoder every 5 s while the
 	 * channel is open; the encoder replies `pong`. Every message in both
 	 * directions refreshes the peer's discovery-registry TTL, so a live
@@ -309,21 +284,18 @@ export function isCtrlinkRelayWsMessage(
 ): x is CtrlinkRelayWsMessage {
 	if (!x || typeof x !== "object") return false;
 	const o = x as Record<string, unknown>;
-	const okWg = (w: unknown): boolean => {
-		if (!w || typeof w !== "object") return false;
-		const g = w as Record<string, unknown>;
+	const okTunnel = (t: unknown): boolean => {
+		if (!t || typeof t !== "object") return false;
+		const g = t as Record<string, unknown>;
 		return (
 			typeof g.virtualInterface === "string" &&
 			g.virtualInterface.length > 0 &&
-			typeof g.publicKey === "string" &&
-			g.publicKey.length > 0 &&
 			typeof g.endpoint === "string" &&
 			typeof g.udpPort === "number" &&
 			typeof g.localAddr === "string" &&
 			typeof g.peerAddr === "string" &&
 			typeof g.prefix === "number" &&
 			typeof g.mtu === "number" &&
-			typeof g.keepaliveSec === "number" &&
 			typeof g.uplinkIndex === "number"
 		);
 	};
@@ -337,7 +309,7 @@ export function isCtrlinkRelayWsMessage(
 			typeof f.udp_port === "number" &&
 			(f.state === "up" || f.state === "down") &&
 			f.uplink === true &&
-			(f.wg === undefined || okWg(f.wg))
+			(f.tunnel === undefined || okTunnel(f.tunnel))
 		);
 	};
 	switch (o.type) {
@@ -354,22 +326,6 @@ export function isCtrlinkRelayWsMessage(
 		case "interface_up":
 		case "interface_down":
 			return okIface(o.iface);
-		case "encoder_wg_key":
-			return (
-				typeof o.encoder_id === "string" &&
-				o.encoder_id.length > 0 &&
-				typeof o.public_keys === "object" &&
-				o.public_keys !== null &&
-				Array.isArray(o.public_keys) &&
-				o.public_keys.every(
-					(k: unknown) =>
-						typeof k === "object" &&
-						k !== null &&
-						typeof (k as Record<string, unknown>).uplink === "string" &&
-						typeof (k as Record<string, unknown>).public_key === "string" &&
-						typeof (k as Record<string, unknown>).listen_port === "number",
-				)
-			);
 		case "ping":
 		case "pong":
 			return true;

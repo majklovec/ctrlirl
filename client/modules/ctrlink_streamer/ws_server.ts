@@ -21,8 +21,9 @@ export const CTRLINK_RELAY_WS_PATH = "/ctrlink";
 
 /**
  * Open relay connections (the encoder is the server). Kept so the encoder can
- * PUSH a control-channel message (currently: `encoder_wg_key`) to a connected
- * relay without waiting for a relay-initiated frame.
+ * PUSH a control-channel message to a connected relay without waiting for a
+ * relay-initiated frame (the tunnel transport needs no key exchange, so this
+ * is currently unused but kept for future encoder→relay control frames).
  */
 const liveRelays = new Set<Bun.ServerWebSocket<RelayWsConn>>();
 
@@ -149,10 +150,9 @@ export function startRelayWsServer(
 }
 
 /**
- * Push a control-channel message to a connected relay (e.g. `encoder_wg_key`).
- * `relayId` undefined = broadcast to every connected relay. Returns the number
- * of relays the frame was handed to (a send failure on a closing socket does
- * not count).
+ * Push a control-channel message to a connected relay. `relayId` undefined =
+ * broadcast to every connected relay. Returns the number of relays the frame
+ * was handed to (a send failure on a closing socket does not count).
  */
 export function sendRelayWsMessage(
 	relayId: string | undefined,

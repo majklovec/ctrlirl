@@ -1,13 +1,13 @@
 /*
  * General command-runner seam.
  *
- * The transport core runs `iproute2` (`ip`); the Layer-3 WireGuard transport
- * additionally needs `wg` (peer programming), `modprobe` (kernel module) and,
- * for relay NAT, `iptables`. This module is the single place a command is
- * actually executed, so unit tests can record the exact `{bin, args}`
- * sequence without a live kernel — and so a host that must run these as root
- * gets one obvious seam to prepend `sudo` (a `setCmdRunner` wrapper) instead
- * of sprinkling it through every call site.
+ * The UDP↔TUN transport core runs `iproute2` (`ip`); the relay egress path
+ * additionally needs `iptables` (NAT/FORWARD) and `sysctl` (IPv4 forward).
+ * (`modprobe`/`wg` are gone — there is no kernel module and no crypto.) This
+ * module is the single place a command is actually executed, so unit tests can
+ * record the exact `{bin, args}` sequence without a live kernel — and so a host
+ * that must run these as root gets one obvious seam to prepend `sudo` (a
+ * `setCmdRunner` wrapper) instead of sprinkling it through every call site.
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

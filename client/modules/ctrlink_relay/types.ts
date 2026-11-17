@@ -15,13 +15,16 @@ export interface CtrlinkRelayConfig {
 	 */
 	nat: boolean;
 	/**
-	 * Enable the Layer-3 WireGuard multi-uplink transport (spec
-	 * `TODO/wireguard.md`) — default **true**. When true the relay exposes each
-	 * eligible uplink as an independent `wg-<if>` WireGuard netdev the encoder
-	 * receives as a virtual uplink with per-tunnel policy routing + NAT.
-	 * Restorable (teardown deletes each `wg-<if>` netdev).
+	 * Enable the plain-UDP↔TUN multi-uplink transport — default **true**. When
+	 * true the relay exposes each eligible uplink as an independent `utn-<if>`
+	 * TUN + `udpip` server pump that the encoder receives as a virtual uplink
+	 * with per-tunnel policy routing + NAT. Restorable (teardown deletes each
+	 * `utn-<if>` netdev + kills its pump).
 	 */
-	wireGuard: boolean;
+	tunnel?: boolean;
+	/** Compat alias for `tunnel` (the transport used to be kernel WireGuard).
+	 * Read as `tunnel ?? wireGuard`; new configs should use `tunnel`. */
+	wireGuard?: boolean;
 	/**
 	 * The LAN IP this relay advertises to encoders in its discovery announce.
 	 * Empty = auto-detect (the first bound relay address). A manual value wins
@@ -154,7 +157,7 @@ export type CtrlinkRelayState = CtrlinkRuntimeStatus;
 /** The settings-page view of the module's config slice. */
 export interface CtrlinkRelayView {
 	enabled: boolean;
-	wireGuard: boolean;
+	tunnel: boolean;
 	announceHost: string;
 	listenPortBase: number;
 	portMap: Record<string, number>;
