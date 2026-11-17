@@ -1,41 +1,35 @@
 /*
- * ctrlink_streamer module (encoder side). Creates one TUN per registered
- * shared relay interface (`createVirtualInterface` from @ctrlirl/gretap-relay),
- * and, with `autoRegisterUplink` on, registers each TUN IP as a
- * `network.uplinks` entry so `srtla_send` picks the extra paths up without
- * user intervention (spec 100-ctrlink §6, §7.2, §8.3, §6.3 multi-relay
- * extension).
+ * ctrlink_streamer module (encoder side). For every relay-announced uplink
+ * carrying a `wg` offer (spec TODO/wireguard.md), the encoder builds one
+ * per-uplink `wg-<if>` WireGuard vif (wireguard.ts), and, with
+ * `autoRegisterUplink` on, registers each vif IP as a `network.uplinks`
+ * entry via `syncVifUplinks` so `srtla_send` picks the extra paths up
+ * without user intervention (spec 100-ctrlink §6, §7.2, §8.3). The WireGuard
+ * vifs ARE the transport — there is no GRETAP L2/TUN path.
  *
  * The module runs permanently on encoders: discovery listens for relay
- * announces and TUNs reconcile to the discovered set as it changes, so the
+ * announces and the vifs reconcile to the offered set as it changes, so the
  * encoder is always able to pick up relay interface updates. There is no
  * start/stop — the module starts with the device process.
  *
  * Relays are learned by UDP announce (discovery.ts) — the encoder listens on
- * the well-known discovery port, keeps a TTL'd registry of the relays it
- * hears, and reconciles its TUNs to one-per-shared-interface. A manual
- * `relay` config is an additional (or, with no discovery, the only) endpoint.
- * The learned relays are mirrored to the `network.ctrlink` capability so the
- * network card groups the shared interfaces per relay.
+ * the well-known discovery port and keeps a TTL'd registry of the relays it
+ * hears. The learned relays are mirrored to the `network.ctrlink` capability
+ * so the network card groups the shared interfaces per relay.
  *
  * Control plane (TODO/protocol.md): discovery is bidirectional. The encoder
  * ALSO broadcasts an `encoder_id` announce so relays find us, and runs a
  * small WebSocket server (ws_server.ts) on the configured `wsPort`: each
  * relay connects, sends a `hello` snapshot + `interface_added` /
  * `interface_removed` / `interface_up` / `interface_down` events, which are
- * merged into the same registry (onRelayWsMessage) so the TUN reconcile
- * reacts to interface state — down paths stop their TUNs (the port mapping
- * survives), re-up paths reuse their TUN slot, and TUN local IPs are stable
- * per endpoint.
+ * merged into the same registry (onRelayWsMessage). The `wg` offers in
+ * those messages drive the per-uplink vif reconcile — down/removed paths
+ * stop their vifs (the port mapping survives), re-up paths rebuild them,
+ * and the encoder pushes its per-uplink keys back to the relay via
+ * `encoder_wg_key`.
  */
 import { unlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
-import {
-	createVirtualInterface,
-	egressIface,
-	greKeyForEndpoints,
-	type VirtualInterface,
-} from "@ctrlirl/gretap-relay";
 import { requireCapability } from "../../../shared/capabilities";
 import type {
 	BackendModule,
@@ -134,115 +128,6 @@ let wgTransportDev = "eth0";
 /** SRTLA uplink ids registered for the WG vifs (vif IP → id), for cleanup. */
 const wgUplinkIds = new Map<string, string>();
 
-/** The active TUNs, keyed by relay endpoint `${host}:${port}`. */
-interface TunnelVif {
-	vif: VirtualInterface;
-	uplinkId: string | undefined;
-	target: TunnelTarget;
-}
-const tunnels = new Map<string, TunnelVif>();
-
-/**
- * Stable (relay ordinal X, interface ordinal Y) per endpoint, assigned on
- * first sight and never renumbered. This keeps the TUN names
- * (`relay{X}_{ifaceName}`) and their IPs (`10.{90+X}.{Y}.1`) stable while the
- * discovered relay set grows — a new relay sorts to the next unused ordinal
- * and its interfaces start at the next unused Y for that relay.
- */
-const tunSlots = new Map<
-	string,
-	{ x: number; y: number; name: string; localIp: string }
->();
-const relayOrdinal = new Map<string, number>();
-const relayIfcSeen = new Map<string, number>();
-let relaySeq = 0;
-/**
- * Pick this box's host address inside an exposed relay subnet so the bridge
- * extends that remote LAN: the same /24 base with the last octet set to `.200`
- * (e.g. `192.168.1.136/24 → 192.168.1.200`), matching the proven PoC and
- * avoiding the low (DHCP) range of the common /24. Single-encoder (this
- * deployment) is unambiguous; a multi-encoder cutover needs an ARP-free scan.
- */
-function pickExposedIp(ifaceIp: string): string {
-	const parts = ifaceIp.split(".");
-	parts[3] = "200";
-	return parts.join(".");
-}
-function slotFor(
-	key: string,
-	relayHost: string,
-	ifaceName: string,
-	/**
-	 * Exposed-subnet address this box should use on this GRETAP path (when the
-	 * relay exposed an interface over the tunnel); `undefined` keeps the legacy
-	 * `10.x` tunnel-local IP (direct / same-segment path).
-	 */
-	exposedIp?: string,
-): {
-	x: number;
-	y: number;
-	name: string;
-	localIp: string;
-} {
-	const existing = tunSlots.get(key);
-	if (existing) {
-		// The device NAME is stable, but the LOCAL IP must follow the
-		// exposure state: a WS hello can add `outer_ip` (→ remote-LAN IP)
-		// AFTER the UDP announce that seed-created this slot with the legacy
-		// `10.x` IP. Without updating, reconcile never rebuilds to the remote
-		// LAN (GRETAP-RESEARCH.md: the encoder stayed on 10.90.0.1).
-		const nextLocalIp =
-			exposedIp ?? `10.${90 + existing.x}.${existing.y}.1`;
-		if (existing.localIp !== nextLocalIp) existing.localIp = nextLocalIp;
-		return existing;
-	}
-	let x = relayOrdinal.get(relayHost);
-	if (x === undefined) {
-		x = relaySeq++;
-		relayOrdinal.set(relayHost, x);
-	}
-	const y = relayIfcSeen.get(relayHost) ?? 0;
-	relayIfcSeen.set(relayHost, y + 1);
-	const slug = ifaceName.replace(/[^a-zA-Z0-9_.-]/g, "");
-	const base = `gretap_${slug}`.slice(0, 15);
-	const taken = [...tunSlots.values()].map((s) => s.name);
-	const slot = {
-		x,
-		y,
-		// GRETAP: the device name is `gretap_<relayIface>` (e.g. `gretap_eno2`,
-		// bridge `br-gretap_eno2`) — derived from the RELAY's interface so both
-		// ends name the tunnel identically (GRETAP-RESEARCH.md). On a collision
-		// (two relays exposing an iface with the same name) disambiguate with
-		// the relay ordinal: `gretap_eth0`, `gretap_eth0_1`, …
-		name: taken.includes(base) ? `gretap_${slug}_${x}`.slice(0, 15) : base,
-		// Exposed path: sit ON the relay's remote LAN; direct/legacy: 10.x.
-		localIp: exposedIp ?? `10.${90 + x}.${y}.1`,
-	};
-	tunSlots.set(key, slot);
-	return slot;
-}
-
-/** A desired tunnel: one shared relay interface → one TUN. */
-interface TunnelTarget {
-	key: string;
-	tunName: string;
-	/** This box's IP on the path — the exposed remote-LAN IP when the relay
-	 * exposed the interface over GRETAP, else the legacy `10.x` tunnel IP. */
-	localIp: string;
-	/** IPv4/prefix for this box's address (exposed prefix vs. legacy /24). */
-	prefix: number;
-	/** The relay IP the GRETAP outer header is addressed at (`remote`). The
-	 * relay's on-path egress IP when exposed (≠ `relayHost`), else `relayHost`. */
-	remoteIp?: string;
-	relayHost: string;
-	relayPort: number;
-	/** The relay's advertised IP for THIS interface (the real LAN IP when
-	 * exposed). Keyed-GRE demux (GRETAP-RESEARCH.md) matches the endpoint PAIR,
-	 * so both ends must hash this same iface IP — not the relay's announce
-	 * host — or the tunnel drops every frame. */
-	ifaceIp: string;
-}
-
 // ----------------------------------------------------------------------
 // Config (persisted as `state.data.ctrlinkStreamer`; §6.4)
 // ----------------------------------------------------------------------
@@ -322,17 +207,23 @@ function writeStatusFile(): void {
 // Runtime status
 // ----------------------------------------------------------------------
 function tunnelStatuses(): CtrlinkStreamerTunnelStatus[] {
+	const { vifs } = encoderWireGuardStateForTest();
 	const out: CtrlinkStreamerTunnelStatus[] = [];
-	for (const t of tunnels.values()) {
-		const st = t.vif.stats();
+	for (const v of vifs) {
+		// Which relay offered this uplink (for display); cleared once a relay
+		// goes away (pre-teardown) — then it reads as no relay.
+		const relayHost = [...wgOffers.entries()].find(([, list]) =>
+			list.some((e) => e.ip === v.localIp),
+		)?.[0];
 		out.push({
-			interfaceName: t.vif.name,
-			interfaceAddress: t.vif.localIp,
-			relayHost: t.target.relayHost,
-			relayPort: t.target.relayPort,
-			uplinkRegistered: t.uplinkId !== undefined,
-			stats: { txPackets: st.txPackets, rxPackets: st.rxPackets },
-			lastError: st.lastError?.message,
+			interfaceName: v.name,
+			interfaceAddress: v.localIp,
+			relayHost: relayHost ?? "",
+			relayPort: 0,
+			uplinkRegistered: wgUplinkIds.has(v.localIp),
+			// Per-vif L3 counters live in the kernel (`wg show`); the module
+			// surfaces none, so these read 0 by design.
+			stats: { txPackets: 0, rxPackets: 0 },
 		});
 	}
 	return out;
@@ -341,44 +232,26 @@ function tunnelStatuses(): CtrlinkStreamerTunnelStatus[] {
 function runtimeStatus(): CtrlinkStreamerRuntimeStatus {
 	const statuses = tunnelStatuses();
 	const running = statuses.length > 0;
-	const anyError = statuses.some((s) => s.lastError);
-	const agg = statuses.reduce(
-		(acc, s) => {
-			acc.txPackets += s.stats.txPackets;
-			acc.rxPackets += s.stats.rxPackets;
-			return acc;
-		},
-		{ txPackets: 0, rxPackets: 0 },
-	);
-	// Bytes: sum directly from the live VIF stats (statuses carry only packets).
-	const bytes = [...tunnels.values()].reduce(
-		(acc, t) => {
-			const st = t.vif.stats();
-			acc.txBytes += st.txBytes;
-			acc.rxBytes += st.rxBytes;
-			return acc;
-		},
-		{ txBytes: 0, rxBytes: 0 },
-	);
 	return {
-		state: running ? (anyError ? "error" : "running") : "idle",
+		state: running ? "running" : "idle",
 		running,
 		tunnels: statuses,
-		txPackets: agg.txPackets,
-		rxPackets: agg.rxPackets,
-		txBytes: bytes.txBytes,
-		rxBytes: bytes.rxBytes,
-		lastError: statuses.find((s) => s.lastError)?.lastError,
+		// The kernel owns the WG vifs' L3 counters; the module surfaces none.
+		txPackets: 0,
+		rxPackets: 0,
+		txBytes: 0,
+		rxBytes: 0,
 		// How recently this encoder announced itself so relays stay in touch.
 		lastMdnsAnnounceAt,
 		lastUdpAnnounceAt: lastEncoderUdpAnnounceAt(),
 	};
 }
 
-const isRunning = (): boolean => tunnels.size > 0;
+const isRunning = (): boolean =>
+	encoderWireGuardStateForTest().vifs.length > 0;
 
 // ----------------------------------------------------------------------
-// Desired targets + reconcile (one TUN per registered shared interface)
+// Encoder WireGuard vif sync (one vif per offered uplink)
 // ----------------------------------------------------------------------
 /**
  * True when `destIp` is directly on-link on one of THIS host's own interfaces
@@ -473,270 +346,6 @@ async function syncVifUplinks(autoRegister: boolean): Promise<void> {
 	}
 }
 
-/**
- * Compute the ordered set of tunnel targets from the discovered relays. The
- * encoder has no notion of a relay by hand — each relay announces itself, so
- * the targets are exactly the discovered relays' shared interfaces: sorted by
- * host, each interface in announced order, deduped by `${host}:${port}`.
- * Interfaces whose subnet is already on-link on this host are skipped (no
- * tunnel needed for a local segment).
- */
-async function desiredTargets(): Promise<TunnelTarget[]> {
-	/** Endpoint → (order index for stable sort ordering + owning relay). */
-	const byKey = new Map<
-		string,
-		{
-			host: string;
-			port: number;
-			order: number;
-			relayHost: string;
-			iface: string;
-			/** Relay iface IP on the exposed subnet (`A.B.C.200` source here). */
-			ifaceIp: string;
-			/** Exposed-subnet prefix (default /24). */
-			prefix: number;
-			/** Relay's on-path IP for THIS iface, if exposed over GRETAP. */
-			outerIp?: string;
-		}
-	>();
-	let order = 0;
-	const add = (
-		host: string,
-		port: number,
-		relayHost: string,
-		iface: string,
-		ifaceIp: string,
-		prefix: number,
-		outerIp?: string,
-	): void => {
-		if (!host || !port) return;
-		const key = `${host}:${port}`;
-		if (byKey.has(key)) return;
-		byKey.set(key, {
-			host,
-			port,
-			order: order++,
-			relayHost,
-			iface,
-			ifaceIp,
-			prefix,
-			outerIp,
-		});
-	};
-	for (const r of knownRelays().sort((a, b) => a.host.localeCompare(b.host))) {
-		for (const ep of r.interfaces) {
-			// A downed relay path is NOT a target (protocol.md §5): the relay
-			// keeps advertising it (its port mapping survives), so when the
-			// path returns no re-detection is needed — reconcile just
-			// re-creates the TUN for the SAME endpoint.
-			if (ep.state === "down") continue;
-			// A subnet the encoder already reaches on-link (its own NIC) needs
-			// no tunnel — the GRETAP would only add a redundant L2 path.
-			if (ep.address && (await isLocallyOnLink(ep.address))) continue;
-			add(
-				ep.address || r.host,
-				ep.listenPort,
-				r.host,
-				ep.name,
-				ep.address,
-				ep.prefix ?? 24,
-				ep.outer_ip,
-			);
-		}
-	}
-	// Assign a stable name + local IP per endpoint (stable across set growth).
-	// An interface WITH `outer_ip` is exposed over the tunnel: sit in the relay's
-	// remote LAN (`pickExposedIp`) and address outer GRE at `outer_ip`. One
-	// WITHOUT it is a legacy / direct segment: the kernel GRETAP falls back to
-	// the advertised `relayHost` and a private `10.x` address.
-	return [...byKey.values()]
-		.sort((a, b) => a.order - b.order)
-		.map((t) => {
-			const key = `${t.host}:${t.port}`;
-			const exposed = t.outerIp !== undefined;
-			const slot = slotFor(
-				key,
-				t.relayHost,
-				t.iface,
-				exposed ? pickExposedIp(t.ifaceIp) : undefined,
-			);
-			return {
-				key,
-				tunName: slot.name,
-				localIp: slot.localIp,
-				prefix: exposed ? t.prefix : config().prefixLength,
-				remoteIp: t.outerIp,
-				relayHost: t.host,
-				relayPort: t.port,
-				// Keyed-GRE: the relay hashes this iface's IP — mirror it here.
-				ifaceIp: t.ifaceIp,
-			};
-		});
-}
-
-async function startTunnel(target: TunnelTarget): Promise<void> {
-	const c = config();
-	// GRETAP: `localIp` is the VIRTUAL tunnel address (the legacy TUN IP) — no
-	// kernel interface holds it, so the LAN NIC to bridge in must be resolved
-	// explicitly. It is the interface the kernel routes to the relay (the LAN
-	// egress NIC): binding the tunnel to that NIC is what makes the bridge
-	// extend the LAN across the GRE link. A multi-NIC host must not guess, so
-	// we ask the kernel routing table for the egress to the relay specifically.
-	// Egress to the relay's ON-PATH IP when exposed (that is the address the
-	// tunnel frames actually leave toward), else the advertised link IP.
-	const egressDest = target.remoteIp ?? target.relayHost;
-	const localIface = (await egressIface(egressDest)) ?? undefined;
-	// Keyed GRE: keyless kernel demux matches on the outer destination
-	// address only, which can never match a symmetric pair across
-	// asymmetric subnets (the relay's frames arrive addressed to the
-	// encoder and match no encoder tunnel). Both ends derive the same key
-	// from the endpoint pair, and keyed demux ignores addresses entirely.
-	// The pair is (relay IFACE IP, encoder on-path IP) — the relay keys by
-	// `ep.ip` (the interface's own LAN IP, e.g. 192.168.1.136), NOT its
-	// announce host, so `ifaceIp` mirrors it exactly (GRETAP-RESEARCH.md).
-	const greKey = greKeyForEndpoints(
-		target.ifaceIp,
-		defaultSourceIp() ?? target.localIp,
-	);
-	const created = await createVirtualInterface({
-		name: target.tunName,
-		localIp: target.localIp,
-		localIface,
-		bindAddress: defaultSourceIp() ?? undefined,
-		greKey,
-		// Exposed path uses the relay's announced on-path IP as GRETAP remote.
-		remoteIp: target.remoteIp,
-		// Exposed path: sit in the relay's remote-LAN prefix, not the legacy /24.
-		prefixLength: target.prefix,
-		mtu: c.mtu,
-		keepaliveIntervalMs: c.keepaliveIntervalMs,
-		relay: { host: target.relayHost, port: target.relayPort },
-	});
-	if (!core.config.DRY_RUN) await created.start();
-	let uplinkId: string | undefined;
-	if (c.autoRegisterUplink) {
-		const id = `ctrlink:${target.tunName}`;
-		await uplinks.add({
-			id,
-			source: created.localIp,
-			label: `Ctrlink (${target.tunName})`,
-		});
-		uplinkId = id;
-	}
-	tunnels.set(target.key, { vif: created, uplinkId, target });
-	console.log(
-		`ctrlink_streamer: started ${created.name} (${created.localIp}) → ${target.relayHost}:${target.relayPort}`,
-	);
-}
-
-async function stopTunnel(key: string): Promise<void> {
-	const t = tunnels.get(key);
-	if (!t) return;
-	tunnels.delete(key);
-	// The slot (TUN name + local IP) deliberately SURVIVES: a downed path
-	// that re-comes-up must reuse the same TUN name/IP (protocol.md §1
-	// stable mapping); the map is only cleared on a full stop.
-	if (t.uplinkId) {
-		try {
-			await uplinks.remove(t.uplinkId);
-		} catch (e) {
-			console.warn(
-				`ctrlink_streamer: uplink remove failed: ${errorMessage(e)}`,
-			);
-		}
-	}
-	if (!core.config.DRY_RUN) {
-		try {
-			await t.vif.stop();
-		} catch (e) {
-			console.warn(`ctrlink_streamer: vif stop failed: ${errorMessage(e)}`);
-		}
-	}
-}
-
-/** The target fields that, when they change, force the live TUN to be rebuilt
- * (key/addr/remote can't be patched onto a running kernel device in place). */
-function targetSignature(t: TunnelTarget): string {
-	return [
-		t.tunName,
-		t.localIp,
-		t.prefix,
-		t.remoteIp ?? "",
-		t.ifaceIp,
-		t.relayHost,
-		t.relayPort,
-	].join("\u0000");
-}
-
-/**
- * Bring the TUN set in line with the discovered + configured relays. Creates
- * new TUNs, stops removed ones, and rebuilds ones whose target changed (e.g.
- * a relay started exposing the iface over GRETAP → exposed IP + key). Per
- * target failures are logged and do not abort the rest (the next
- * discovery/refresh retries).
- */
-async function reconcile(): Promise<void> {
-	// Remove TUNs whose target is no longer desired.
-	const desired = await desiredTargets();
-	const desiredKeys = new Set(desired.map((d) => d.key));
-	for (const key of [...tunnels.keys()]) {
-		if (!desiredKeys.has(key)) {
-			try {
-				await stopTunnel(key);
-			} catch (e) {
-				console.warn(
-					`ctrlink_streamer: stop ${key} failed: ${errorMessage(e)}`,
-				);
-			}
-		}
-	}
-	// Create TUNs not yet present, and rebuild ones whose target changed
-	// (the exposed IP / prefix / key all differ from the legacy 10.x form).
-	for (const target of desired) {
-		const existing = tunnels.get(target.key);
-		if (existing && targetSignature(existing.target) === targetSignature(target))
-			continue;
-		if (existing) {
-			try {
-				await stopTunnel(target.key);
-			} catch (e) {
-				console.warn(
-					`ctrlink_streamer: re-stop ${target.tunName} before rebuild failed: ${errorMessage(e)}`,
-				);
-			}
-		}
-		try {
-			await startTunnel(target);
-		} catch (e) {
-			core.logEvent(
-				"error",
-				"Relay tunnels",
-				`start ${target.tunName} → ${target.relayHost}:${target.relayPort} failed: ${errorMessage(e)}`,
-			);
-		}
-	}
-	core.notifyStateChange();
-	writeStatusFile();
-}
-
-async function stopAllTunnels(): Promise<void> {
-	for (const key of [...tunnels.keys()]) {
-		try {
-			await stopTunnel(key);
-		} catch (e) {
-			console.warn(`ctrlink_streamer: stop ${key} failed: ${errorMessage(e)}`);
-		}
-	}
-	// Full teardown: reset the relay/interface ordinal state so the next start
-	// begins at relay0_eth0 again (individual stops in reconcile must NOT).
-	tunSlots.clear();
-	relayOrdinal.clear();
-	relayIfcSeen.clear();
-	relaySeq = 0;
-	core.notifyStateChange();
-	writeStatusFile();
-}
-
 // ----------------------------------------------------------------------
 // Discovery wiring
 // ----------------------------------------------------------------------
@@ -778,32 +387,32 @@ function pushWsStatus(): void {
 	core.notifyStateChange();
 }
 
-/** A discovery shape change: re-sync the registry + reconcile the TUNs.
+/** A discovery shape change: re-sync the registry + reconcile the WG vifs.
  *
  * The card must list discovered relays as soon as they appear, so the state
- * is pushed immediately — `reconcile()` already notifies when running, so
- * only the idle path needs its own push.
+ * is pushed immediately — the vif reconcile runs in the background and
+ * notifies when it settles.
  */
 async function onDiscoveredRelays(
 	relays: CtrlinkDiscoveredRelay[],
 ): Promise<void> {
 	syncRegistry(relays);
 	// Push immediately so the card lists the discovered relays. This is a
-	// display update and must NOT be gated behind TUN reconciliation, which
-	// creates TUNs and can be slow (a stuck create would otherwise block the
-	// whole status push).
+	// display update and must NOT be gated behind the vif reconcile, which
+	// creates netdevs and can be slow.
 	console.log(
-		`ctrlink_streamer: ${relays.length} relays discovered — notifying + reconciling`,
+		`ctrlink_streamer: ${relays.length} relays discovered — notifying + reconciling vifs`,
 	);
 	core.notifyStateChange();
-	// Reconcile the TUN set in the background. It notifies on completion and
-	// contains per-target errors, so a stuck/failed TUN never blocks the UI.
-	void reconcile().catch((error) => {
-		console.warn(
-			`ctrlink_streamer: reconcile after discovery failed: ${errorMessage(error)}`,
-		);
-		core.notifyStateChange();
-	});
+	// Reconcile the WG vif set in the background: a stuck/failed vif never
+	// blocks the UI, and the state is pushed once it settles.
+	void syncEncoderWireGuard()
+		.catch((error) => {
+			console.warn(
+				`ctrlink_streamer: vif reconcile after discovery failed: ${errorMessage(error)}`,
+			);
+		})
+		.finally(() => core.notifyStateChange());
 }
 
 let mdnsBrowseStop: (() => void) | undefined;
@@ -1128,9 +737,8 @@ async function setRuntimeConfig(
 ): Promise<CtrlinkStreamerView> {
 	await save(patch);
 	// A wireGuard / autoRegisterUplink toggle rebuilds the vifs + their SRTLA
-	// uplinks; the reconcile re-covers the legacy TUN side (best-effort).
-	void syncEncoderWireGuard();
-	void reconcile().catch((e) =>
+	// uplinks. `syncEncoderWireGuard()` is best-effort and never blocks.
+	void syncEncoderWireGuard().catch((e) =>
 		core.logEvent("warn", "Relay tunnels", `reconcile failed: ${e}`),
 	);
 	core.notifyStateChange();
@@ -1201,13 +809,14 @@ const registration: BackendModule<ModuleCore> = {
 		core = ctx.core;
 		uplinks = requireCapability<Uplinks>("network.uplinks");
 		ctrlinkReg = requireCapability<CtrlinkRegistry>("network.ctrlink");
-		// Always: listen for relay announces and reconcile the TUN set, so
+		// Always: listen for relay announces and reconcile the WG vif set, so
 		// relay interface updates are picked up without a manual start.
 		ensureDiscovery();
 		syncRegistry(knownRelays());
 		ensureControlPlane();
+		// Build the per-uplink WG vifs + register the SRTLA uplinks.
 		try {
-			await reconcile();
+			await syncEncoderWireGuard();
 		} catch (e) {
 			core.logEvent(
 				"warn",
@@ -1227,7 +836,6 @@ const registration: BackendModule<ModuleCore> = {
 		wsServer?.stop(true);
 		wsServer = null;
 		controlPlaneKey = null; // force a rebuild on the next start/resume
-		await stopAllTunnels();
 		// Tear down the Layer-3 WG vifs + their SRTLA uplink registrations.
 		for (const id of [...wgUplinkIds.values()]) {
 			try {
@@ -1240,12 +848,12 @@ const registration: BackendModule<ModuleCore> = {
 		wgOffers.clear();
 		await stopEncoderWireGuard();
 	},
-	/** Resume the TUNs across process restarts. */
+	/** Resume the WG vifs across process restarts. */
 	async resume() {
 		ensureDiscovery();
 		syncRegistry(knownRelays());
 		ensureControlPlane();
-		if (!isRunning()) await reconcile();
+		if (!isRunning()) await syncEncoderWireGuard();
 		return true;
 	},
 	async dispatch(method: string, p: Params) {

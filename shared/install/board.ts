@@ -4,8 +4,8 @@
  * Ctrl-IRL ships on several SBCs (Orange Pi 5 Plus / RK3588, Raspberry Pi,
  * Radxa ROCK 5A/5B/5B+, NVIDIA Jetson Nano, …). Some install rules differ
  * per board — e.g. a Raspberry Pi only needs an overlay tweak for
- * firmware/DT overlay activation, while an Orange Pi 5 Plus needs an udev
- * rule pinning the GRETAP kernel names. A module can therefore carry a
+ * firmware/DT overlay activation, while another board may need a udev rule
+ * to keep a kernel interface name stable. A module can therefore carry a
  * per-board delta under `install/board.<board>.json` that is merged over the
  * base + role spec for the board it is running on.
  *

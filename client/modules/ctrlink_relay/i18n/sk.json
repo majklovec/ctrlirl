@@ -9,7 +9,6 @@
     "dev.ctrlink.last_udp": "UDP",
     "dev.ctrlink.last_ws": "WS",
     "dev.ctrlink.enabled": "Zapnuté",
-    "dev.ctrlink.gretap": "GRETAP – zdieľanie sietí",
     "dev.ctrlink.encoder_connected": "Connected over WebSocket",
     "dev.ctrlink.encoder_offline": "Discovered — WebSocket not connected",
     "dev.ctrlink.encoders": "Encoders",
