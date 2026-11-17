@@ -28,7 +28,6 @@ import {
 	makeMockIfaceRawSocket,
 } from "../../../../shared/lib/gretap_relay";
 import * as mod from "../backend";
-import { tunnelName } from "../gretap";
 import {
 	knownEncoderIps,
 	knownEncoders,
@@ -243,7 +242,6 @@ describe("eligibleInterfaces (allow/ignore filtering)", () => {
 	const base = {
 		enabled: true,
 		nat: false,
-		gretap: true,
 		wireGuard: true,
 		announceHost: "",
 		listenPortBase: 5000,
@@ -293,22 +291,8 @@ describe("config + status", () => {
 		expect(config.listenPortBase).toBe(4000);
 		expect(config.interfaceIgnore).toEqual(["docker.*", "veth.*"]);
 		expect(config.destination).toBeUndefined();
-		// WireGuard is the default transport; it replaces GRETAP, so GRETAP
-		// exposure is off by default (opt-in for legacy L2 LAN extension).
-		expect(config.gretap).toBe(false);
+		// WireGuard is the default (and only) uplink transport.
 		expect(config.wireGuard).toBe(true);
-	});
-
-	test("setConfig toggles gretap and it is re-read on the next getConfig", async () => {
-		cfg.bind?.(fakeCore({}));
-		const res = (await cfg.dispatch("ctrlink_relay.setConfig", {
-			gretap: false,
-		})) as { config: { gretap: boolean } };
-		expect(res.config.gretap).toBe(false);
-		const again = (await cfg.dispatch("ctrlink_relay.getConfig", {})) as {
-			config: { gretap: boolean };
-		};
-		expect(again.config.gretap).toBe(false);
 	});
 
 	test("status serializes an idle relay set", async () => {
@@ -421,9 +405,9 @@ describe("relay lifecycle (real loopback UDP)", () => {
 		const base = 45210;
 		const ifaces: Iface[] = [
 			{ name: "lo", addresses: ["127.0.0.1"] },
-			// GRETAP-era failure mode: the slot binds nothing, so a
-			// per-interface failure is a rejected slot option (here: an
-			// invalid interface name), not a busy bind.
+			// The slot binds nothing, so a per-interface failure is a
+			// rejected slot option (here: an invalid interface name), not a
+			// busy bind.
 			{ name: "bad/name", addresses: ["127.0.0.1"] },
 		];
 		provideCapability<NetworkInterfaces>(
@@ -450,10 +434,10 @@ describe("relay lifecycle (real loopback UDP)", () => {
 	});
 });
 
-describe("GRETAP data plane: relay slots forward no user-space traffic", () => {
-	// GRETAP cutover: the per-interface relay slot is a no-op. Data flows
-	// through the kernel GRETAP tunnel (set up on the streamer side), so the
-	// slot never installs vif forward-routes — sending an encoder frame to
+describe("relay slots forward no user-space traffic", () => {
+	// WireGuard cutover: the per-interface relay slot is a no-op. Data flows
+	// through the kernel WireGuard tunnel (set up on the streamer side), so
+	// the slot never installs vif forward-routes — sending an encoder frame to
 	// its announced port must not trigger a single `ip rule`/`ip route`.
 	test("a data frame to the relay port installs no vif forward-route", async () => {
 		const base = 45410;
@@ -479,7 +463,7 @@ describe("GRETAP data plane: relay slots forward no user-space traffic", () => {
 		expect(config.portMap.lo).toBe(base);
 
 		// The slot performs NO user-space forwarding and installs NO vif
-		// forward-route — the GRETAP tunnel is kernel-side.
+		// forward-route — the WireGuard tunnel is kernel-side.
 		await Bun.sleep(100);
 		expect(runCalls.some((c) => c.cmd === "ip" && c.args[0] === "rule")).toBe(
 			false,
@@ -867,8 +851,8 @@ describe("encoder discovery + WS channels (protocol.md §2–§5)", () => {
 
 describe("directly-connected interfaces are not advertised", () => {
 	// An encoder that sits on one of the relay's own segments reaches it
-	// directly — that interface must never reach the encoder (no gretap
-	// tunnel back through the relay). Only the routed paths stay.
+	// directly — that interface must never reach the encoder (no tunnel back
+	// through the relay). Only the routed paths stay.
 	const ifaces: Iface[] = [
 		{ name: "eno1", addresses: ["192.168.10.1"] },
 		{ name: "eno2", addresses: ["192.168.1.136"] },
@@ -1015,27 +999,5 @@ describe("directly-connected interfaces are not advertised", () => {
 		expect(mod.lastWsPushEvents().map((e) => e.iface.iface_name)).toEqual([
 			"eno2",
 		]);
-	});
-});
-
-describe("tunnelName derivation", () => {
-	test("is gretap_<iface> and stable across passes (no self-collision suffix)", () => {
-		// First pass: nothing taken → base name.
-		expect(tunnelName("eno2", "enc-rpi4", [])).toBe("gretap_eno2");
-		// Second pass: the tunnel's own device now exists, but reconcilePass
-		// excludes it from the taken set (filter n !== ownName). The name must
-		// stay `gretap_eno2` — NOT flip to `gretap_eno2_rpi` and flap.
-		const own = "gretap_eno2";
-		const taken = ["gretap_eno2", "gretap_wg0"].filter((n) => n !== own);
-		expect(tunnelName("eno2", "enc-rpi4", taken)).toBe("gretap_eno2");
-	});
-
-	test("only a genuinely distinct gretap device on the same iface collides", () => {
-		// A DIFFERENT tunnel already owns gretap_eno2 (a second encoder) →
-		// fall back to gretap_<iface>_<encId-slug>, truncated to the 15-char
-		// kernel limit. The encoder id slugs away its dash (`enc-rpi4`→`encrpi4`).
-		expect(tunnelName("eno2", "enc-rpi4", ["gretap_eno2"])).toBe(
-			"gretap_eno2_encrpi4".slice(0, 15),
-		);
 	});
 });

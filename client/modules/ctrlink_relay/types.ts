@@ -15,22 +15,11 @@ export interface CtrlinkRelayConfig {
 	 */
 	nat: boolean;
 	/**
-	 * Enable the GRETAP pass-through (default false — it is OFF until turned
-	 * on). When true the relay bridges each advertised (non-direct) interface
-	 * into a keyed GRETAP L2 tunnel per discovered encoder so the encoder
-	 * reaches that interface's whole subnet over the tunnel — see
-	 * `GRETAP-RESEARCH.md`. This moves the interface's IP onto a bridge and
-	 * needs root `ip`; it is restorable (teardown puts the IP back).
-	 */
-	gretap: boolean;
-	/**
 	 * Enable the Layer-3 WireGuard multi-uplink transport (spec
 	 * `TODO/wireguard.md`) — default **true**. When true the relay exposes each
 	 * eligible uplink as an independent `wg-<if>` WireGuard netdev the encoder
 	 * receives as a virtual uplink with per-tunnel policy routing + NAT.
-	 * Mutually exclusive with `gretap` in practice: the encoder builds a WG
-	 * vif from the `wg` spec and falls back to GRETAP only when a `wg` offer
-	 * is absent. Restorable (teardown deletes each `wg-<if>` netdev).
+	 * Restorable (teardown deletes each `wg-<if>` netdev).
 	 */
 	wireGuard: boolean;
 	/**
@@ -165,7 +154,6 @@ export type CtrlinkRelayState = CtrlinkRuntimeStatus;
 /** The settings-page view of the module's config slice. */
 export interface CtrlinkRelayView {
 	enabled: boolean;
-	gretap: boolean;
 	wireGuard: boolean;
 	announceHost: string;
 	listenPortBase: number;
