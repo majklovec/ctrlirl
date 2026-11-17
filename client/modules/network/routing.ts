@@ -58,6 +58,7 @@ const VIRTUAL_PREFIXES = [
     "zt",
     "tailscale",
     "utun",
+    "utn",
     "dummy",
     "bond",
 ];
@@ -281,7 +282,8 @@ interface RoutePlanEntry {
 }
 
 async function cleanupTables(count: number): Promise<void> {
-    for (let i = 0; i < count; i++) {
+    const safe = Math.min(count, TUNNEL_TABLE_BASE - TABLE_BASE);
+    for (let i = 0; i < safe; i++) {
         const table = String(TABLE_BASE + i);
         await ip(["rule", "del", "lookup", table], true);
         await ip(["route", "flush", "table", table], true);
@@ -339,8 +341,14 @@ let managedTableCount = 0;
 let lastAppliedPlan: string | null = null;
 let lastAppliedPlanEntries: RoutePlanEntry[] = [];
 
+// Tunnel vif egress tables live at 201+ (`tunnelRouteTable`); they must never
+// fall inside our managed range, or a reconfigure would flush them.
+const TUNNEL_TABLE_BASE = 201;
+
 const isManagedTable = (table: number): boolean =>
-    table >= TABLE_BASE && table < TABLE_BASE + Math.max(managedTableCount, 1);
+    table >= TABLE_BASE &&
+    table < TUNNEL_TABLE_BASE &&
+    table < TABLE_BASE + Math.max(managedTableCount, 1);
 
 /**
  * Seed `managedTableCount` from the live `ip rule` tables. After a process
@@ -353,7 +361,9 @@ export async function seedManagedTableCount(): Promise<void> {
         const rules = await ip(["rule", "show"], true);
         for (const match of rules.matchAll(/\blookup (\d+)\b/g)) {
             const table = parseInt(match[1], 10);
-            if (table >= TABLE_BASE)
+            // Never count tunnel egress tables (201+) — they belong to the
+            // udpip transport, not to our source-routing tables.
+            if (table >= TABLE_BASE && table < TUNNEL_TABLE_BASE)
                 managedTableCount = Math.max(
                     managedTableCount,
                     table - TABLE_BASE + 1,
