@@ -583,18 +583,16 @@ function reconcileTunnelsNow(): void {
 				await reconcileRelayTunnelsNow([]);
 				return;
 			}
-			const cfg = config();
 			const ifaces = netIfaces?.list() ?? [];
-			// Each uplink carries its physical IP — the pump binds to it.
+			// The server pump binds the ded-link IP (a live getter on the udpip
+			// module), so each uplink is just its name (egress dev). The ded-link
+			// itself is excluded (`directIfaces`) — never tunnel the direct link.
 			const uplinks: RelayUplink[] = advertisedInterfaces(
 				ifaces,
-				cfg,
+				config(),
 			)
 				.filter((n) => !directIfaces.has(n))
-				.map((n) => ({
-					uplink: n,
-					ip: ifaceAddress(n, ifaces, cfg) ?? "",
-				}));
+				.map((n) => ({ uplink: n }));
 			await reconcileRelayTunnelsNow(uplinks);
 		} catch {
 			// Never break the reconciliation chain.

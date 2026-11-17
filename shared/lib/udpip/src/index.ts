@@ -26,6 +26,7 @@ export {
 	setPumpSpawner,
 	setPumpKiller,
 	pumpPidForTest,
+	firePumpExitForTest,
 	adoptPumpsFromPidFiles,
 	clearPumpRegistry,
 	tunnelAddress,
@@ -51,4 +52,5 @@ export type {
 	PumpSpawner,
 	PumpKiller,
 	TunnelPumpHandle,
+	TunnelVifSetupOpts,
 } from "./udpip";

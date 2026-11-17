@@ -184,23 +184,37 @@ func runServer(o options, tunFd int) error {
 	return runPump(conn, func() { go udpToTun(); tunToUdp() })
 }
 
-// runClient: dial <remote>, pump UDP↔TUN in both directions.
+// runClient: bind a DETERMINISTIC local port and pump UDP↔TUN toward <remote>.
+//
+// The local port is fixed to the remote's port (51820+index — one per vif,
+// already collision-free). This matters for supervision: the relay server
+// pins a single peer as <clientIP>:<srcPort>. With an ephemeral source port
+// (a plain dial) ANY client-pump restart would present a new port, and the
+// already-pinned relay would silently drop every packet until it also
+// restarted. A deterministic source port keeps the pinned peer valid across
+// client restarts, so a dead pump respawns and resumes with zero relay-side
+// change. Each vif uses a distinct remote port, so the local ports never
+// collide with one another.
 func runClient(o options, tunFd int) error {
 	remote, err := net.ResolveUDPAddr("udp4", o.remote)
 	if err != nil {
 		return fmt.Errorf("resolve remote %q: %w", o.remote, err)
 	}
-	conn, err := net.DialUDP("udp4", nil, remote)
+	local, err := net.ResolveUDPAddr("udp4", fmt.Sprintf(":%d", remote.Port))
 	if err != nil {
-		return fmt.Errorf("dial udp %q: %w", o.remote, err)
+		return fmt.Errorf("resolve local %q: %w", o.remote, err)
+	}
+	conn, err := net.ListenUDP("udp4", local)
+	if err != nil {
+		return fmt.Errorf("bind udp %q: %w", local.String(), err)
 	}
 	conn.SetReadBuffer(8 << 20)
-	log.Printf("udpip client: tun=%s remote=%s pid=%d", o.tun, o.remote, os.Getpid())
+	log.Printf("udpip client: tun=%s remote=%s local=%s pid=%d", o.tun, o.remote, local.String(), os.Getpid())
 
 	udpToTun := func() {
 		buf := make([]byte, bufSize)
 		for {
-			n, err := conn.Read(buf)
+			n, _, err := conn.ReadFromUDP(buf)
 			if err != nil {
 				log.Printf("udpip: udp read: %v", err)
 				return
@@ -228,7 +242,7 @@ func runClient(o options, tunFd int) error {
 			if n == 0 {
 				continue
 			}
-			if _, werr := conn.Write(buf[:n]); werr != nil {
+			if _, werr := conn.WriteToUDP(buf[:n], remote); werr != nil {
 				log.Printf("udpip: udp write: %v", werr)
 				return
 			}
@@ -254,18 +268,22 @@ func main() {
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
-	var o options
-	flag.StringVar(&o.mode, "mode", "", "server | client (positional arg also accepted)")
-	flag.StringVar(&o.tun, "tun", "", "TUN netdev name to create/own (e.g. utn-eth0)")
-	flag.StringVar(&o.bind, "bind", "", "server bind address <uplinkIP>:<port>")
-	flag.StringVar(&o.remote, "remote", "", "client remote <uplinkIP>:<port>")
-	flag.StringVar(&o.allow, "allow", "first", "server peer pin: a client IP, or 'first'")
-	flag.Parse()
-
-	// Accept the mode as a positional leading arg too: `udpip server …`.
-	if o.mode == "" && flag.NArg() > 0 {
-		o.mode = flag.Arg(0)
+	// The mode is passed as a LEADING positional arg (`udpip server --tun …`) by
+	// both the app and manual invocation, but flag.Parse() stops at the first
+	// non-flag arg — so hoist it into a --mode flag before parsing.
+	args := os.Args[1:]
+	if len(args) > 0 && (args[0] == "server" || args[0] == "client") {
+		args = append([]string{"--mode", args[0]}, args[1:]...)
 	}
+
+	fs := flag.NewFlagSet("udpip", flag.ExitOnError)
+	var o options
+	fs.StringVar(&o.mode, "mode", "", "server | client")
+	fs.StringVar(&o.tun, "tun", "", "TUN netdev name to create/own (e.g. utn-eth0)")
+	fs.StringVar(&o.bind, "bind", "", "server bind address <uplinkIP>:<port>")
+	fs.StringVar(&o.remote, "remote", "", "client remote <uplinkIP>:<port>")
+	fs.StringVar(&o.allow, "allow", "first", "server peer pin: a client IP, or 'first'")
+	fs.Parse(args)
 
 	if o.tun == "" {
 		fatalf("missing --tun <name>")

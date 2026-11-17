@@ -20,6 +20,13 @@
 > now `utn-<if>` (not `wg-<if>`) and the config key is `tunnel`
 > (`wireGuard` kept as a compat alias). See
 > [`shared/lib/udpip/`](../shared/lib/udpip/) and the two `ctrlink_*` modules.
+>
+> **Supervision:** the client pump binds a **deterministic** local port (same
+> number as the relay's listen port), and the app respawns a dead pump on its
+> `exit` (capped per vif). This is what makes a pump restart transparent: the
+> relay pins a single `<clientIP>:<srcPort>`, so a stable source port means a
+> respawned client resumes with no relay-side change. An ephemeral source
+> port would break the pin on every client restart.
 
 ---
 

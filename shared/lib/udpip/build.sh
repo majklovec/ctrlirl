@@ -28,8 +28,9 @@ out="$OUTDIR/$outname"
 ( cd "$HERE" && go mod download golang.org/x/sys >/dev/null 2>&1 || go mod tidy )
 
 echo "→ building udpip (linux/$GOARCH) → $out"
-CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" \
-	go build -trimpath -ldflags="-s -w" -o "$out" "$SRC/udpip.go"
+# Run the build from inside the module dir ($HERE has go.mod); the source lives in src/.
+( cd "$HERE" && CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" \
+	go build -trimpath -ldflags="-s -w" -o "$out" ./src )
 
 ls -lh "$out"
 echo "done."

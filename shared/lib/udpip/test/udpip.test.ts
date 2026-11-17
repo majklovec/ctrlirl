@@ -4,6 +4,7 @@ import {
 	DEFAULT_TUN_MTU,
 	ensureTunnelEncoderRouting,
 	ensureTunnelRelayEgress,
+	firePumpExitForTest,
 	pumpArgs,
 	removeTunnelVif,
 	revokeTunnelEncoderRouting,
@@ -36,15 +37,21 @@ function recordCmdRunner(
 	};
 }
 
-/** Stub the pump child seams: the spawner records the opts and returns a fake
- * pid; the killer records the pids it was asked to kill. No real process. */
+/** Stub the pump child seams: the spawner records the opts and returns a
+ * DISTINCT pid per spawn (like a real process); the killer records the pids it
+ * was asked to kill. No real process. Pass `pids` to capture each spawn's pid
+ * in order (used by the exit-watcher supervision tests). */
 function stubPumps(
 	spawned: PumpOptions[],
 	killed: number[],
+	pids?: number[],
 ): void {
+	let n = 0;
 	setPumpSpawner(async (opts) => {
 		spawned.push(opts);
-		return { pid: 4242 };
+		const pid = 1000 + ++n;
+		if (pids) pids.push(pid);
+		return { pid };
 	});
 	setPumpKiller(async (pid) => {
 		killed.push(pid);
@@ -60,6 +67,19 @@ afterEach(() => {
 
 const ip = (bin: string, args: string[]) =>
 	bin === "/usr/sbin/ip" || bin.endsWith("/ip");
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Poll until the stub spawner has recorded at least `want` spawns (the
+ * exit-watcher respawn is async + fire-and-forget). */
+async function settleSpawns(
+	spawned: PumpOptions[],
+	want: number,
+	timeoutMs = 1500,
+): Promise<void> {
+	const t0 = Date.now();
+	while (spawned.length < want && Date.now() - t0 < timeoutMs) await sleep(5);
+}
 
 // --- Pure command builders ----------------------------------------------------
 
@@ -358,4 +378,113 @@ test("revoke fns are best-effort (no runner set → swallow the failures)", asyn
 			endpointDev: "eth0",
 		}),
 	).resolves.toBeUndefined();
+});
+
+// --- Pump exit supervision (respawn) ------------------------------------------
+
+test("exit-watcher: a dead pump is respawned with the same config", async () => {
+	const spawned: PumpOptions[] = [];
+	const killed: number[] = [];
+	const calls: Array<{ bin: string; args: string[] }> = [];
+	stubPumps(spawned, killed);
+	setCmdRunner(recordCmdRunner(calls));
+	await setupTunnelVif({
+		name: "utn-eth0",
+		localIp: "10.200.1.1",
+		prefix: 30,
+		mode: "server",
+		bind: "10.0.0.1:51820",
+	});
+	expect(spawned).toHaveLength(1);
+	// Simulate the pump dying unattended → the supervisor respawns it.
+	firePumpExitForTest(spawned[0]);
+	await settleSpawns(spawned, 2);
+	// Exactly one respawn (2 spawns total), and it re-runs the ip setup.
+	expect(spawned.length).toBe(2);
+	// The respawn used the SAME config (server / same bind).
+	expect(spawned[1].mode).toBe("server");
+	expect(spawned[1].bind).toBe("10.0.0.1:51820");
+	expect(spawned[1].remote).toBeUndefined();
+	// Netdev was deleted then re-addressed (addr add appears again).
+	expect(
+		calls.some(
+			(c) => ip(c.bin, c.args) && c.args["0"] === "addr" &&
+				c.args.includes("10.200.1.1/30"),
+		),
+	).toBe(true);
+});
+
+test("exit-watcher: an intentional teardown is NOT respawned", async () => {
+	const spawned: PumpOptions[] = [];
+	const killed: number[] = [];
+	const pids: number[] = [];
+	stubPumps(spawned, killed, pids);
+	setCmdRunner(recordCmdRunner([]));
+	await setupTunnelVif({
+		name: "utn-eth0",
+		localIp: "10.200.1.1",
+		prefix: 30,
+		mode: "server",
+		bind: "10.0.0.1:51820",
+	});
+	// A config change kills the pump (marks it stopping) and spawns a new one.
+	await setupTunnelVif({
+		name: "utn-eth0",
+		localIp: "10.200.1.1",
+		prefix: 30,
+		mode: "server",
+		bind: "10.0.0.2:51820",
+	});
+	expect(spawned.length).toBe(2);
+	// The OLD pump (pid 1) died AFTER being superseded by the reconfigure
+	// (now pid 2) — its stale exit must be ignored, not respawn a 3rd.
+	firePumpExitForTest(spawned[0], pids[0]);
+	await sleep(80);
+	expect(spawned.length).toBe(2); // no respawn of the stale pump
+});
+
+test("exit-watcher: a persistent failure trips the restart cap", async () => {
+	const spawned: PumpOptions[] = [];
+	const killed: number[] = [];
+	stubPumps(spawned, killed);
+	setCmdRunner(recordCmdRunner([]));
+	await setupTunnelVif({
+		name: "utn-wwan0",
+		localIp: "10.200.2.2",
+		prefix: 30,
+		mode: "client",
+		remote: "10.0.0.1:51821",
+	});
+	// Each respawn re-registers the pump (new pid) so the exit watcher
+	// re-arms; firing an exit 5 more times spends the budget, then further
+	// exits are ignored (no crash-loop).
+	let lastOpts = spawned[0];
+	for (let i = 0; i < 6; i++) {
+		firePumpExitForTest(spawned[spawned.length - 1]);
+		await settleSpawns(spawned, spawned.length + 1, 300);
+		if (spawned.length <= i + 1) {
+			// The cap tripped early — no respawn happened.
+			break;
+		}
+		lastOpts = spawned[spawned.length - 1];
+	}
+	// Original + at most 5 respawns (the cap) — never more than 6 total.
+	expect(spawned.length).toBeLessThanOrEqual(6);
+	// Once the budget is spent, an exit is a no-op.
+	const atCap = spawned.length;
+	firePumpExitForTest(lastOpts);
+	await sleep(120);
+	expect(spawned.length).toBe(atCap);
+	// The restart budget is per-vif: a config change resets it, so the pump
+	// can be brought back with a fresh set of respawns.
+	await setupTunnelVif({
+		name: "utn-wwan0",
+		localIp: "10.200.2.2",
+		prefix: 30,
+		mode: "client",
+		remote: "10.0.0.1:51899", // changed → fresh budget
+	});
+	firePumpExitForTest(spawned[spawned.length - 1]);
+	await settleSpawns(spawned, spawned.length + 1, 300);
+	expect(spawned.length).toBe(atCap + 2); // reconfigure + one fresh respawn
 });

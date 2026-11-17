@@ -147,10 +147,27 @@ export interface PumpOptions {
 	allow?: string;
 	logFile: string;
 	pidFile: string;
+	/** Full vif setup opts — the real spawner uses this to RESPAWN a dead pump. */
+	full?: TunnelVifSetupOpts;
 }
 
 export type PumpSpawner = (opts: PumpOptions) => Promise<TunnelPumpHandle>;
 export type PumpKiller = (pid: number) => Promise<void>;
+
+/** Parameters to bring up (or refresh) one tunnel vif (see `setupTunnelVif`). */
+export interface TunnelVifSetupOpts {
+	name: string;
+	localIp: string;
+	prefix: number;
+	mtu?: number;
+	mode: "server" | "client";
+	/** server: `<uplinkIP>:<port>`. */
+	bind?: string;
+	/** client: `<uplinkIP>:<port>`. */
+	remote?: string;
+	/** server: peer pin (`<clientIP>` or `first`; default `first`). */
+	allow?: string;
+}
 
 interface PumpState {
 	pid: number;
@@ -158,9 +175,23 @@ interface PumpState {
 	bind?: string;
 	remote?: string;
 	allow?: string;
+	/** Full setup opts, reused by the exit-watcher to respawn a dead pump.
+	 * Optional: a pump *adopted* from a pid file (survived an app restart)
+	 * has no setup payload to respawn with — if it later dies we just wait
+	 * for the module's next reconcile. */
+	full?: TunnelVifSetupOpts;
+	/** Set while we're tearing the pump down (suppresses the respawn). */
+	stopping: boolean;
 }
 
 const pumps = new Map<string, PumpState>();
+// Respawn bookkeeping: per-netdev restart count (resets on a real reconfigure
+// or teardown) and an in-flight guard so a fast crash can't double-respawn.
+const pumpRestarts = new Map<string, number>();
+const respawning = new Set<string>();
+/** Max consecutive unattended restarts before giving up and waiting for the
+ * module's next reconcile (a persistent failure = misconfig, not a blip). */
+const MAX_PUMP_RESTARTS = 5;
 
 /**
  * Real spawner: detach-launch `udpip` (it opens the TUN fd and starts
@@ -174,6 +205,13 @@ async function realPumpSpawner(opts: PumpOptions): Promise<TunnelPumpHandle> {
 		detached: true,
 	});
 	closeSync(logFd);
+	// Supervise: an unref'd child still fires 'exit' — use it to respawn a
+	// dead pump (the detach-only design dropped this, leaving a killed pump
+	// down until a full reconcile). The child's pid is captured so a stale
+	// exit from a superseded spawn is ignored.
+	child.on("exit", () => {
+		void handlePumpExit(opts.name, child.pid!, opts.full!);
+	});
 	child.unref();
 	if (child.pid == null)
 		throw new Error(`udpip: no pid for ${opts.name}`);
@@ -219,6 +257,52 @@ async function realPumpKiller(pid: number): Promise<void> {
 	}
 }
 
+/**
+ * React to a pump's `exit` event. If the pump died unattended (not an
+ * intentional teardown / reconfigure) and we haven't exhausted the restart
+ * budget, bring the vif back via `setupTunnelVif` (its pump-spawn path
+ * recreates the netdev + addresses + routing). A persistent failure trips the
+ * cap and defers to the module's next reconcile (a real reconfigure resets it).
+ */
+async function handlePumpExit(
+	name: string,
+	pid: number,
+	full: TunnelVifSetupOpts | undefined,
+): Promise<void> {
+	const st = pumps.get(name);
+	// Intentional teardown, or a stale exit from a spawn already superseded by
+	// a reconfigure with a NEW pid — a different spawn's watcher owns it now.
+	if (!st || st.stopping || st.pid !== pid) return;
+	if (respawning.has(name)) return;
+	const done = pumpRestarts.get(name) ?? 0;
+	if (done >= MAX_PUMP_RESTARTS) return;
+	pumpRestarts.set(name, done + 1);
+	respawning.add(name);
+	// Drop it from tracking + delete any orphan netdev so the respawn's `ip
+	// addr add` starts clean (the pump already closed the TUN fd, so its
+	// netdev is normally gone — this guards the stray case).
+	pumps.delete(name);
+	try {
+		await execCmd(IP_BIN, ["link", "del", name]).catch(() => {});
+	} catch {
+		// Already gone.
+	}
+	try {
+		console.log(
+			`udpip: ${name} pump exited — respawning (attempt ${done + 1}/${MAX_PUMP_RESTARTS})`,
+		);
+		if (full) await setupTunnelVif(full);
+	} catch (e) {
+		console.log(
+			`udpip: ${name} respawn failed: ${
+				e instanceof Error ? e.message : String(e)
+			}`,
+		);
+	} finally {
+		respawning.delete(name);
+	}
+}
+
 let pumpSpawner: PumpSpawner = realPumpSpawner;
 let pumpKiller: PumpKiller = realPumpKiller;
 
@@ -238,6 +322,19 @@ export function setPumpKiller(fn: PumpKiller | undefined): void {
 /** Currently tracked pump pids, by netdev name (for tests / debugging). */
 export function pumpPidForTest(name: string): number | undefined {
 	return pumps.get(name)?.pid;
+}
+
+/** Test seam: fire the pump-exit supervisor as if the child's `exit` event
+ * fired (the real spawner wires this to the spawned child, passing its live
+ * pid). `pid` defaults to the currently-tracked pid; pass a distinct one to
+ * simulate a stale exit from a superseded spawn. Lets unit tests exercise the
+ * respawn path without a live process. */
+export function firePumpExitForTest(opts: PumpOptions, pid?: number): void {
+	const st = pumps.get(opts.name);
+	// `pid ?? st.pid`: a test that only cares about "the current pump died"
+	// can omit it; the `st` guard still applies (no state → no-op).
+	if (st || pid != null)
+		void handlePumpExit(opts.name, pid ?? st?.pid ?? -1, opts.full);
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +377,12 @@ export async function setupTunnelVif(opts: {
 	if (existing && !changed) return { name: opts.name }; // no-op
 	if (existing) await killPumpOpt(opts.name);
 
+	// Only a real CONFIG change (new bind/remote/mode) earns a fresh restart
+	// budget. An exit-watcher respawn arrives with no `existing` (we deleted
+	// it) and `changed` false, so it keeps counting — the cap then trips and
+	// defers to the module's next reconcile instead of crash-looping forever.
+	if (changed) pumpRestarts.set(opts.name, 0);
+	const full: TunnelVifSetupOpts = opts;
 	const { pid } = await pumpSpawner({
 		name: opts.name,
 		mode: opts.mode,
@@ -288,6 +391,7 @@ export async function setupTunnelVif(opts: {
 		allow: opts.allow,
 		logFile: TUN_LOG_FILE(opts.name),
 		pidFile: TUN_PID_FILE(opts.name),
+		full,
 	});
 	pumps.set(opts.name, {
 		pid,
@@ -295,6 +399,8 @@ export async function setupTunnelVif(opts: {
 		bind: opts.bind,
 		remote: opts.remote,
 		allow: opts.allow,
+		full,
+		stopping: false,
 	});
 
 	const runAll = async () => {
@@ -320,10 +426,13 @@ export async function setupTunnelVif(opts: {
 	return { name: opts.name };
 }
 
-/** Kill a tracked pump by netdev name (best-effort). */
+/** Kill a tracked pump by netdev name (best-effort). Marks `stopping` first so
+ * the pump's `exit` event does NOT trigger a respawn (intentional teardown or
+ * an imminent reconfigure with a fresh spawn owns the netdev next). */
 async function killPumpOpt(name: string): Promise<void> {
 	const st = pumps.get(name);
 	if (!st) return;
+	st.stopping = true;
 	await pumpKiller(st.pid);
 	pumps.delete(name);
 }
@@ -332,6 +441,7 @@ async function killPumpOpt(name: string): Promise<void> {
  * orphan netdev (ENOENT / ENODEV from a gone netdev is fine). */
 export async function removeTunnelVif(name: string): Promise<void> {
 	await killPumpOpt(name);
+	pumpRestarts.delete(name);
 	for (const args of tunTeardownCommands(name)) {
 		try {
 			await execCmd(IP_BIN, args);
@@ -359,7 +469,14 @@ export function adoptPumpsFromPidFiles(
 		try {
 			const pid = Number(readFileSync(file, "utf8").trim());
 			if (Number.isInteger(pid) && pid > 0)
-				pumps.set(name, { pid, mode: "server", bind: undefined });
+				// No `full` (nothing to respawn with) and not stopping: a
+				// recovered pump just gets tracked until the next reconcile.
+				pumps.set(name, {
+					pid,
+					mode: "server",
+					bind: undefined,
+					stopping: false,
+				});
 		} catch {
 			pumps.delete(name);
 		}
@@ -369,6 +486,8 @@ export function adoptPumpsFromPidFiles(
 /** Clear the in-memory pump registry (test seam + full teardown). */
 export function clearPumpRegistry(): void {
 	pumps.clear();
+	pumpRestarts.clear();
+	respawning.clear();
 }
 
 // ---------------------------------------------------------------------------

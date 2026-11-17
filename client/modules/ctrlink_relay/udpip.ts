@@ -78,10 +78,8 @@ export function relayTunnelsEnabled(): boolean {
 
 /** One eligible uplink the relay can expose as a tunnel. */
 export interface RelayUplink {
-	/** The physical uplink name (e.g. `eth0`). */
+	/** The physical uplink name (e.g. `eth0`) — egress leaves over it. */
 	uplink: string;
-	/** The relay's IP on that uplink (the pump's bind address). */
-	ip: string;
 }
 
 /**
@@ -127,24 +125,31 @@ async function reconcilePass(uplinks: RelayUplink[]): Promise<void> {
 		a.uplink.localeCompare(b.uplink),
 	);
 	for (let i = 0; i < sorted.length; i++) {
-		const { uplink, ip } = sorted[i];
+		const { uplink } = sorted[i];
 		const existing = netdevs.get(uplink);
 		if (existing && existing.index !== i) await teardownNetdev(uplink);
 		if (netdevs.get(uplink)) continue;
-		await ensureNetdev(uplink, ip, i);
+		await ensureNetdev(uplink, i);
 	}
 }
 
-async function ensureNetdev(
-	uplink: string,
-	bindIp: string,
-	index: number,
-): Promise<void> {
+async function ensureNetdev(uplink: string, index: number): Promise<void> {
 	const addr = tunnelAddress(index);
 	const name = `utn-${uplink}`;
 	const listenPort = tunnelListenPort(index);
-	// Server pump: bind the physical uplink's IP on the per-uplink port; the
-	// first datagram source wins (single-peer pin on the trusted link).
+	// Server pump: bind the DED-LINK IP (the address the encoder dials) on the
+	// per-uplink port, NOT the uplink's own IP — the encoder reaches the relay
+	// only over the direct relay↔encoder link, and a socket bound to the uplink
+	// IP would never receive packets dst'd to the ded-link IP. Uplink egress
+	// still leaves over the physical uplink (policy route + MASQUERADE below);
+	// the first datagram source wins (single-peer pin on the trusted link).
+	const bindIp = currentTransportOuterIp();
+	if (!bindIp) {
+		console.warn(
+			`ctrlink_relay udpip: skipping utn-${uplink}: ded-link IP not known yet`,
+		);
+		return;
+	}
 	await setupTunnelVif({
 		name,
 		localIp: addr.relayIp,
