@@ -34,7 +34,7 @@ import {
 	type CtrlinkAnnounce,
 	type CtrlinkDiscoveredEncoder,
 } from "../../../shared/ctrlink_discovery";
-import { execCmd } from "../../../shared/lib/gretap_relay";
+import { execCmd } from "@ctrlirl/wireguard";
 
 /** One announce socket PER attached segment: a `255.255.255.255` datagram
  * only egresses on the subnet of the socket's BIND address, so one

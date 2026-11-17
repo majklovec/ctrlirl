@@ -46,13 +46,13 @@ import type {
 	NetworkInterfaces,
 	Uplinks,
 } from "../../../shared/contracts/module_capabilities";
+import { runCommand, setCmdRunner } from "@ctrlirl/wireguard";
+
 import {
 	createUdpRelay,
 	type IfaceRawSocket,
 	resolveInterfaceAddress,
 	type UdpRelay,
-	runCommand,
-	setCmdRunner,
 } from "../../../shared/lib/gretap_relay";
 import {
 	gretapOuterIpFor,

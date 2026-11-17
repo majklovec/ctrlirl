@@ -33,7 +33,7 @@ import {
 	generateWireGuardKeyPair,
 	DEFAULT_WG_MTU,
 	DEFAULT_WG_KEEPALIVE_SEC,
-} from "../../../shared/lib/gretap_relay";
+} from "@ctrlirl/wireguard";
 import type { CtrlinkRelayWgSpec } from "../../../shared/ctrlink_discovery";
 
 export interface EncoderWgOffer {

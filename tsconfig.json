@@ -11,7 +11,8 @@
         "paths": {
             "@ui/*": ["./shared/ui/*"],
             "@ctrlirl/udp-relay": ["./shared/lib/udp_relay/src/index.ts"],
-            "@ctrlirl/gretap-relay": ["./shared/lib/gretap_relay/src/index.ts"]
+            "@ctrlirl/gretap-relay": ["./shared/lib/gretap_relay/src/index.ts"],
+            "@ctrlirl/wireguard": ["./shared/lib/wireguard/src/index.ts"]
         }
     }
 }
