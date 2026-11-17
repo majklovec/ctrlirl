@@ -8,30 +8,25 @@
 #               (UDP relay legs; iproute2 + raw sockets -> root)
 #
 # Topology
-#   encoder  <--private link-->  relay  <--NAT-->  public internet
+#   internet -- LAN (192.168.1.0/24, router 192.168.1.1)
+#                |
+#             relay eth0  (bridged to the host's LAN interface, 192.168.1.x)
+#             relay  + USB modem (second uplink)
+#                |
+#             relay eth1 (192.168.101.1)  <-- private link -->  encoder (192.168.101.10)
 #
-# Vagrant reserves eth0 for the default NAT network, so a custom network
-# cannot be placed on eth0. The interface mapping is:
+# The relay is the encoder's router + NAT: the encoder has no NAT interface
+# of its own and reaches the internet only through the relay.
 #
-#   encoder  : eth0 = NAT (default),  eth1 = private link (192.168.56.10)
-#   relay    : eth0 = NAT (internet), eth1 = private link (192.168.56.20)
-#              eth2 = shared uplink  (192.168.57.20, host at .1)
-#              eth3 = shared uplink  (192.168.58.20, host at .1)
-#
-# Host UI access (forwarded ports):
-#   relay   : http://127.0.0.1:28085  (CTRLIRL_RELAY_UI_PORT to override)
-#   encoder : http://127.0.0.1:18085
+# UI access (over the LAN, since the relay is bridged):
+#   relay   : http://192.168.1.x:8085   (192.168.101.1:8085 on the link)
+#   encoder : http://192.168.101.10:8085 (via the relay)
 #
 # USB cellular dongles plugged into the host are passed through to the relay
 # (see MODEM_VENDOR_VIDS / RELAY_USB_MODEMS below).
 #
 # The repo is synced to /vagrant on both VMs; that is the working directory
 # for the device clients (bun, generated/, node_modules land in the host repo).
-
-# Extra uplink legs on the relay: host-shared subnets. Vagrant auto-creates
-# the host-only adapter (and gives the host the .1 address) when the
-# virtualbox__intname doesn't exist yet — the same path as the enc-relay link.
-SHARED_SUBNETS = ["192.168.57", "192.168.58"].freeze
 
 # USB modem passthrough to the relay. Exact vid:pid pairs (VirtualBox 7.2
 # filters have no wildcards). Defaults to auto-detection of common 3G/4G/5G
@@ -45,11 +40,33 @@ detected_modems = `lsusb 2>/dev/null`
   .select { |pair| MODEM_VENDOR_VIDS.include?(pair[0, 4].downcase) }
 modem_pairs = (explicit_modems + detected_modems).uniq.freeze
 
+# USB filters are per-VM settings that survive `vagrant up`, and
+# `VBoxManage usbfilter remove <idx>` hard-errors on a fresh VM whose filter
+# list is empty (VBoxManage 7.2 also dropped `usbfilter list`). Clearing
+# stale filters by name at load time — via `showvminfo --machinereadable`,
+# which numbers filters 1-based — keeps the plain `usbfilter add`
+# customizations idempotent. A running VM is left alone: its filters are
+# only re-applied at boot.
+def clear_stale_modem_filters(filter_names, target)
+  state = `VBoxManage showvminfo #{target} --machinereadable 2>/dev/null`
+  return if $?.nil? || !$?.success?
+  return unless /^VMState="(?:poweroff|saved)"/.match?(state)
+  info = `VBoxManage showvminfo #{target} --machinereadable 2>/dev/null`
+  return if $?.nil? || !$?.success?
+  info.scan(/^USBFilterName(\d+)="(.*)"/)
+     .select { |_idx, name| filter_names.include?(name) }
+     .map { |idx, _| idx.to_i }
+     .sort.reverse # indices shift after each removal
+     .each { |idx| system("VBoxManage usbfilter remove #{idx - 1} --target #{target} >/dev/null 2>&1") }
+end
+
+clear_stale_modem_filters(modem_pairs.map { |p| "ctrlirl-modem-#{p.tr(":", "-")}" }, "ctrlirl-relay")
+
 Vagrant.configure("2") do |config|
   config.vm.box = "bento/ubuntu-26.04"
   config.vm.box_version = "202606.01.0"
 
-  link_prefix = "192.168.56"
+  link_prefix = "192.168.101"
 
   # ------------------------------------------------------------------
   # Shared infrastructure (both VMs)
@@ -94,55 +111,14 @@ Vagrant.configure("2") do |config|
       ip: "#{link_prefix}.10",
       virtualbox__intname: "enc-relay"
 
-    # encoder Web UI / WS API on the host: http://127.0.0.1:18085
-    enc.vm.network "forwarded_port", guest: 8085, host: 18085, host_ip: "127.0.0.1"
-
     enc.vm.provider "virtualbox" do |vb|
       vb.name    = "ctrlirl-encoder"
       vb.memory  = 2048
       vb.cpus    = 2
+      # The encoder must not have its own NAT uplink: the relay is its only
+      # route out (router + NAT for 192.168.101.0/24).
+      vb.customize "pre-boot", ["modifyvm", :id, "--nic1", "null"]
     end
-
-    # GStreamer encode pipeline (ceracoder) + the CERALIVE SRT fork the
-    # committed ceracoder/srtla_send binaries link against (same as
-    # Dockerfile.device - SRT is not apt-installable for this build).
-    enc.vm.provision "encoder-runtime", type: "shell", privileged: true, inline: <<-SHELL
-      set -euo pipefail
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update
-      apt-get install -y --no-install-recommends \
-        gstreamer1.0-tools \
-        gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
-        gstreamer1.0-libav gstreamer1.0-x \
-        ffmpeg
-      rm -rf /var/lib/apt/lists/*
-
-      # CERALIVE SRT fork (v1.5.7) -> libsrt.so.1.5.7, bridged to libsrt.so.1.
-      rm -rf /tmp/srt
-      git clone --depth=1 https://github.com/CERALIVE/srt.git /tmp/srt
-      cmake -S /tmp/srt -B /tmp/srt/build \
-        -DCMAKE_INSTALL_PREFIX=/usr/local \
-        -DENABLE_ENCRYPTION=ON -DCRYPTO=openssl
-      cmake --build /tmp/srt/build --parallel "$(nproc)"
-      cmake --install /tmp/srt/build
-      ln -sf /usr/local/lib/libsrt.so.1.5.7 /usr/lib/x86_64-linux-gnu/libsrt.so.1
-      ldconfig
-      rm -rf /tmp/srt
-
-      # srtla_send is a gitignored prebuilt binary on the host — install the
-      # amd64 .deb release (same source as armbian/userpatches/customize-image.sh).
-      srtla_deb_url=$(curl -fsSL "https://api.github.com/repos/irlserver/srtla_send/releases/latest" \
-        | grep -oE '"browser_download_url":\s*"[^"]*amd64\.deb"' | head -n1 | cut -d '"' -f4)
-      curl -fL -o /tmp/srtla_send.deb "${srtla_deb_url}"
-      dpkg -i /tmp/srtla_send.deb
-      rm -f /tmp/srtla_send.deb
-
-      chmod +x /vagrant/ceracoder /vagrant/belacoder 2>/dev/null || true
-
-      # GRETAP tunnel support (kernel; best-effort on box kernel).
-      modprobe gretap 2>/dev/null || true
-    SHELL
 
     enc.vm.provision "encoder-service", type: "shell", privileged: true, inline: <<-SHELL
       set -euo pipefail
@@ -169,56 +145,51 @@ UNIT
   end
 
   # ------------------------------------------------------------------
-  # relay (internet uplink via default NAT)
+  # relay (uplinks: bridged LAN + USB modem; downstream link to the encoder)
   # ------------------------------------------------------------------
   config.vm.define "relay" do |rel|
     rel.vm.hostname = "relay"
+    # eth0: bridge onto the host's LAN interface -> 192.168.1.x via the
+    # main router's DHCP (RELAY_LAN_BRIDGE overrides the interface).
+    rel.vm.network "public_network",
+      bridge: ENV.fetch("RELAY_LAN_BRIDGE", "eno2")
+    # eth1: private link to the encoder; the relay is this subnet's gateway.
     rel.vm.network "private_network",
-      ip: "#{link_prefix}.20",
+      ip: "#{link_prefix}.1",
       virtualbox__intname: "enc-relay"
-    # Extra uplink legs: host-shared subnets (host can reach the relay on
-    # them; the relay's modems module counts each as an uplink).
-    SHARED_SUBNETS.each do |cidr|
-      rel.vm.network "private_network",
-        ip: "#{cidr}.20",
-        virtualbox__intname: "relay-up-#{cidr.tr(".", "-")}"
-    end
-    # relay Web UI / WS API on the host: http://127.0.0.1:28085
-    # (8085 itself is taken by the local dev client from run.sh; override with
-    #  CTRLIRL_RELAY_UI_PORT=8085 once that process is stopped.)
-    rel.vm.network "forwarded_port",
-      guest: 8085, host: ENV.fetch("CTRLIRL_RELAY_UI_PORT", "28085").to_i, host_ip: "127.0.0.1"
-    # Optional physical uplink: rel.vm.network "public_network", bridge: "enp3s0"
 
     rel.vm.provider "virtualbox" do |vb|
       vb.name    = "ctrlirl-relay"
       vb.memory  = 2048
       vb.cpus    = 2
+      # Remove the leftover host-only adapters from the previous layout
+      # (192.168.56/57/58) once nothing references them anymore.
+      vb.destroy_unused_network_interfaces = true
+      # USB controller; required for the modem filters below (applied per
+      # boot, since it cannot be toggled on a running VM)
+      vb.customize "pre-boot", ["modifyvm", :id, "--usb", "on"]
       # One USB filter per modem -> the dongle is grabbed by the relay.
-      # (VBox 7.2 usbfilter syntax; remove-then-add keeps reloads idempotent.)
+      # (clear_stale_modem_filters() at file load time keeps re-runs idempotent.)
       modem_pairs.each_with_index do |pair, idx|
         vid, pid = pair.split(":")
-        vb.customize ["usbfilter", "remove", idx.to_s, "--target", "ctrlirl-relay"]
         vb.customize ["usbfilter", "add", idx.to_s, "--target", "ctrlirl-relay",
           "--name", "ctrlirl-modem-#{vid}-#{pid}", "--vendorid", vid, "--productid", pid]
       end
     end
 
-    rel.vm.provision "relay-runtime", type: "shell", privileged: true, inline: <<-SHELL
-      set -euo pipefail
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update
-      apt-get install -y --no-install-recommends \
-        gstreamer1.0-tools gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
-        gstreamer1.0-plugins-ugly gstreamer1.0-libav \
-        usb-modeswitch usbutils
-      rm -rf /var/lib/apt/lists/*
 
-      # GRETAP tunnel support (kernel; best-effort on box kernel).
-      modprobe gretap 2>/dev/null || true
-      # USB cellular modems (host-attached dongles are passed through).
-      for m in qmi_wwan cdc_wwan option usbnet cdc_ncm; do modprobe $m 2>/dev/null || true; done
+
+    # The relay routes + NATs the encoder subnet out through the uplinks
+    # (bridged LAN and USB modem). eth1 is the encoder link; masquerade is
+    # applied on every other outgoing interface, wherever the modem shows up.
+    rel.vm.provision "relay-nat", type: "shell", privileged: true, inline: <<-SHELL
+      set -euo pipefail
+      echo 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/99-ctrlirl-relay.conf
+      sysctl -w net.ipv4.ip_forward=1 >/dev/null
+      nft delete table ip ctrlirl_nat 2>/dev/null || true
+      nft add table ip ctrlirl_nat
+      nft add chain ip ctrlirl_nat postrouting '{ type nat hook postrouting priority 100 ; }'
+      nft add rule ip ctrlirl_nat postrouting ip saddr 192.168.101.0/24 oifname .!= "eth1" masquerade
     SHELL
 
     # Runs as root (raw sockets / SO_BINDTODEVICE) exactly like
@@ -246,11 +217,7 @@ UNIT
     SHELL
   end
 
-  # ------------------------------------------------------------------
-  # Optional: physical internet uplink for the relay.
-  # The relay already has internet through its default NAT (eth0). To attach
-  # it directly to your LAN / internet interface instead, uncomment the
-  # "public_network" line in the relay block and set `bridge` to a host
-  # interface (e.g. enp3s0). This adds eth2 to the relay.
-  # ------------------------------------------------------------------
+  # The relay's uplinks:
+  #   1. eth0 bridged onto the host's LAN (RELAY_LAN_BRIDGE, default eno2)
+  #   2. the USB modem passed through via the filters above
 end
