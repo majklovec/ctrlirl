@@ -1,7 +1,8 @@
 /*
  * ctrlink_streamer module (encoder side). For every relay-announced uplink
- * carrying a `tunnel` offer, the encoder builds one per-uplink `utn-<if>`
- * plain-UDP↔TUN vif (udpip.ts), and, with `autoRegisterUplink` on, registers
+ * carrying a `tunnel` offer, the encoder builds one per-uplink `utn<R>-<if>`
+ * plain-UDP↔TUN vif (udpip.ts, `R` = the relay's stable index on this
+ * encoder), and, with `autoRegisterUplink` on, registers
  * each vif IP as a `network.uplinks` entry via `syncVifUplinks` so
  * `srtla_send` picks the extra paths up without user intervention (spec
  * 100-ctrlink §6, §7.2, §8.3). The tunnel vifs ARE the transport — there is
@@ -123,6 +124,14 @@ const tunnelOffers = new Map<
 	string,
 	{ ip: string; spec: CtrlinkTunnelSpec }[]
 >();
+/**
+ * Sticky 0-based index per relay host, assigned on first sight and never
+ * reused. The index names the encoder's vifs `utn<index>-<if>` so two relays
+ * that both expose an `eth0` uplink produce distinct netdev names; and a
+ * relay that drops and re-announces keeps its index, so its vifs (plus
+ * route tables and uplink ids) survive WS flaps without being rebuilt.
+ */
+const relayIndexes = new Map<string, number>();
 /** The encoder's ded-link iface (destination of the transport-isolation
  * route). Derived from the first relay's WS peer address's iface. */
 let tunnelTransportDev = "eth0";
@@ -281,8 +290,8 @@ async function isLocallyOnLink(destIp: string): Promise<boolean> {
 }
 
 /**
- * Reconcile the encoder's tunnel vifs: build a `utn-<if>` per offered uplink
- * (skipping on-link ones) and register each vif IP as an SRTLA uplink.
+ * Reconcile the encoder's tunnel vifs: build a `utn<R>-<if>` per offered
+ * uplink (skipping on-link ones) and register each vif IP as an SRTLA uplink.
  * Coalesced + best-effort: a failure never blocks the TUN reconcile.
  */
 async function doSyncEncoderTunnels(): Promise<void> {
@@ -294,11 +303,20 @@ async function doSyncEncoderTunnels(): Promise<void> {
 	});
 	const offers: EncoderTunnelOffer[] = [];
 	for (const [host, list] of tunnelOffers) {
+		// First sight of a relay host → assign (and pin) its index. The index
+		// names the encoder's vifs `utn<index>-<if>` so two relays that both
+		// expose an `eth0` uplink produce distinct netdev names rather than
+		// clashing on one name.
+		let idx = relayIndexes.get(host);
+		if (idx === undefined) {
+			idx = relayIndexes.size;
+			relayIndexes.set(host, idx);
+		}
 		for (const { ip, spec } of list) {
 			// On-link filter (explicit requirement): an uplink the encoder
 			// already reaches directly is not tunnelled.
 			if (ip && (await isLocallyOnLink(ip))) continue;
-			offers.push({ relayId: host, spec });
+			offers.push({ relayId: host, relayIndex: idx, spec });
 		}
 	}
 	await reconcileEncoderTunnels(offers, new Set<string>());
@@ -847,6 +865,7 @@ const registration: BackendModule<ModuleCore> = {
 		}
 		tunnelUplinkIds.clear();
 		tunnelOffers.clear();
+		relayIndexes.clear(); // fresh first-seen order ⇒ stable 0-based indices
 		await stopEncoderTunnels();
 	},
 	/** Resume the tunnel vifs across process restarts. */

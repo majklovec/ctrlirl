@@ -1,10 +1,12 @@
 /*
  * Encoder-side plain-UDP↔TUN multi-uplink vifs. For each relay-announced
- * uplink carrying a `tunnel` spec, the encoder builds ONE `utn-<if>` TUN
- * netdev + a `udpip` client pump that forwards IP datagrams to the relay:
+ * uplink carrying a `tunnel` spec, the encoder builds ONE `utn<R>-<if>` TUN
+ * netdev (`R` = the relay's stable 0-based index on this encoder, so two
+ * relays exposing the same uplink name can't clash) + a `udpip` client pump
+ * that forwards IP datagrams to the relay:
  *   - local /30 (`10.200.<n>.2`),
  *   - a per-vif routing table (rule `from <localIp> table <t>` + default via
- *     the vif) so `ping -I utn-<if>` egresses through that uplink,
+ *     the vif) so `ping -I utn<R>-<if>` egresses through that uplink,
  *   - an explicit transport-isolation route so the outer tunnel UDP leaves
  *     over the dedicated relay↔encoder link, never via the tunnel.
  *
@@ -29,6 +31,9 @@ import type { CtrlinkTunnelSpec } from "../../../shared/ctrlink_discovery";
 
 export interface EncoderTunnelOffer {
 	relayId: string;
+	/** The relay's stable 0-based index on this encoder — names the vif
+	 * `utn<index>-<if>` so two relays exposing the same uplink name can't clash. */
+	relayIndex: number;
 	spec: CtrlinkTunnelSpec;
 }
 
@@ -41,6 +46,11 @@ interface EncoderVif {
 	listenPort: number;
 	routeTable: number;
 	rulePriority: number;
+}
+
+/** The `utn<relayIndex>-<uplink>` netdev name for one (relay, uplink) pair. */
+export function encoderVifName(relayIndex: number, uplink: string): string {
+	return `utn${relayIndex}-${uplink}`;
 }
 
 const vifs = new Map<string, EncoderVif>();
@@ -60,8 +70,8 @@ export function configureEncoderTunnels(cfg: {
 }
 
 /**
- * Reconcile the encoder's `utn-<if>` vifs toward the offered set. `ownIfaces`
- * is the encoder's own interface-name set (the on-link filter).
+ * Reconcile the encoder's `utn<R>-<if>` vifs toward the offered set.
+ * `ownIfaces` is the encoder's own interface-name set (the on-link filter).
  */
 export async function reconcileEncoderTunnels(
 	offers: EncoderTunnelOffer[],
@@ -75,15 +85,23 @@ export async function reconcileEncoderTunnels(
 	inFlight = true;
 	try {
 		// Desired: one offer per uplink, skipping any that collide with an
-		// interface the encoder already owns (on-link filter).
+		// interface the encoder already owns (on-link filter). The uplink is
+		// derived from the relay's `utn-<if>` spec name; the ENCODER's own
+		// netdev is renamed `utn<relayIndex>-<if>` (below) so two relays that
+		// both expose `eth0` never produce a clashing name.
 		const desired = new Map<
 			string,
-			{ spec: CtrlinkTunnelSpec; relayId: string }
+			{
+				spec: CtrlinkTunnelSpec;
+				relayId: string;
+				relayIndex: number;
+			}
 		>();
-		for (const { spec, relayId } of offers) {
+		for (const { spec, relayId, relayIndex } of offers) {
 			const uplink = spec.virtualInterface.replace(/^utn-/, "");
 			if (ownIfaces.has(uplink)) continue; // on-link: don't tunnel it
-			if (!desired.has(uplink)) desired.set(uplink, { spec, relayId });
+			if (!desired.has(uplink))
+				desired.set(uplink, { spec, relayId, relayIndex });
 		}
 
 		// Remove vifs no longer offered.
@@ -92,7 +110,8 @@ export async function reconcileEncoderTunnels(
 
 		// Build the rest (idempotent: existing vifs are kept as-is).
 		for (const [uplink, d] of desired)
-			if (!vifs.has(uplink)) await ensureVif(uplink, d.spec, d.relayId);
+			if (!vifs.has(uplink))
+				await ensureVif(uplink, d.spec, d.relayId, d.relayIndex);
 	} catch (e) {
 		console.warn(`ctrlink_streamer udpip: reconcile failed: ${String(e)}`);
 	} finally {
@@ -104,8 +123,12 @@ async function ensureVif(
 	uplink: string,
 	spec: CtrlinkTunnelSpec,
 	relayId: string,
+	relayIndex: number,
 ): Promise<void> {
-	const name = spec.virtualInterface;
+	// The relay's spec name is `utn-<if>`; the encoder's netdev is renamed to
+	// `utn<relayIndex>-<if>` so a second relay exposing the same uplink name
+	// (e.g. `eth0`) can't collide with the first.
+	const name = encoderVifName(relayIndex, uplink);
 	const routeTable = tunnelRouteTable(spec.uplinkIndex);
 	const listenPort = tunnelListenPort(spec.uplinkIndex);
 	// Encoder vif: local /30 `.2`, the relay as the tunnel remote.

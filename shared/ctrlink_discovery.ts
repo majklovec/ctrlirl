@@ -43,16 +43,19 @@ export const CTRLINK_BROADCAST_ADDR = "255.255.255.255";
 
 /**
  * Name pattern of an ENCODER-side CtrLink tunnel interface. The
- * `ctrlink_streamer` raises a per-uplink `utn-<iface>` TUN netdev (e.g.
- * `utn-eth0`); historically these were WireGuard netdevs (`wg-eth0`) and
- * before that TUNs (`relay0_wg0`, 15-char limit). Any interface listing that
- * means "the device's real interfaces" (the network card's "Own interfaces"
- * group, relay eligibility) must exclude the tunnels — they are paths to a
- * relay's shared uplink, not the machine's own links. This is the single
- * source of truth shared by the `network` backend
- * (`listNetworkInterfaces`) and the network card.
+ * `ctrlink_streamer` raises a per-uplink `utn<R>-<iface>` TUN netdev (e.g.
+ * `utn0-eth0`) where `R` is the relay's stable 0-based index on this encoder —
+ * so two relays that both expose an `eth0` uplink never produce clashing netdev
+ * names. The legacy `utn-<iface>` (no index) form is still recognised.
+ * Historically these were WireGuard netdevs (`wg-eth0`) and before that TUNs
+ * (`relay0_wg0`, 15-char limit). Any interface listing that means "the device's
+ * real interfaces" (the network card's "Own interfaces" group, relay
+ * eligibility) must exclude the tunnels — they are paths to a relay's shared
+ * uplink, not the machine's own links. This is the single source of truth shared
+ * by the `network` backend (`listNetworkInterfaces`) and the network card.
  */
-export const CTRLINK_TUN_NAME_RE = /^(?:relay\d+_|wg-|utn-)[a-z0-9_.-]+$/u;
+export const CTRLINK_TUN_NAME_RE =
+	/^(?:relay\d+_|wg-|utn\d*-)[a-z0-9_.-]+$/u;
 
 /** True when `name` is an encoder-side CtrLink tunnel TUN (see the RE above). */
 export const isCtrlinkTun = (name: string): boolean =>
