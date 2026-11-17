@@ -18,6 +18,7 @@ import {
 	tunnelListenPort,
 	tunnelRouteTable,
 	tunTeardownCommands,
+	uplinkDefaultGateway,
 	type PumpOptions,
 } from "../src/index";
 
@@ -122,12 +123,14 @@ test("pumpArgs: client mode dials remote", () => {
 	).toEqual(["client", "--tun", "utn-eth0", "--remote", "10.0.0.1:51820"]);
 });
 
-test("defaults: 1400 MTU + 51820 base + 101 table base + per-index /30", () => {
+test("defaults: 1400 MTU + 51820 base + 201 table base + per-index /30", () => {
 	expect(DEFAULT_TUN_MTU).toBe(1400);
 	expect(tunnelListenPort(0)).toBe(51820);
 	expect(tunnelListenPort(1)).toBe(51821);
-	expect(tunnelRouteTable(0)).toBe(101);
-	expect(tunnelRouteTable(1)).toBe(102);
+	// 201+, NOT 101 — the relay `network` module owns tables 100+ (101, 102…)
+	// for its per-uplink source routing; a tunnel table there would collide.
+	expect(tunnelRouteTable(0)).toBe(201);
+	expect(tunnelRouteTable(1)).toBe(202);
 	expect(tunnelAddress(0)).toEqual({
 		relayIp: "10.200.1.1",
 		encoderIp: "10.200.1.2",
@@ -283,7 +286,7 @@ test("ensureTunnelRelayEgress: rule + route + MASQUERADE + FORWARD", async () =>
 		uplink: "eth0",
 		tunName: "utn-eth0",
 		encoderSubnet: "10.200.1.2/30",
-		routeTable: 101,
+		routeTable: 201,
 		rulePriority: 1000,
 	});
 	// An ip rule add…
@@ -300,7 +303,7 @@ test("ensureTunnelRelayEgress: rule + route + MASQUERADE + FORWARD", async () =>
 				c.args[0] === "route" &&
 				c.args[1] === "add" &&
 				c.args.includes("table") &&
-				c.args.includes("101"),
+				c.args.includes("201"),
 		),
 	).toBe(true);
 	// …and iptables NAT + FORWARD rules.
@@ -312,6 +315,113 @@ test("ensureTunnelRelayEgress: rule + route + MASQUERADE + FORWARD", async () =>
 				c.args.includes("-t") &&
 				c.args.includes("nat") &&
 				c.args.includes("MASQUERADE"),
+		),
+	).toBe(true);
+});
+
+test("ensureTunnelRelayEgress: replaces a stale default in the per-tunnel table", async () => {
+	const calls: Array<{ bin: string; args: string[] }> = [];
+	// `route show table 101` reports a stale POC default on a DIFFERENT
+	// uplink — the case that would skip the correct egress install.
+	const runner = async (bin: string, args: string[]) => {
+		calls.push({ bin, args: [...args] });
+		if (ip(bin, args) && args[0] === "route" && args[1] === "show")
+			return "default via 192.168.10.100 dev eth1";
+		return "";
+	};
+	setCmdRunner(runner);
+	await ensureTunnelRelayEgress({
+		uplink: "eth0",
+		tunName: "utn-eth0",
+		encoderSubnet: "10.200.1.2/30",
+		routeTable: 201,
+		rulePriority: 1000,
+	});
+	// The stale default on the wrong uplink is removed…
+	expect(
+		calls.some(
+			(c) =>
+				ip(c.bin, c.args) &&
+				c.args[0] === "route" &&
+				c.args[1] === "del" &&
+				c.args.includes("default") &&
+				c.args.includes("201"),
+		),
+	).toBe(true);
+	// …and the correct `default dev eth0` is installed in table 201.
+	expect(
+		calls.some(
+			(c) =>
+				ip(c.bin, c.args) &&
+				c.args[0] === "route" &&
+				c.args[1] === "add" &&
+				c.args.includes("default") &&
+				c.args.includes("eth0") &&
+				c.args.includes("201"),
+		),
+	).toBe(true);
+});
+
+test("uplinkDefaultGateway: resolves the via-gateway for the given uplink", async () => {
+	const calls: Array<{ bin: string; args: string[] }> = [];
+	const runner = async (bin: string, args: string[]) => {
+		calls.push({ bin, args: [...args] });
+		if (ip(bin, args) && args.includes("route") && args.includes("show"))
+			return [
+				"default via 192.168.1.1 dev eth0",
+				"default via 10.128.219.98 dev wwan0 proto static metric 700",
+			].join("\n");
+		return "";
+	};
+	setCmdRunner(runner);
+	expect(await uplinkDefaultGateway("eth0")).toBe("192.168.1.1");
+	expect(await uplinkDefaultGateway("wwan0")).toBe("10.128.219.98");
+	expect(await uplinkDefaultGateway("usb0")).toBe("");
+	expect(
+		calls.some(
+			(c) =>
+				ip(c.bin, c.args) &&
+				c.args.includes("route") &&
+				c.args.includes("show") &&
+				c.args.includes("-o") &&
+				c.args.includes("-4"),
+		),
+	).toBe(true);
+});
+
+test("ensureTunnelRelayEgress: installs `via <gw>` default when the uplink has one", async () => {
+	const calls: Array<{ bin: string; args: string[] }> = [];
+	const runner = async (bin: string, args: string[]) => {
+		calls.push({ bin, args: [...args] });
+		if (ip(bin, args) && args.includes("route") && args.includes("show")) {
+			// main-table lookup (has -o) returns the uplink gateway; the
+			// per-tunnel table is empty (fresh install).
+			return args.includes("-o")
+				? "default via 192.168.1.1 dev eth0"
+				: "";
+		}
+		return "";
+	};
+	setCmdRunner(runner);
+	await ensureTunnelRelayEgress({
+		uplink: "eth0",
+		tunName: "utn-eth0",
+		encoderSubnet: "10.200.1.2/30",
+		routeTable: 201,
+		rulePriority: 1000,
+	});
+	// The egress default must carry the via-gateway (a bare `dev eth0`
+	// scope-link default breaks forwarded traffic — verified live).
+	expect(
+		calls.some(
+			(c) =>
+				ip(c.bin, c.args) &&
+				c.args[0] === "route" &&
+				c.args[1] === "add" &&
+				c.args.includes("via") &&
+				c.args.includes("192.168.1.1") &&
+				c.args.includes("eth0") &&
+				c.args.includes("201"),
 		),
 	).toBe(true);
 });

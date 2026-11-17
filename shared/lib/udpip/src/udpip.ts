@@ -45,10 +45,16 @@ export function tunnelListenPort(uplinkIndex: number): number {
 	return TUN_LISTEN_PORT_BASE + uplinkIndex;
 }
 
-/** Deterministic per-tunnel routing-table id (101,102,103 for `i`=0,1,2).
- * Relay and encoder derive the same number from the index. */
+/** Deterministic per-tunnel routing-table id (201,202,203 for `i`=0,1,2).
+ * Relay and encoder derive the same number from the index.
+ *
+ * Base 201 — NOT 101. The relay's `network` routing module already owns
+ * tables 100+ (101, 102, …) for its per-uplink source routing; a tunnel
+ * table in that range would fight it for the same table (its uplink default
+ * re-adds on every reconcile and defeats `route add default`, leaving tunnel
+ * egress pointing at the wrong interface). 201+ sits clear of it. */
 export function tunnelRouteTable(uplinkIndex: number): number {
-	return 101 + uplinkIndex;
+	return 201 + uplinkIndex;
 }
 /** Tunnel MTU: wwan-friendly headroom (the relay carries cellular uplinks). */
 export const DEFAULT_TUN_MTU = 1400;
@@ -523,9 +529,30 @@ export async function ensureIpForward(): Promise<void> {
 }
 
 /**
+ * Return the main-table default gateway used to reach the given uplink
+ * interface ("" when the uplink has no via-gateway default, e.g. a point-to-
+ * point link whose peer is directly connected).
+ */
+export async function uplinkDefaultGateway(uplink: string): Promise<string> {
+	const shown = await execCmd(IP_BIN, [
+		"-o",
+		"-4",
+		"route",
+		"show",
+		"default",
+	]).catch(() => "");
+	for (const line of shown.split("\n")) {
+		if (!line.startsWith("default via ")) continue;
+		const fields = line.split(/\s+/);
+		if (fields[3] === "dev" && fields[4] === uplink) return fields[2];
+	}
+	return "";
+}
+
+/**
  * Idempotently apply the relay-side policy routing + NAT for ONE tunnel:
- * `ip rule` (source = encoder /30 → per-tunnel table), `default dev <uplink>`
- * in that table, MASQUERADE on the uplink, and FORWARD rules both ways. Call
+ * `ip rule` (source = encoder /30 → per-tunnel table), `default` in that
+ * table, MASQUERADE on the uplink, and FORWARD rules both ways. Call
  * once per uplink after its `utn-<if>` netdev is up.
  */
 export async function ensureTunnelRelayEgress(opts: {
@@ -553,23 +580,47 @@ export async function ensureTunnelRelayEgress(opts: {
 			String(rulePriority),
 		]);
 
-	// 2. route in the per-tunnel table: default out the physical uplink.
+	// 2. route in the per-tunnel table: default OUT the physical uplink.
+	//    A bare `default dev <uplink> scope link` default is NOT sufficient
+	//    for forwarded (tunnel-originated) traffic: the kernel re-validates
+	//    the FIB lookup on the output leg, and a scope-link default resolves
+	//    to "no nexthop" for a non-direct destination → 100% loss even with
+	//    FORWARD accepted (verified live). Install `default via <gw> dev
+	//    <uplink>` using the uplink's main-table gateway. Match the exact
+	//    form we install — a stale default on a different dev/gateway must
+	//    not survive, and `ip route add` refusing a second default would
+	//    leave egress pointing the wrong way. Drop any existing default
+	//    first, then install the correct one.
+	const gw = await uplinkDefaultGateway(uplink);
+	const wantDefault = gw
+		? `default via ${gw} dev ${uplink}`
+		: `default dev ${uplink}`;
 	const routeShown = await execCmd(IP_BIN, [
 		"route",
 		"show",
 		"table",
 		String(routeTable),
 	]).catch(() => "");
-	if (!routeShown.includes("default"))
+	if (!routeShown.includes(wantDefault)) {
+		if (/^default\b/m.test(routeShown))
+			await execCmd(IP_BIN, [
+				"route",
+				"del",
+				"default",
+				"table",
+				String(routeTable),
+			]).catch(() => {});
 		await execCmd(IP_BIN, [
 			"route",
 			"add",
 			"default",
+			...(gw ? ["via", gw] : []),
 			"dev",
 			uplink,
 			"table",
 			String(routeTable),
 		]);
+	}
 
 	// 3. NAT: MASQUERADE tunnel-sourced traffic leaving the physical uplink.
 	const natOk = await cmdSucceeds(IPTABLES_BIN, [

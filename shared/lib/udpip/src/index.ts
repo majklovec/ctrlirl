@@ -33,6 +33,7 @@ export {
 	tunnelListenPort,
 	tunnelRouteTable,
 	ensureIpForward,
+	uplinkDefaultGateway,
 	ensureTunnelRelayEgress,
 	revokeTunnelRelayEgress,
 	ensureTunnelEncoderRouting,
