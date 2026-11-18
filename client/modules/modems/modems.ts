@@ -227,13 +227,16 @@ async function bearerGateway(index: number): Promise<string | undefined> {
 
 async function scanModems(): Promise<ModemInfo[]> {
     const list = [...(await mmcli("-L")).matchAll(/Modem\/(\d+)\s+(.*)$/gm)];
-    return Promise.all(
+    const modems = await Promise.all(
         list.map(async ([, index, label]) => {
             const info = await modemDetails(Number(index), label.trim());
             info.gateway = await bearerGateway(Number(index));
             return info;
         }),
     );
+    // `mmcli -L` order is not guaranteed (10 sorts before 2 as text) — keep a
+    // stable numeric index order for the panels and the auto-dial loop.
+    return modems.sort((a, b) => a.index - b.index);
 }
 
 let scanning: Promise<ModemInfo[]> | null = null;
