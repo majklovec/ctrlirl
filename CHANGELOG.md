@@ -1,3 +1,12 @@
+## [8.2.1](https://github.com/majklovec/ctrlirl/compare/v8.2.0...v8.2.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **ctrlink_relay:** release pendingConnects when the encoder WS closes ([0f59f66](https://github.com/majklovec/ctrlirl/commit/0f59f66a8bc309617a6b00ab1cf38b3db6ebe204))
+* **encoder:** default pipelines dir to ./pipeline ([4ca4ea4](https://github.com/majklovec/ctrlirl/commit/4ca4ea40677e3f30123ab5f58a92db2211002b21))
+* **network:** honor empty bond selection and let CtrLink TUNs bond ([1dd492d](https://github.com/majklovec/ctrlirl/commit/1dd492d371063d99c43e443392e5f93b72be8ef7))
+
 # [8.2.0](https://github.com/majklovec/ctrlirl/compare/v8.1.0...v8.2.0) (2026-11-17)
 
 
