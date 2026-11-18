@@ -1,133 +1,442 @@
-/* A per-uplink relay handle (data-path state surface).
+/**
+ * The relay-box side of the MobLink transparent L3 bridge.
  *
- * The WireGuard tunnels own the transport, so there is no userspace packet
- * loop: this is a lightweight handle the relay module uses to track a live
- * uplink slot (its resolved address + bookkeeping). The factory validates its
- * options and returns a handle whose `start()`/`stop()` are idempotent no-ops.
- * `createUdpRelay` keeps the historical surface (`stats()`, `isRunning()`, …)
- * so the relay module compiles unchanged.
+ * One relay instance = one leg: one encoder (or group of encoders sharing the
+ * vif), one uplink interface. The relay owns:
+ *
+ *   - ONE UDP socket bound to 0.0.0.0:listenPort (all local addresses), and
+ *   - ONE TUN device carrying the virtual-interface /32.
+ *
+ * The kernel does the rest: a per-leg `ip rule` on iif = tun pins egress to
+ * the uplink NIC, `to vif/32 dev tun` + conntrack (masquerade) steer replies
+ * back through the TUN, so the user space never touches a packet header.
+ * See `NAT.md`.
+ *
+ * No raw sockets, no user-space NAT: a packet costs one UDP delivery
+ * callback + one TUN write (or the reverse).
  */
-import { IFACE_NAME_RE, resolveInterfaceAddress } from "./ifaces";
-import { isValid as isValidIpv4 } from "./ip";
-import { newRelayStats } from "./stats";
-import type { IfaceRawSocket } from "./net_linux";
-import type { RelayStats } from "./types";
+
+import { networkInterfaces } from "node:os";
+import { bytesToU32, isIpv4, u32ToIp } from "./ip";
+import {
+    DATA_HEADER_LEN,
+    decodeFrame,
+    encodeKeepaliveFrame,
+    sniffFrameKind,
+    writeDataHeader,
+} from "./protocol";
+import { newRelayStats, noteError } from "./stats";
+import { openTun, type TunDevice, type TunFactory } from "./tun_linux";
+import type { CommandRunner, RelayStats } from "./types";
+
+// --- Listener-level socket abstraction (tests inject a fake; Bun in prod) ---
+
+/** One delivered UDP datagram plus its sender. */
+export interface SocketEvent {
+    buf: Uint8Array;
+    addr: string;
+    port: number;
+}
+
+export interface RelaySocket {
+    send(buf: Uint8Array, port: number, addr: string): void | boolean;
+    close(): void;
+}
+
+export type RelaySocketFactory = (
+    port: number,
+    host: string,
+    onEvent: (event: SocketEvent) => void,
+    onError: (err: unknown) => void,
+) => Promise<RelaySocket>;
+
+/**
+ * The production UDP listener. Binds `host:port` - `host: "0.0.0.0"`
+ * receives on every local address, so the relay works no matter which NIC
+ * the encoder reached through.
+ */
+export function bunRelaySocketFactory(
+    port: number,
+    host: string,
+    onEvent: (event: SocketEvent) => void,
+    onError: (err: unknown) => void,
+): Promise<RelaySocket> {
+    // Bun 1.4: async constructor; binding happens from the port/hostname
+    // options (no `.bind()`). `reusePort` lets a restarting leg grab its
+    // port before the old listener fully releases it.
+    type UdpOpts = {
+        port: number;
+        hostname: string;
+        reusePort: boolean;
+        socket: {
+            data: (
+                s: unknown,
+                buf: Uint8Array,
+                port: number,
+                addr: string,
+            ) => void;
+            error: (e: unknown) => void;
+        };
+    };
+    const ctor = Bun.udpSocket as unknown as (
+        opts: UdpOpts,
+    ) => Promise<RelaySocket>;
+    return ctor({
+        port,
+        hostname: host,
+        reusePort: true,
+        socket: {
+            data: (_s, buf, p, a) => onEvent({ buf, addr: a, port: p }),
+            error: (e) => onError(e),
+        },
+    });
+}
+
+// --- Options / public interface ---------------------------------------------
 
 export interface UdpRelayOptions {
-    /** The interface name (legacy: the bound physical interface). */
+    /** Uplink interface this leg exits through (e.g. "eno1"). The backend
+     * provisions the routing/conntrack for it; the relay itself only needs
+     * the name for reporting. */
     interfaceName: string;
-    /** UDP port (legacy: the encoder-facing socket port; ignored). */
+    /** UDP port the encoder dials. Bound on all local addresses. */
     listenPort: number;
+    /** The virtual-interface /32 this leg bridges (the TUN address). */
+    vifIp: string;
+    /** Name of the TUN device backing this leg (the backend provisions it).
+     * Default `"rltun0"` - relay-side leg TUNs are `rltun<slot>` (`relay*`
+     * names belong to the encoder-side tunnels). Must be ≤15 chars and match
+     * the TUN-name matcher so the network module hides it from uplinks. */
+    tunName?: string;
     /**
-     * The uplink's peer IPv4 (was: the relay's listen address). Accepted and
-     * validated; the WireGuard tunnel is reached at it over the transport IP.
+     * Local address to bind the listener to. Default `"0.0.0.0"` - every
+     * local address, which is what makes the relay NIC-agnostic. Set a
+     * specific IP to restrict the leg (tests).
      */
-    destination?: { host: string; port: number };
-    /** Override the resolved interface IPv4 (skips os.networkInterfaces()). */
+    listenAddress?: string;
+    /** Address shown in status output (default: the listen address). */
     interfaceAddress?: string;
-    /** Legacy NAT source override (ignored — the kernel does no NAT here). */
-    natAddress?: string;
-    /** Legacy: NAT mode flag (ignored). */
-    nat?: boolean;
-    /** Legacy test seam: accepted (and closed on `stop()`), never used. */
-    ifaceSocket?: IfaceRawSocket;
     onStats?: (s: RelayStats) => void;
-    /** Legacy: vif-learned callback (never fires — there is no vif concept). */
+    /** Periodic stats emission interval in ms (0 = only on lifecycle). */
+    statsIntervalMs?: number;
+    /**
+     * Invoked once with the leg's vif IP, at end of `start()`. Retained for
+     * callers that bind a known vif at provision time; the production
+     * backend installs the vif-independent base plan here.
+     */
     onVifLearned?: (vifIp: string) => void;
+    /**
+     * Invoked with the encoder's vif IP the FIRST time a data frame for a
+     * given vif arrives on the wire (and again if the vif changes). This is
+     * the value the backend keys its `to vif/32 dev tun` reply route +
+     * MASQUERADE on - the relay reads it from the frame header because it
+     * cannot derive `10.{90+x}.{y}.1` (only the encoder knows x, y). The
+     * callback may be async; the relay does not block the hot path on it.
+     */
+    onEncoderVifLearned?: (vifIp: string) => void | Promise<void>;
+    /** TUN factory (tests / non-Linux). */
+    tunFactory?: TunFactory;
+    /** UDP listener factory (tests / Bun-less runtimes). */
+    socketFactory?: RelaySocketFactory;
+    /** Command runner for the TUN factory's shell-outs. */
+    runCommand?: CommandRunner;
 }
 
 export interface UdpRelay {
     readonly interfaceName: string;
     readonly interfaceAddress: string;
-    /** SNAT source (defaults to `interfaceAddress`). Legacy compat. */
-    readonly natAddress: string;
+    /** Address the single UDP listener binds (all NICs in the NIC-agnostic design). */
+    readonly listenAddress: string;
     readonly listenPort: number;
-    /** Resolved uplink peer IP. */
-    readonly destination: string;
     start(): Promise<void>;
     stop(): Promise<void>;
     stats(): RelayStats;
     isRunning(): boolean;
+    /** Name of the TUN device backing this leg. */
+    vifName(): string;
+    readonly lastError: string | null;
 }
+
+const InterfaceRe = /^[a-zA-Z0-9_.-]{1,15}$/;
+
+/** Resolve `interfaceName` → its first IPv4 address via os.networkInterfaces(). */
+export function resolveInterfaceAddress(
+    interfaceName: string,
+    family: 4 | 6 = 4,
+): string {
+    if (!InterfaceRe.test(interfaceName)) {
+        throw new Error(`unsafe interface name: ${interfaceName}`);
+    }
+    const ifaces = networkInterfaces();
+    const addrs = ifaces[interfaceName];
+    const match = (addrs ?? []).find((a) => a.family === `IPv${family}`);
+    if (!match)
+        throw new Error(
+            `no IPv${family} address on interface ${interfaceName} to bind`,
+        );
+    return match.address;
+}
+
+// --- Pure forwarding decisions (unit-testable, no sockets / root) ------------
+
+export type EncoderDecision =
+    | { action: "forward"; vifIp: string; packet: Uint8Array }
+    | { action: "liveness" } // keepalive, nothing to forward
+    | { action: "drop"; reason: string };
+
+/** What to do with a frame the ENCODER sent. Pure: no side effects. */
+export function decideEncoderFrame(buf: Uint8Array): EncoderDecision {
+    const frame = decodeFrame(buf);
+    if (frame.type === "malformed")
+        return { action: "drop", reason: frame.reason };
+    if (frame.type === "keepalive") return { action: "liveness" };
+    return { action: "forward", vifIp: frame.vifIp, packet: frame.payload };
+}
+
+// --- The relay ---------------------------------------------------------------
+
+interface RelayEndpoint {
+    addr: string;
+    port: number;
+}
+
+const TX_MAX = DATA_HEADER_LEN + 65535;
 
 /**
- * Construct the (no-op) relay handle. Cheap: validates input only. Kept so
- * downstream code that calls `createUdpRelay` compiles and runs unchanged.
+ * Construct a transparent L3 relay. Validates input; sockets and the TUN
+ * are created in `start()`.
  */
-export async function createUdpRelay(
-    opts: UdpRelayOptions,
-): Promise<UdpRelay> {
-    if (!IFACE_NAME_RE.test(opts.interfaceName))
-        throw new Error(
-            `interfaceName ${JSON.stringify(opts.interfaceName)} is not a valid interface name`,
+export async function createUdpRelay(opts: UdpRelayOptions): Promise<UdpRelay> {
+    const listenAddress = opts.listenAddress ?? "0.0.0.0";
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(listenAddress)) {
+        throw new TypeError(
+            `listenAddress must be an IPv4 address (got \`${listenAddress}\`)`,
         );
-    if (
-        typeof opts.listenPort !== "number" ||
-        opts.listenPort < 1 ||
-        opts.listenPort > 65535
-    )
-        throw new Error(`listenPort ${opts.listenPort} out of [1,65535]`);
-    // Optional: relay-box slots created by the relay module carry no peer
-    // (the uplink peer is fixed per slot); validate only when provided.
-    if (opts.destination && !isValidIpv4(opts.destination.host))
-        throw new Error(
-            `destination.host ${JSON.stringify(
-                opts.destination.host,
-            )} must be the peer's WDS-link IPv4 address`,
+    }
+    if (!isIpv4(opts.vifIp)) {
+        throw new TypeError(
+            `vifIp must be an IPv4 address (got \`${opts.vifIp}\`)`,
         );
-    const interfaceAddress = resolveInterfaceAddress(
-        opts.interfaceName,
-        opts.interfaceAddress,
-    );
-    return new NoopRelay(opts, interfaceAddress);
+    }
+    void InterfaceRe.test(opts.interfaceName);
+    return new RelayImpl(opts, listenAddress);
 }
 
-class NoopRelay implements UdpRelay {
+class RelayImpl implements UdpRelay {
     readonly interfaceName: string;
     readonly interfaceAddress: string;
-    readonly natAddress: string;
+    readonly listenAddress: string;
     readonly listenPort: number;
-    readonly destination: string;
-    private running = false;
-    private _stats: RelayStats = newRelayStats();
+    readonly tunName: string;
+
+    private listenSocket: RelaySocket | null = null;
+    private tun: TunDevice | null = null;
+
+    // u32 (network byte order) of the vif /32 → the most recent encoder that
+    // sent us a packet for this vif. The kernel only delivers to this TUN
+    // packets addressed to vifIp, so one entry per vif suffices and the map
+    // can never grow unbounded.
+    private readonly vifEndpoints = new Map<number, RelayEndpoint>();
+    private lastEncoder: string | null = null;
+    private lastEncoderSeen = 0;
+    // u32s for which `onEncoderVifLearned` has already fired (the callback
+    // fires once per distinct encoder vif, mirroring the endpoint map).
+    private readonly announcedVifs = new Set<number>();
+
+    // Two reusable buffers for the TUN→encoder path: the TUN delivers into
+    // `rxBuf`; the frame (header + packet) is assembled in `txBuf` - a
+    // distinct buffer, so the `.set()` can never overlap.
+    // Bun.udpSocket.send() copies synchronously, so reusing txBuf on the
+    // next packet is safe.
+    private readonly rxBuf = new Uint8Array(65535);
+    private readonly txBuf = new Uint8Array(TX_MAX);
+
+    private counters: RelayStats;
+    private statsTimer: ReturnType<typeof setInterval> | null = null;
+    private stopping = false;
+    lastError: string | null = null;
 
     constructor(
-        private opts: UdpRelayOptions,
-        interfaceAddress: string,
+        private readonly options: UdpRelayOptions,
+        listenAddress: string,
     ) {
-        this.interfaceName = opts.interfaceName;
-        this.interfaceAddress = interfaceAddress;
-        this.natAddress = opts.natAddress ?? interfaceAddress;
-        this.listenPort = opts.listenPort;
-        this.destination = opts.destination?.host ?? "";
+        this.interfaceName = options.interfaceName;
+        this.interfaceAddress = options.interfaceAddress ?? listenAddress;
+        this.listenAddress = listenAddress;
+        this.listenPort = options.listenPort;
+        this.tunName = options.tunName ?? "rltun0";
+        this.counters = newRelayStats();
+        this.counters.startedAt = Date.now();
     }
 
-    /** No-op: the WireGuard tunnel owns the data path. */
     async start(): Promise<void> {
-        if (this.running) return;
-        this.running = true;
-        this._stats.startedAt = Date.now();
-        this.opts.onStats?.(this.stats());
+        if (this.listenSocket || this.stopping) return;
+
+        // The relay TUN is a bare L3 pipe (no address of its own): the
+        // backend provisions it (up, routing, conntrack) around start.
+        const tunFactory: TunFactory = this.options.tunFactory ?? openTun;
+        this.tun = await tunFactory(this.tunName, this.options.runCommand);
+
+        const socketFactory: RelaySocketFactory =
+            this.options.socketFactory ?? bunRelaySocketFactory;
+        this.listenSocket = await socketFactory(
+            this.listenPort,
+            this.listenAddress,
+            (event) => this.onListenEvent(event),
+            (err) => this.onSocketError(err),
+        );
+
+        // TUN→listener direction: synchronous per packet.
+        this.tun.onPacket(this.rxBuf, (len) =>
+            this.onTunPacket(this.rxBuf, len),
+        );
+
+        const interval = this.options.statsIntervalMs ?? 0;
+        if (interval > 0) {
+            this.statsTimer = setInterval(() => this.emitStats(), interval);
+        }
+        this.options.onVifLearned?.(this.options.vifIp);
     }
 
-    /** No-op; releases the (never-used) injected socket, if any. */
     async stop(): Promise<void> {
-        if (!this.running) return;
-        this.running = false;
-        try {
-            this.opts.ifaceSocket?.close();
-        } catch {
-            // best-effort
+        if (this.stopping) return;
+        this.stopping = true;
+        if (this.statsTimer) {
+            clearInterval(this.statsTimer);
+            this.statsTimer = null;
         }
-        this.opts.onStats?.(this.stats());
+        const tun = this.tun;
+        this.tun = null;
+        tun?.close();
+        const sock = this.listenSocket;
+        this.listenSocket = null;
+        sock?.close();
+        this.emitStats();
+    }
+
+    stats(): RelayStats {
+        return {
+            ...this.counters,
+            lastEncoderSeen: this.lastEncoderSeen,
+            lastEncoder: this.lastEncoder ?? undefined,
+            lastError: this.lastError
+                ? { at: Date.now(), message: this.lastError }
+                : undefined,
+        };
     }
 
     isRunning(): boolean {
-        return this.running;
+        return this.listenSocket !== null && !this.stopping;
     }
 
-    /** Legacy counters, all zero — see the module doc. */
-    stats(): RelayStats {
-        return { ...this._stats };
+    vifName(): string {
+        return this.tun?.name ?? this.tunName;
+    }
+
+    private emitStats(): void {
+        this.options.onStats?.(this.stats());
+    }
+
+    private onSocketError(err: unknown): void {
+        this.lastError = err instanceof Error ? err.message : String(err);
+        this.emitStats();
+    }
+
+    /** UDP datagram from (presumably) the encoder. */
+    private onListenEvent(event: SocketEvent): void {
+        const buf = event.buf;
+        const kind = sniffFrameKind(buf);
+        if (kind === "data") {
+            if (buf.length < DATA_HEADER_LEN) {
+                this.counters.drops++;
+                return;
+            }
+            // Header carries the vif /32 this frame is for.
+            const vifU32 = bytesToU32(buf, 4);
+            if (vifU32 === null) {
+                this.counters.drops++;
+                return;
+            }
+            const now = Date.now();
+            this.lastEncoder = event.addr;
+            this.lastEncoderSeen = now;
+            const prev = this.vifEndpoints.get(vifU32);
+            if (!prev || prev.addr !== event.addr || prev.port !== event.port) {
+                this.vifEndpoints.set(vifU32, {
+                    addr: event.addr,
+                    port: event.port,
+                });
+            }
+            // First sight of this encoder vif: tell the backend so it can
+            // install the vif-specific NAT + reply route (keyed on the
+            // encoder's dedicated non-local vif, not the uplink IP). The
+            // callback may be async; fire-and-forget with an error log.
+            if (!this.announcedVifs.has(vifU32)) {
+                this.announcedVifs.add(vifU32);
+                void Promise.resolve(
+                    this.options.onEncoderVifLearned?.(u32ToIp(vifU32)),
+                ).catch((e: unknown) => {
+                    this.lastError = e instanceof Error ? e.message : String(e);
+                });
+            }
+            this.counters.encRxPackets++;
+            this.counters.encRxBytes += buf.length;
+            // Strip the 8-byte frame header; the kernel picks up the rest.
+            this.counters.vifTxPackets++;
+            this.counters.vifTxBytes += buf.length - DATA_HEADER_LEN;
+            this.tun?.write(buf, DATA_HEADER_LEN, buf.length - DATA_HEADER_LEN);
+            return;
+        }
+        if (kind === "keepalive") {
+            this.lastEncoder = event.addr;
+            this.lastEncoderSeen = Date.now();
+            this.counters.encRxPackets++;
+            this.counters.encRxBytes += buf.length;
+            this.listenSocket?.send(
+                encodeKeepaliveFrame(Date.now()),
+                event.port,
+                event.addr,
+            );
+            return;
+        }
+        this.counters.drops++;
+    }
+
+    /**
+     * IP packet the kernel handed out of our TUN - a reply destined for the
+     * vif /32 (conntrack de-NATed it back). Frame it and send to the
+     * encoder.
+     */
+    private onTunPacket(buf: Uint8Array, len: number): void {
+        if (len < 20 || buf[0] >> 4 !== 4) {
+            this.counters.drops++;
+            return;
+        }
+        // Destination address (IPv4 header offset 16) must be the vif /32.
+        const vifU32 = bytesToU32(buf, 16);
+        if (vifU32 === null) {
+            this.counters.drops++;
+            return;
+        }
+        const endpoint = this.vifEndpoints.get(vifU32);
+        if (!endpoint) {
+            this.counters.drops++;
+            return;
+        }
+        if (len + DATA_HEADER_LEN > this.txBuf.length) {
+            this.counters.drops++;
+            return;
+        }
+        writeDataHeader(this.txBuf, vifU32);
+        this.txBuf.set(buf.subarray(0, len), DATA_HEADER_LEN);
+        this.counters.vifRxPackets++;
+        this.counters.vifRxBytes += len;
+        this.counters.encTxPackets++;
+        this.counters.encTxBytes += len + DATA_HEADER_LEN;
+        this.listenSocket?.send(
+            this.txBuf.subarray(0, len + DATA_HEADER_LEN),
+            endpoint.port,
+            endpoint.addr,
+        );
     }
 }

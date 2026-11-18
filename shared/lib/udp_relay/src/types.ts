@@ -1,21 +1,15 @@
-/* Shared stat/endpoint types for @ctrlirl/udp-relay.
+/* Shared types for @irlctrl/udp-relay.
  *
- * The library exposes the data-path surface (per-uplink relay handle, raw
- * socket seam, IP framing helpers, stat counters). It knows nothing about
- * SRTLA, Ctrlink, auth, discovery, or configuration.
+ * The library is a transport primitive: it moves UDP payloads between a TUN on
+ * one host and a bound UDP socket on another. It knows nothing about SRTLA,
+ * Moblink, auth, discovery, or configuration.
  */
 
-/**
- * Statistics counter bag. `drops` is the dropped-packets counter plus any
- * local drops the caller notes.
- */
-export interface Stats {
-    rxBytes: number;
-    rxPackets: number;
-    txBytes: number;
-    txPackets: number;
-    drops: number;
-}
+/** Shell command runner (Bun.$ in production, fakes in tests). */
+export type CommandRunner = (
+    cmd: string,
+    ...args: string[]
+) => Promise<{ stdout: string; exitCode: number }>;
 
 /** A network endpoint: a host (IP or resolvable name) and a UDP port. */
 export interface Endpoint {
@@ -23,43 +17,43 @@ export interface Endpoint {
     port: number;
 }
 
-/**
- * Stats of a virtual interface (both tunnel sides).
- */
+/** Stats of a virtual interface (encoder side). */
 export interface VifStats {
+    /** Packets forwarded out of the TUN toward the relay. */
     txPackets: number;
     txBytes: number;
+    /** Packets written into the TUN from relay replies. */
     rxPackets: number;
     rxBytes: number;
+    /** Packets dropped on the way out (non-IPv4, oversized, not running). */
     txDropped: number;
+    /** Packets dropped on the way in (wrong source, malformed). */
     rxDropped: number;
-    drops: number;
     lastError?: { at: number; message: string };
     startedAt?: number;
 }
 
-/**
- * Stats of the relay-box side. The per-plane counters stay zero (the transport
- * is owned by the WireGuard netdevs); traffic shows on the tunnel counters
- * below.
- */
+/** Stats of a transparent L3 relay (relay-box side). */
 export interface RelayStats {
+    /** IP packets received from the encoder (over the wire-protocol UDP socket). */
     encRxPackets: number;
     encRxBytes: number;
-    ifaceTxPackets: number;
-    ifaceTxBytes: number;
-    ifaceRxPackets: number;
-    ifaceRxBytes: number;
+    /** IP packets written into the relay TUN (toward the kernel/uplink). */
+    vifTxPackets: number;
+    vifTxBytes: number;
+    /** IP packets delivered out of the relay TUN (replies from the uplink). */
+    vifRxPackets: number;
+    vifRxBytes: number;
+    /** IP packets sent back toward the encoder (addressed to the vif IP). */
     encTxPackets: number;
     encTxBytes: number;
+    /** Packets dropped (malformed frame, not addressed to the vif, oversized). */
     drops: number;
-    /** Tunnel counters (kernel) for the box's own tunnel side. */
-    rxPackets: number;
-    rxBytes: number;
-    txPackets: number;
-    txBytes: number;
     lastError?: { at: number; message: string };
+    /** Last time a frame from the encoder was seen (epoch ms). */
     lastEncoderSeen?: number;
+    /** Source address of the most recent encoder frame. */
+    lastEncoder?: string;
     startedAt?: number;
 }
 

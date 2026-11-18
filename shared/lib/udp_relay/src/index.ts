@@ -1,60 +1,89 @@
-/*
- * @ctrlirl/udp-relay — the CtrLink relay's data-path surface.
- *
- * Re-homed from the former `@ctrlirl/gretap-relay` when the GRETAP L2 tunnel
- * was retired in favour of per-uplink WireGuard netdevs. What remains is the
- * transport-agnostic surface the relay module still uses: the per-uplink relay
- * handle, the raw-socket seam (test), IP framing helpers, and the stat/endpoint
- * types. There is no longer any GRETAP/GRE code here.
- */
+/* @irlctrl/udp-relay - transport primitive public API (grows as modules land). */
 import { networkInterfaces } from "node:os";
 
-// --- Relay handle ------------------------------------------------------------
-export { createUdpRelay } from "./relay";
-export type { UdpRelay, UdpRelayOptions } from "./relay";
-
-// --- Raw interface socket seam ------------------------------------------------
-export { makeMockIfaceRawSocket } from "./net_linux";
-export type { IfaceRawSocket, OpenIfaceRawSocketOptions } from "./net_linux";
-
-// --- Interface helpers --------------------------------------------------------
-export { IFACE_NAME_RE, resolveInterfaceAddress } from "./ifaces";
-
-// --- IPv4 / UDP framing helpers ----------------------------------------------
+export type { DecodedFrame } from "./frame_types";
+export type { BuildUdpIpPacketOptions, ParsedUdpPacket } from "./ip";
 export {
     buildUdpIpPacket,
-    internetChecksum,
-    ipToBytes,
     bytesToIp,
+    bytesToU32,
+    internetChecksum,
     ipDST,
+    ipToBytes,
+    ipToU32,
+    isIpv4,
     parseUdpPacket,
+    u32ToIp,
     udpChecksum,
-    isValid,
-    natPacketSource,
-    natPacketDestination,
 } from "./ip";
-export type { BuildUdpIpPacketOptions, ParsedUdpPacket } from "./ip";
-
-// --- Stat helpers -------------------------------------------------------------
+export type { LegPlan } from "./nat_rules";
 export {
-    newRelayStats,
-    newVifStats,
-    newStats,
-    noteError,
-} from "./stats";
-
-// --- Types --------------------------------------------------------------------
+    applyLegPlan,
+    applyVifPlan,
+    LEG_TUN_NAME_RE,
+    legTable,
+    planLegBaseCommands,
+    planLegCommands,
+    planLegRemoval,
+    planVifCommands,
+    planVifRemoval,
+    relayTunName,
+    removeLegPlan,
+    removeVifPlan,
+    sweepStaleLegTuns,
+} from "./nat_rules";
+export {
+    DATA_FRAME_TYPE,
+    DATA_HEADER_LEN,
+    decodeFrame,
+    encodeDataFrame,
+    encodeKeepaliveFrame,
+    KEEPALIVE_FRAME_TYPE,
+    sniffFrameKind,
+    writeDataHeader,
+} from "./protocol";
+export type { VifSourceRoute } from "./vif_source_route";
+export {
+    applyVifSourceRoute,
+    planVifSourceRoute,
+    planVifSourceRouteRemoval,
+    removeVifSourceRoute,
+    VIF_SOURCE_RULE_PRIORITY,
+    VIF_SOURCE_TABLE_BASE,
+    VIF_SOURCE_TABLE_MAX_ORDINAL,
+    vifSourceTable,
+} from "./vif_source_route";
 export type {
-    Endpoint,
-    InterfaceInfo,
-    Stats,
-    RelayStats,
-    VifStats,
-} from "./types";
-
+    EncoderDecision,
+    RelaySocket,
+    RelaySocketFactory,
+    SocketEvent,
+    UdpRelay,
+    UdpRelayOptions,
+} from "./relay";
+export {
+    bunRelaySocketFactory,
+    createUdpRelay,
+    decideEncoderFrame,
+    resolveInterfaceAddress,
+} from "./relay";
+export type { TunDevice, TunFactory } from "./tun_linux";
+export {
+    configureTun,
+    deleteTun,
+    IFF_NO_PI,
+    IFF_TUN,
+    openTun,
+    TUNSETIFF,
+} from "./tun_linux";
+export type {
+    VirtualInterface,
+    VirtualInterfaceOptions,
+} from "./virtual_interface";
+export { createVirtualInterface, makeMockTunDevice } from "./virtual_interface";
 /**
- * List the machine's network interfaces with their IPv4 addresses
- * (diagnostics / tests).
+ * List the machine's network interfaces with their IPv4 addresses. Library
+ * tests use this; production callers use the `network` module's capability.
  */
 export function listInterfaces(): Array<{
     name: string;
@@ -62,9 +91,17 @@ export function listInterfaces(): Array<{
 }> {
     const out: Array<{ name: string; addresses: string[] }> = [];
     for (const [name, addrs] of Object.entries(networkInterfaces())) {
-        const ipv4 = (addrs ?? []).filter((a) => a.family === "IPv4")
+        const ipv4 = (addrs ?? [])
+            .filter((a) => a.family === "IPv4")
             .map((a) => a.address);
         if (name) out.push({ name, addresses: [...ipv4].sort() });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
 }
+export type {
+    CommandRunner,
+    Endpoint,
+    InterfaceInfo,
+    RelayStats,
+    VifStats,
+} from "./types";

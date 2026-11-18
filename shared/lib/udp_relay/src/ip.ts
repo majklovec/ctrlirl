@@ -1,7 +1,8 @@
 /* IPv4 / UDP header parse & build, with correct checksums.
  *
- * The IP framing helpers the relay module and its tests use to build and
- * inspect wire packets. `isValid` is a dotted-quad format check.
+ * This is the byte foundation of the virtual interface: the read loop parses an
+ * IPv4/UDP packet off the TUN, and the inbound direction rebuilds a full
+ * IPv4/UDP packet for a relay reply (see `buildUdpIpPacket`).
  */
 
 // --- IP address helpers ------------------------------------------------------
@@ -22,11 +23,34 @@ export function bytesToIp(b: [number, number, number, number]): string {
     return `${b[0]}.${b[1]}.${b[2]}.${b[3]}`;
 }
 
-/** True when `s` is a well-formed dotted-quad IPv4 address. */
-export function isValid(s: string): boolean {
-    const parts = s.split(".");
-    if (parts.length !== 4) return false;
-    return parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) <= 255);
+/** "a.b.c.d" → one 32-bit big-endian value (hot path: no string ops per packet). */
+export function ipToU32(ip: string): number {
+    const [a, b, c, d] = ipToBytes(ip);
+    return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
+}
+
+/** 4 raw big-endian bytes at `buf[off..off+4)` → u32. Null when short. */
+export function bytesToU32(buf: Uint8Array, off = 0): number | null {
+    if (buf.length < off + 4) return null;
+    return (
+        ((buf[off] << 24) |
+            (buf[off + 1] << 16) |
+            (buf[off + 2] << 8) |
+            buf[off + 3]) >>>
+        0
+    );
+}
+
+/** True when `ip` is a valid dotted-quad IPv4 address. */
+export function isIpv4(ip: string): boolean {
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+    if (!m) return false;
+    return m.slice(1).every((o) => Number(o) <= 255);
+}
+
+/** 32-bit big-endian value → "a.b.c.d". */
+export function u32ToIp(u32: number): string {
+    return `${(u32 >>> 24) & 0xff}.${(u32 >>> 16) & 0xff}.${(u32 >>> 8) & 0xff}.${u32 & 0xff}`;
 }
 
 // --- Checksum ----------------------------------------------------------------
@@ -42,7 +66,7 @@ export function internetChecksum(buf: Uint8Array): number {
     if (buf.length % 2 === 1) sum += buf[buf.length - 1] << 8;
     // Fold the 32-bit sum into 16 bits, then one's-complement.
     while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16);
-    return (~sum) & 0xffff;
+    return ~sum & 0xffff;
 }
 
 /**
@@ -59,7 +83,7 @@ export function udpChecksum(
     );
     combined.set(pseudoHeader);
     combined.set(udpHeaderAndPayload, pseudoHeader.length);
-    let cksum = internetChecksum(combined);
+    const cksum = internetChecksum(combined);
     // A UDP checksum that computes to zero is transmitted as all ones.
     return cksum === 0 ? 0xffff : cksum;
 }
@@ -81,7 +105,7 @@ export interface ParsedUdpPacket {
 /**
  * Read the destination IPv4 address from a raw IPv4 datagram (header present).
  * Returns `null` when the buffer is not a well-formed IPv4 header (shorter than
- * 20 bytes, or not version 4). No checksum validation — used to route packets
+ * 20 bytes, or not version 4). No checksum validation - used to route packets
  * at the transport layer, not to deliver them.
  */
 export function ipDST(buf: Uint8Array): string | null {
@@ -89,6 +113,24 @@ export function ipDST(buf: Uint8Array): string | null {
     const version = buf[0] >> 4;
     if (version !== 4) return null;
     return bytesToIp([buf[16], buf[17], buf[18], buf[19]]);
+}
+
+/**
+ * Source IPv4 of a full IPv4 datagram as a u32, or null when `buf` is not an
+ * IPv4 datagram (short buffer / not version 4). Direct byte indexing - this is
+ * the hot path; no temp arrays, no string building.
+ */
+export function ipSRCU32(buf: Uint8Array): number | null {
+    if (buf.length < 20) return null;
+    if ((buf[0] & 0xf0) !== 0x40) return null;
+    return ((buf[12] << 24) | (buf[13] << 16) | (buf[14] << 8) | buf[15]) >>> 0;
+}
+
+/** Destination IPv4 of a full IPv4 datagram as a u32, or null (see {@link ipSRCU32}). */
+export function ipDSTU32(buf: Uint8Array): number | null {
+    if (buf.length < 20) return null;
+    if ((buf[0] & 0xf0) !== 0x40) return null;
+    return ((buf[16] << 24) | (buf[17] << 16) | (buf[18] << 8) | buf[19]) >>> 0;
 }
 
 /**
@@ -206,75 +248,3 @@ export function buildUdpIpPacket(o: BuildUdpIpPacketOptions): Uint8Array {
     return out;
 }
 
-/**
- * Rewrite one IPv4 address field of a whole IPv4 packet (source at offset 12,
- * destination at offset 16) and recompute the IP header checksum. For UDP, the
- * UDP checksum is recomputed too (it covers the pseudo-header, which carries
- * both addresses). Returns a new buffer; the input is not mutated. Returns
- * `null` for a non-IPv4/truncated header (shorter than the 20-byte fixed part)
- * or a bad address literal.
- */
-function natIpAddress(
-    buf: Uint8Array,
-    newAddr: string,
-    offset: 12 | 16,
-): Uint8Array | null {
-    if (buf.length < 20) return null;
-    if ((buf[0] >> 4) !== 4) return null;
-    const ihl = (buf[0] & 0x0f) * 4;
-    if (ihl < 20) return null;
-    const addr = ipToBytes(newAddr);
-
-    const out = new Uint8Array(buf);
-    out[offset] = addr[0];
-    out[offset + 1] = addr[1];
-    out[offset + 2] = addr[2];
-    out[offset + 3] = addr[3];
-
-    // Zero the checksum fields first: the copy carries the packet's *old*
-    // checksums, and the one's-complement sum must be taken over a zeroed field.
-    out[10] = 0;
-    out[11] = 0;
-    const ipCksum = internetChecksum(out.subarray(0, ihl));
-    out[10] = (ipCksum >> 8) & 0xff;
-    out[11] = ipCksum & 0xff;
-
-    if (out[9] === 17 && out.length >= ihl + 8) {
-        const udpLen = (out[ihl + 4] << 8) | out[ihl + 5];
-        const pseudo = new Uint8Array([
-            out[12], out[13], out[14], out[15],
-            out[16], out[17], out[18], out[19],
-            0x00, 17,
-            (udpLen >> 8) & 0xff, udpLen & 0xff,
-        ]);
-        out[ihl + 6] = 0;
-        out[ihl + 7] = 0;
-        const udpCk = udpChecksum(out.subarray(ihl), pseudo);
-        out[ihl + 6] = (udpCk >> 8) & 0xff;
-        out[ihl + 7] = udpCk & 0xff;
-    }
-    return out;
-}
-
-/**
- * SNAT: rewrite the source address of a whole IPv4 packet to `newSrc` (leaving
- * the destination untouched), recomputing the IP + UDP checksums.
- */
-export function natPacketSource(
-    buf: Uint8Array,
-    newSrc: string,
-): Uint8Array | null {
-    return natIpAddress(buf, newSrc, 12);
-}
-
-/**
- * Rewrite the destination address of a whole IPv4 packet to `newDst` (leaving
- * the source untouched), recomputing the IP + UDP checksums. Used to de-SNAT a
- * reply back to the virtual-interface address.
- */
-export function natPacketDestination(
-    buf: Uint8Array,
-    newDst: string,
-): Uint8Array | null {
-    return natIpAddress(buf, newDst, 16);
-}
