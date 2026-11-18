@@ -1,3 +1,27 @@
+# [9.0.0](https://github.com/majklovec/ctrlirl/compare/v8.2.1...v9.0.0) (2026-11-18)
+
+
+### Bug Fixes
+
+* **ctrlink_relay:** force-delete TUN on stop ([8e4d023](https://github.com/majklovec/ctrlirl/commit/8e4d02389ebbc5da8fcb808eb0c3e98a16720582))
+* **modems:** sort modems by numeric index ([62765cd](https://github.com/majklovec/ctrlirl/commit/62765cd8b3a7f5dc3ec81736362b878756a341db))
+* **network:** skip via for CtrLink TUNs ([49f60a3](https://github.com/majklovec/ctrlirl/commit/49f60a323fbc30e0e948347afc82a6e1cfd5f34f))
+
+
+### Code Refactoring
+
+* **udp-relay:** single-socket TUN relay ([48be413](https://github.com/majklovec/ctrlirl/commit/48be413831256900a1e89feb6922acd77d43f75f))
+
+
+### Features
+
+* **modems:** group network options ([594a538](https://github.com/majklovec/ctrlirl/commit/594a53897d727863be3f7c9366a743540bce3357))
+
+
+### BREAKING CHANGES
+
+* **udp-relay:** rename the package to @irlctrl/udp-relay and replace the old relay API
+
 ## [8.2.1](https://github.com/majklovec/ctrlirl/compare/v8.2.0...v8.2.1) (2026-11-18)
 
 
