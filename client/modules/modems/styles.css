@@ -32,6 +32,11 @@
     font-size: 0.85rem;
     margin-bottom: 0.75rem;
 }
+/* The Scan / Reset actions sit on their own full-width row under the
+ * info column and the network setup form. */
+.mod-modems-card .modem .actions {
+    grid-column: 1 / -1;
+}
 .mod-modems-card .modem .actions button {
     padding: 0.35rem 0.6rem;
     font-size: 0.8rem;
@@ -51,6 +56,10 @@
     padding: 0.35rem 0.6rem;
     font-size: 0.8rem;
 }
+/* The Apply button sits on its own full-width row at the bottom of the form. */
+.mod-modems-card .modem .net .actions {
+    flex-basis: 100%;
+}
 /* Scan feedback line under the network/APN fields (spans the whole row). */
 .mod-modems-card .modem .net .scan-status {
     flex-basis: 100%;
@@ -69,27 +78,34 @@
     flex: 0 0 auto;
     min-width: 0;
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.4rem;
     font-size: 0.85rem;
     cursor: pointer;
     user-select: none;
+    margin-right: 1rem;
 }
 /* Band-mode checkbox group: a grid of compact 2G/3G/4G/5G toggles under the
  * field's own caption (the "Bands" label sits on its own row). */
 .mod-modems-card .modem .net .band {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem 0.5rem;
     padding: 0.45rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--card-subtle, transparent);
 }
+.mod-modems-card .modem .break {
+    clear: both;
+    width: 100%;
+}
+
 .mod-modems-card .modem .net .options {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem 0.5rem;
+    justify-content: flex-start;
     padding: 0.45rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);

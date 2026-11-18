@@ -303,7 +303,7 @@ function netSetupRow(host: DeviceCard, modem: ModemInfo): m.Vnode {
 					</Select>
 				}
 			/>
-			<Break />
+
 			<Field
 				label={t("dev.apn")}
 				control={
@@ -379,12 +379,14 @@ function netSetupRow(host: DeviceCard, modem: ModemInfo): m.Vnode {
 				}
 			/>
 			<Break />
-			<Button
-				label={t("dev.apply")}
-				class="primary"
-				disabled={applyDisabled || state.scanning}
-				onclick={() => applyNetworkSetup(host, modem.index)}
-			/>
+			<Actions>
+				<Button
+					label={t("dev.apply")}
+					class="primary"
+					disabled={applyDisabled || state.scanning}
+					onclick={() => applyNetworkSetup(host, modem.index)}
+				/>
+			</Actions>
 			{status && (
 				<p class={`scan-status${status.cls ? ` ${status.cls}` : ""}`}>
 					{status.text}
