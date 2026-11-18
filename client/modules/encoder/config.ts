@@ -9,7 +9,7 @@ export const ENCODER_BIN = argEnv("--encoder", "ENCODER_BIN", "belacoder");
 export const PIPELINES_DIR = argEnv(
     "--pipelines",
     "PIPELINES_DIR",
-    "/usr/share/belacoder/pipelines",
+    "./pipeline",
 );
 export const BITRATE_FILE = argEnv(
     "--bitrate-file",

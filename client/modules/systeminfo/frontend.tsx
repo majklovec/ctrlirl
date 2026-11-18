@@ -134,14 +134,18 @@ function interfacesCard(host: DeviceCard, status: Status): m.Vnode {
 								<span class="muted">—</span>
 							)}
 						</div>
-						{info.throttling && (
+					</div>
+
+					{info.throttling && (
+						<div class="systeminfo-section">
+							<h4>{t("sysinfo.throttling")}</h4>
 							<div
 								class={`systeminfo-throttle${info.throttling.currentlyThrottled ? " warn" : ""}`}
 							>
 								{throttleMessages(info)}
 							</div>
-						)}
-					</div>
+						</div>
+					)}
 
 					<div class="systeminfo-section">
 						<h4>{t("sysinfo.memory")}</h4>
