@@ -756,6 +756,39 @@ describe("immediate interface-change push via the encoder WS (protocol.md §4)",
 		await cfg.stop?.();
 	});
 
+	test("a hot-plugged uplink's interface_added carries the tunnel offer (encoder builds the vif immediately)", async () => {
+		// Regression: a newly-plugged modem (6th uplink, e.g. `wwan2`) creates
+		// its `rtltun_<if>` leg on the relay, but the encoder's
+		// `rltun<R>_<if>` vif only appeared after a later full `hello`
+		// resnapshot — because the `interface_added` event carried no `tunnel`
+		// offer, so the encoder's `upsertTunnelOffer` had nothing to build from.
+		// The event now carries the spec, so the vif appears immediately.
+		const live: Iface[] = [{ name: "eth0", addresses: ["127.0.0.1"] }];
+		await startModule(live);
+
+		// Hotplug a new uplink (a 6th modem → its `wwan2`-style iface).
+		live.push({ name: "wwan2", addresses: ["127.0.0.1"] });
+		interfaceHandler?.();
+		await until(() =>
+			mod
+				.lastWsPushEvents()
+				.some(
+					(e) => e.type === "interface_added" && e.iface.iface_name === "wwan2",
+				),
+		);
+		const added = mod
+			.lastWsPushEvents()
+			.find((e) => e.iface.iface_name === "wwan2")!;
+		expect(added.type).toBe("interface_added");
+		// The event MUST carry the tunnel offer — this is what lets the encoder
+		// build the vif from the event alone, without waiting for a `hello`.
+		expect(added.iface.tunnel).toBeDefined();
+		expect(added.iface.tunnel?.virtualInterface).toBe("rtltun-wwan2");
+		// The per-uplink port the vif dials is the uplink's allocated port.
+		expect(added.iface.tunnel?.udpPort).toBe(added.iface.udp_port);
+		await cfg.stop?.();
+	});
+
 	test("a carrier drop (IP kept) is pushed as interface_down, its return as interface_up", async () => {
 		// Fixture sysfs: the "eth1" carrier can be flipped without touching
 		// the machine, exactly like a pulled cable (the address lingers).
@@ -875,6 +908,10 @@ describe("immediate interface-change push via the encoder WS (protocol.md §4)",
 				);
 			expect(up?.iface.udp_port).toBe(wwanPort);
 			expect(mod.allocatePort("wwan0")).toBe(wwanPort);
+			// The return also carries the tunnel offer so the encoder rebuilds
+			// the vif from the event alone (no `hello` resnapshot needed).
+			expect(up?.iface.tunnel).toBeDefined();
+			expect(up?.iface.tunnel?.virtualInterface).toBe("rtltun-wwan0");
 
 			// A truly removed interface (netdev gone) IS a removal: the port
 			// is freed, so a new interface now lands on wwan0's old port.

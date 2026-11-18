@@ -906,6 +906,34 @@ const ifaceInfo = (
 });
 
 /**
+ * The `tunnel` offer for a LIVE uplink, attached to the single-interface
+ * `interface_added` / `interface_up` events. The relay's leg (and thus its
+ * `upUplinks` slot) is up by the time these events are emitted — `startRelay`
+ * has already run — so the spec is available. Without it the encoder's
+ * `upsertTunnelOffer` has nothing to build from and the hot-plugged uplink's
+ * `rltun<R>_<if>` vif is not created until a later full `hello` resnapshot
+ * happens to carry it. Carrying the spec here makes the vif appear
+ * immediately, from the event itself.
+ */
+function liveIfaceEventIface(
+    name: string,
+    addr: string,
+    port: number,
+    state: "up" | "down",
+): CtrlinkRelayIface {
+    const iface: CtrlinkRelayIface = {
+        iface_name: name,
+        ip: addr,
+        udp_port: port,
+        state,
+        uplink: true,
+    };
+    const tunnel = relayTunnelSpecFor(name, port);
+    if (tunnel) iface.tunnel = tunnel;
+    return iface;
+}
+
+/**
  * Bring every eligible interface's relay up to the current config. Idempotent.
  * A per-interface failure is logged and does not stop the others.
  *
@@ -1086,27 +1114,18 @@ export async function syncRelays(rollbackOnFailure = false): Promise<{
             if (wasDown)
                 events.push({
                     type: "interface_up",
-                    iface: {
-                        iface_name: name,
-                        ip: addr,
-                        udp_port: port,
-                        state: "up",
-                        uplink: true,
-                    },
+                    // Carries the `tunnel` offer so the encoder rebuilds the
+                    // vif from this event alone (no `hello` resnapshot needed).
+                    iface: liveIfaceEventIface(name, addr, port, "up"),
                 });
             else if (existed || runtimeSync)
                 // `runtimeSync`: an interface first seen while the relay is
                 // already running (hotplug / new segment) must not wait for
-                // the next `hello` — connected encoders get it now.
+                // the next `hello` — connected encoders get it now, WITH the
+                // tunnel offer, so the vif appears immediately.
                 events.push({
                     type: "interface_added",
-                    iface: {
-                        iface_name: name,
-                        ip: addr,
-                        udp_port: port,
-                        state: "up",
-                        uplink: true,
-                    },
+                    iface: liveIfaceEventIface(name, addr, port, "up"),
                 });
         } catch (e) {
             const reason = errorMessage(e);
