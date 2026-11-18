@@ -31,3 +31,4 @@ librespeed-cli
 relay.json.bak-e2e
 
 .vagrant
+.playwright-mcp
