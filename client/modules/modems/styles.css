@@ -46,7 +46,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
-    gap: 0.6rem;
+    gap: 0.2rem;
 }
 .mod-modems-card .modem .net label {
     flex: 1 1 8rem;

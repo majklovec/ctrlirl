@@ -26,11 +26,21 @@ export interface Iface {
     gateway?: string;
 }
 
-/** The persisted bond selection (by interface name, else by IP).
- * An empty array means "no interfaces selected"; the *absence* of the key
- * means "all interfaces". */
+/** The persisted bond selection. Exclusion model: every interface is bonded
+ * by default; `excluded` names the interfaces the user opted OUT of. A
+ * newly-appearing interface is bonded automatically (it is not excluded), so
+ * the bond tracks the live interface set with no per-event persistence.
+ *
+ * `modems` / `ips` are the legacy *include* format, kept only so a
+ * pre-migration selection can still be read (see `resolveSelection`) and
+ * converted once (see `migrateSelection`). A freshly-persisted selection is
+ * always `{excluded: [...]}` (an empty/absent list = bond everything). */
 export interface ModemConfig {
+    /** Interface names removed from the bond. Absent/empty = bond all. */
+    excluded?: string[];
+    /** @deprecated Legacy include list (by name); migrated to `excluded`. */
     modems?: string[];
+    /** @deprecated Legacy include list (by IP); migrated to `excluded`. */
     ips?: string[];
 }
 

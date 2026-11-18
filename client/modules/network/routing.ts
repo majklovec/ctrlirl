@@ -263,15 +263,52 @@ export const selection = (): ModemConfig =>
     ((core.state.data.network as Record<string, unknown> | undefined)
         ?.selection ?? {}) as ModemConfig;
 
-/** The interfaces chosen for bonding: by name, else by IP, else all of them.
- * An empty array (`{modems: []}`) means "no interfaces selected" — it does
- * NOT fall through to "all". Only the absence of the key (`modems: undefined`)
- * means "all". */
+/**
+ * The interfaces in the bond: every interface except those in `excluded`.
+ * Exclusion is the default policy — a newly-appearing interface is bonded
+ * automatically (it is not excluded), with no per-event persistence needed.
+ *
+ * A pre-migration *include* selection (`modems`/`ips`) is honoured verbatim
+ * for the read so a code path that resolves before the `reconfigure`
+ * migration runs still matches the legacy behaviour; `migrateSelection`
+ * converts it to `excluded` on the first reconcile.
+ */
 export function resolveSelection(all: Iface[]): Iface[] {
-    const { modems: names, ips } = selection();
+    const sel = selection();
+    if (sel.excluded !== undefined) {
+        const out = new Set(sel.excluded);
+        return all.filter((i) => !out.has(i.iface));
+    }
+    // Legacy include format: by name, else by IP, else all.
+    const { modems: names, ips } = sel;
     if (names !== undefined) return all.filter((i) => names.includes(i.iface));
     if (ips !== undefined) return all.filter((i) => ips.includes(i.ip));
     return all;
+}
+
+/**
+ * Convert a legacy *include* selection (`modems`/`ips`) to the exclusion
+ * form once `all` is known: everything currently present that the include
+ * list omitted becomes `excluded`. A freshly-persisted selection is always
+ * `{excluded}`, so this fires exactly once per legacy config. No-op for a
+ * selection that is already in the new form (including `{}`, "bond all").
+ */
+export async function migrateSelection(all: Iface[]): Promise<void> {
+    const sel = selection();
+    if (sel.excluded !== undefined) return; // new form (or "all")
+    // A fresh config has no include list at all — that already means "bond
+    // everything", so there is nothing to convert (and we must not persist an
+    // `excluded` of every current interface, which would un-bond them all).
+    if (sel.modems === undefined && sel.ips === undefined) return;
+    const included = new Set(
+        sel.modems !== undefined
+            ? sel.modems
+            : (sel.ips ?? []).map((ip) => all.find((i) => i.ip === ip)?.iface),
+    );
+    const excluded = all
+        .map((i) => i.iface)
+        .filter((name) => !included.has(name));
+    await setSelection({ excluded });
 }
 
 export async function setSelection(next: ModemConfig): Promise<void> {
@@ -652,7 +689,11 @@ const failure = (error: string): ReconfigureResult => ({
 export async function reconfigure(): Promise<ReconfigureResult> {
     return withRoutingLock(async () => {
         try {
-            const selected = resolveSelection(await detectInterfaces());
+            const all = await detectInterfaces();
+            // Convert a legacy include selection to the exclusion form once,
+            // so a newly-appearing interface is bonded by default.
+            await migrateSelection(all);
+            const selected = resolveSelection(all);
 
             // No interfaces selected: flush managed routing tables and write
             // an uplinks file containing only programmatic extras (if any).

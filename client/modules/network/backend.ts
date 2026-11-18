@@ -34,9 +34,11 @@ import {
 	defaultRouteDetails,
 	detectInterfaces,
 	ensureUplinksFile,
+	fireUplinksChanged,
 	isMonitorRunning,
 	listNetworkInterfaces,
 	listProgrammaticUplinks,
+	migrateSelection,
 	onInterfaceChange,
 	onUplinksChanged,
 	reconfigure,
@@ -83,6 +85,10 @@ async function applySelection(next: ModemConfig) {
 	await setSelection(next);
 	const result = await reconfigure();
 	if (!result.ok) throw new ApiError(result.error ?? "reconfigure failed", 500);
+	// A manual bond change rewrites the uplinks file: tell the SRTLA leg
+	// owners (the encoder) to reload `srtla_send` so it uses the actualized
+	// srtla_ips — the monitor only fires this for events it observes itself.
+	if (result.changed) await fireUplinksChanged();
 	return { selection: selection(), ...result };
 }
 
@@ -97,13 +103,23 @@ async function selectModems(p: Params) {
 	const badIps =
 		ips?.filter((ip) => !all.some((iface) => iface.ip === ip)) ?? [];
 	if (badIps.length) throw new ApiError(`Unknown IPs: ${badIps.join(", ")}`);
-	return applySelection(
+	// "Select these" in the exclusion model = exclude everything else, so a
+	// later-appearing interface (absent from the picked set) is still bonded
+	// by default.
+	const included = new Set(
 		names !== undefined
-			? { modems: names }
+			? names
 			: ips !== undefined
-				? { ips }
-				: {},
+				? ips
+						.map((ip) => all.find((iface) => iface.ip === ip)?.iface)
+						.filter((n): n is string => !!n)
+				: all.map((iface) => iface.iface),
 	);
+	return applySelection({
+		excluded: all
+			.map((iface) => iface.iface)
+			.filter((name) => !included.has(name)),
+	});
 }
 
 async function toggleModem(p: Params) {
@@ -111,18 +127,23 @@ async function toggleModem(p: Params) {
 	const all = await detectInterfaces();
 	if (!all.some((iface) => iface.iface === name))
 		throw new ApiError(`Unknown interface: ${name}`, 404);
-	const names = new Set(resolveSelection(all).map((iface) => iface.iface));
-	if (!names.delete(name)) names.add(name);
+	// Resolve in the exclusion form (migrating a legacy selection first): the
+	// bond is everything not excluded, so a toggle flips `name` between bonded
+	// and excluded — persisted as such.
+	await migrateSelection(all);
+	const excluded = new Set(selection().excluded ?? []);
+	if (excluded.has(name)) excluded.delete(name); // was out of the bond -> in
+	else excluded.add(name); // was in the bond -> out
 	// A CtrLink TUN leaving the bond drops its auto-registered programmatic
 	// uplink (ctrlink_streamer, id `ctrlink:tun:<tun>`) too — otherwise
 	// srtla_send would keep using the path the user just excluded.
 	const uplinkId = `ctrlink:tun:${name}`;
 	if (
-		!names.has(name) &&
+		excluded.has(name) &&
 		listProgrammaticUplinks().some((e) => e.id === uplinkId)
 	)
 		await removeProgrammaticUplink(uplinkId);
-	return applySelection({ modems: [...names] });
+	return applySelection({ excluded: [...excluded] });
 }
 
 /** The module's bond selection used to live in the relay section: adopt it once. */

@@ -13,13 +13,16 @@ import {
     fireInterfaceChangeIfChanged,
     isSelfGeneratedEvent,
     leaselessGateway,
+    migrateSelection,
     onInterfaceChange,
     removeProgrammaticUplink,
+    resolveSelection,
     seedManagedTableCount,
     setRtTablesFileForTest,
     setSysfsNetForTest,
     uplinksLines,
 } from "../client/modules/network/routing";
+import type { Iface } from "../client/modules/network/types";
 import { defaultRouteRowIndex } from "../client/modules/network/route_view";
 
 // The tests below bind stub bags into the module singleton; hand the real
@@ -134,6 +137,97 @@ describe("uplinks file lines", () => {
             // Drop the test's uplink so later tests see a clean registry.
             await removeProgrammaticUplink("ctrlink:relay0_eno2");
         }
+    });
+});
+
+describe("bond selection (exclusion model)", () => {
+    // Shared stub core: the selection lives in `state.data.network.selection`.
+    const data: Record<string, any> = { network: { selection: {} } };
+    const core = {
+        config: { DRY_RUN: true },
+        state: { data },
+        saveState: async () => {},
+        writeFileAtomic: async () => {},
+    } as unknown as ModuleCore;
+    const setSel = (sel: Record<string, unknown>) => {
+        data.network = { selection: sel };
+    };
+    const savedSel = data.network.selection;
+    const sel = () => data.network.selection;
+    const mk = (iface: string, ip: string): Iface => ({
+        iface,
+        ip,
+        prefix: 24,
+        cidr: `${ip}/24`,
+    });
+    const src = { detect: async () => [], modemIface: async () => null };
+    const names = (list: Iface[]) => list.map((i) => i.iface);
+
+    test("bonds every interface by default", () => {
+        bindRouting(core, src);
+        setSel({});
+        const all = [mk("eth0", "192.168.1.10"), mk("usb0", "10.0.0.5")];
+        expect(names(resolveSelection(all))).toEqual(["eth0", "usb0"]);
+    });
+
+    test("a newly-appearing interface is bonded automatically", () => {
+        bindRouting(core, src);
+        setSel({ excluded: ["usb0"] });
+        const all = [
+            mk("eth0", "192.168.1.10"),
+            mk("usb0", "10.0.0.5"),
+            mk("wwan0", "10.40.0.9"),
+        ];
+        expect(names(resolveSelection(all))).toEqual(["eth0", "wwan0"]);
+    });
+
+    test("an explicit exclusion is honoured", () => {
+        bindRouting(core, src);
+        setSel({ excluded: ["usb0"] });
+        const all = [mk("eth0", "192.168.1.10"), mk("usb0", "10.0.0.5")];
+        expect(names(resolveSelection(all))).toEqual(["eth0"]);
+    });
+
+    test("migrates a legacy include selection (omitted -> excluded); new ifaces bond", async () => {
+        bindRouting(core, src);
+        setSel({ modems: ["eth0"] });
+        const all = [mk("eth0", "192.168.1.10"), mk("usb0", "10.0.0.5")];
+        await migrateSelection(all);
+        expect(sel()).toEqual({ excluded: ["usb0"] });
+        // A new interface appearing after migration is bonded by default.
+        expect(
+            names(resolveSelection([...all, mk("wwan0", "10.40.0.9")])),
+        ).toEqual(["eth0", "wwan0"]);
+    });
+
+    test("migration keeps an empty legacy include (bond none) as excluding everything", async () => {
+        bindRouting(core, src);
+        setSel({ modems: [] });
+        const all = [mk("eth0", "192.168.1.10"), mk("usb0", "10.0.0.5")];
+        await migrateSelection(all);
+        expect(sel()).toEqual({ excluded: ["eth0", "usb0"] });
+    });
+
+    test("does not migrate a fresh (no-include) selection", async () => {
+        bindRouting(core, src);
+        setSel({});
+        await migrateSelection([mk("eth0", "192.168.1.10")]);
+        expect(sel()).toEqual({});
+    });
+
+    test("does not re-migrate an already-converted selection", async () => {
+        bindRouting(core, src);
+        setSel({ excluded: ["usb0"] });
+        await migrateSelection([
+            mk("eth0", "192.168.1.10"),
+            mk("usb0", "10.0.0.5"),
+            mk("wwan0", "10.40.0.9"),
+        ]);
+        expect(sel()).toEqual({ excluded: ["usb0"] });
+    });
+
+    afterAll(() => {
+        data.network = { selection: savedSel };
     });
 });
 
