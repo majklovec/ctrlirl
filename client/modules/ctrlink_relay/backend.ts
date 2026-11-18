@@ -33,105 +33,106 @@
 import { readFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+    applyLegPlan,
+    applyVifPlan,
+    type CommandRunner,
+    createUdpRelay,
+    deleteTun,
+    type LegPlan,
+    type RelaySocketFactory,
+    removeLegPlan,
+    removeVifPlan,
+    type TunFactory,
+    type UdpRelay,
+} from "@ctrlirl/udp-relay";
 import { requireCapability } from "../../../shared/capabilities";
 import type {
-	BackendModule,
-	Params,
+    BackendModule,
+    Params,
 } from "../../../shared/contracts/backend_module";
 import type {
-	NetworkInterfaces,
-	Uplinks,
+    NetworkInterfaces,
+    Uplinks,
 } from "../../../shared/contracts/module_capabilities";
 import {
-	applyLegPlan,
-	applyVifPlan,
-	createUdpRelay,
-	removeLegPlan,
-	removeVifPlan,
-	type CommandRunner,
-	type LegPlan,
-	type RelaySocketFactory,
-	type UdpRelay,
-	type TunFactory,
-} from "@ctrlirl/udp-relay";
-import {
-	configureRelayTunnels,
-	clearUplinkLeg,
-	encoderVifIp,
-	legTunFor,
-	noteUplinkLeg,
-	reconcileRelayTunnelsNow,
-	relayTunnelSpecFor,
-	relayVifIp,
-	stopRelayTunnels,
-	uplinkSlot,
-	type RelayUplink,
-} from "./udpip";
-import {
-	CTRLINK_ANNOUNCE_INTERVAL_MS,
-	CTRLINK_DISCOVERY_PORT,
-	CTRLINK_RELAY_WS_PROTOCOL,
-	type CtrlinkAnnounce,
-	type CtrlinkDiscoveredEncoder,
-	type CtrlinkRelayIface,
-	type CtrlinkRelayIfaceEventType,
-	type CtrlinkRelayWsMessage,
+    CTRLINK_ANNOUNCE_INTERVAL_MS,
+    CTRLINK_DISCOVERY_PORT,
+    CTRLINK_RELAY_WS_PROTOCOL,
+    type CtrlinkAnnounce,
+    type CtrlinkDiscoveredEncoder,
+    type CtrlinkRelayIface,
+    type CtrlinkRelayIfaceEventType,
+    type CtrlinkRelayWsMessage,
 } from "../../../shared/ctrlink_discovery";
 import {
-	MDNS_ENCODER_SERVICE,
-	MDNS_RELAY_SERVICE,
-	type MdnsFound,
-	startMdnsAdvertiser,
-	startMdnsBrowser,
+    MDNS_ENCODER_SERVICE,
+    MDNS_RELAY_SERVICE,
+    type MdnsFound,
+    startMdnsAdvertiser,
+    startMdnsBrowser,
 } from "../../../shared/ctrlink_mdns";
 import {
-	ApiError,
-	optionalStringList,
-	requireBoolean,
-	requireHost,
+    ApiError,
+    optionalStringList,
+    requireBoolean,
+    requireHost,
 } from "../../../shared/params";
 import { errorMessage } from "../../../shared/util";
 import type { ModuleCore } from "../../backend/module_core";
 import {
-	knownEncoders,
-	lastUdpAnnounceAt,
-	noteEncoder,
-	startAnnouncing,
-	startListeningForEncoders,
-	stopAnnouncing,
-	stopListeningForEncoders,
-	sweepEncoders,
+    knownEncoders,
+    lastUdpAnnounceAt,
+    noteEncoder,
+    startAnnouncing,
+    startListeningForEncoders,
+    stopAnnouncing,
+    stopListeningForEncoders,
+    sweepEncoders,
 } from "./discovery";
 import log from "./log";
 import type {
-	CtrlinkRelayConfig,
-	CtrlinkRelayFailure,
-	CtrlinkRelayState,
-	CtrlinkRuntimeStatus,
+    CtrlinkRelayConfig,
+    CtrlinkRelayFailure,
+    CtrlinkRelayState,
+    CtrlinkRuntimeStatus,
 } from "./types";
+import {
+    clearUplinkLeg,
+    configureRelayTunnels,
+    encoderVifIp,
+    legTunFor,
+    noteUplinkLeg,
+    type RelayUplink,
+    reconcileRelayTunnelsNow,
+    relayTunnelSpecFor,
+    relayVifIp,
+    stopRelayTunnels,
+    uplinkSlot,
+} from "./udpip";
 
 // ----------------------------------------------------------------------
 // Config (the `ctx.state.ctrlink` slice)
 // ----------------------------------------------------------------------
 const DEFAULTS: Omit<
-	Required<Omit<CtrlinkRelayConfig, "wireGuard">>,
-	"interfaceNameOverrides" | "portMap"
+    Required<Omit<CtrlinkRelayConfig, "wireGuard">>,
+    "interfaceNameOverrides" | "portMap"
 > & {
-	interfaceNameOverrides: Record<string, string>;
-	portMap: Record<string, number>;
+    interfaceNameOverrides: Record<string, string>;
+    portMap: Record<string, number>;
 } = {
-	enabled: false,
-	nat: true,
-	// The UDP IP tunnel is the default (and only) transport.
-	tunnel: true,
-	announceHost: "",
-	listenPortBase: 4000,
-	interfaceAllow: [],
-	interfaceIgnore: ["docker.*", "veth.*"],
-	interfaceNameOverrides: {},
-	runtimeStatusFile: join(tmpdir(), "ctrlink-status.json"),
-	logLevel: "info",
-	portMap: {},
+    enabled: false,
+    nat: true,
+    // The UDP IP tunnel is the default (and only) transport.
+    tunnel: true,
+    announceHost: "",
+    listenPortBase: 4000,
+    interfaceAllow: [],
+    interfaceIgnore: ["docker.*", "veth.*"],
+    interfaceNameOverrides: {},
+    runtimeStatusFile: join(tmpdir(), "ctrlink-status.json"),
+    logLevel: "info",
+    portMap: {},
 };
 
 let core: ModuleCore;
@@ -163,56 +164,56 @@ const relays = new Map<string, UdpRelay>();
 const RATE_SAMPLE_MS = 1_000;
 const lastSample = new Map<string, { rx: number; tx: number; at: number }>();
 const liveRates = new Map<
-	string,
-	{ rxBytesPerSec: number; txBytesPerSec: number }
+    string,
+    { rxBytesPerSec: number; txBytesPerSec: number }
 >();
 let rateTimer: ReturnType<typeof setInterval> | undefined;
 
 /** One throughput sample: rate vs the previous reading, per live relay. */
 function sampleRates(): void {
-	const now = Date.now();
-	for (const [name, relay] of relays) {
-		const st = relay.stats();
-		const prev = lastSample.get(name);
-		if (prev) {
-			const dt = (now - prev.at) / 1000;
-			if (dt > 0) {
-				liveRates.set(name, {
-					// Counters are monotonic; clamp against a mid-sample
-					// restart (a fresh relay's counters start at 0).
-					rxBytesPerSec: Math.max(0, (st.encRxBytes - prev.rx) / dt),
-					txBytesPerSec: Math.max(0, (st.encTxBytes - prev.tx) / dt),
-				});
-			}
-		}
-		lastSample.set(name, {
-			rx: st.encRxBytes,
-			tx: st.encTxBytes,
-			at: now,
-		});
-	}
-	for (const name of [...lastSample.keys()])
-		if (!relays.has(name)) {
-			lastSample.delete(name);
-			liveRates.delete(name);
-		}
+    const now = Date.now();
+    for (const [name, relay] of relays) {
+        const st = relay.stats();
+        const prev = lastSample.get(name);
+        if (prev) {
+            const dt = (now - prev.at) / 1000;
+            if (dt > 0) {
+                liveRates.set(name, {
+                    // Counters are monotonic; clamp against a mid-sample
+                    // restart (a fresh relay's counters start at 0).
+                    rxBytesPerSec: Math.max(0, (st.encRxBytes - prev.rx) / dt),
+                    txBytesPerSec: Math.max(0, (st.encTxBytes - prev.tx) / dt),
+                });
+            }
+        }
+        lastSample.set(name, {
+            rx: st.encRxBytes,
+            tx: st.encTxBytes,
+            at: now,
+        });
+    }
+    for (const name of [...lastSample.keys()])
+        if (!relays.has(name)) {
+            lastSample.delete(name);
+            liveRates.delete(name);
+        }
 }
 
 /** Start the sampler (idempotent); run it for the module's lifetime. */
 function startRateSampler(): void {
-	if (rateTimer) return;
-	rateTimer = setInterval(sampleRates, RATE_SAMPLE_MS);
-	rateTimer.unref?.();
+    if (rateTimer) return;
+    rateTimer = setInterval(sampleRates, RATE_SAMPLE_MS);
+    rateTimer.unref?.();
 }
 
 /** Stop the sampler and drop all samples/rates. */
 function stopRateSampler(): void {
-	if (rateTimer) {
-		clearInterval(rateTimer);
-		rateTimer = undefined;
-	}
-	lastSample.clear();
-	liveRates.clear();
+    if (rateTimer) {
+        clearInterval(rateTimer);
+        rateTimer = undefined;
+    }
+    lastSample.clear();
+    liveRates.clear();
 }
 
 /**
@@ -236,52 +237,51 @@ const directIfaces = new Set<string>();
 const failures = new Map<string, string>();
 
 type ResolvedConfig = Omit<
-	Required<Omit<CtrlinkRelayConfig, "wireGuard">>,
-	"interfaceNameOverrides" | "portMap"
+    Required<Omit<CtrlinkRelayConfig, "wireGuard">>,
+    "interfaceNameOverrides" | "portMap"
 > & {
-	/** Compat alias (read-only); kept optional in the resolved shape. */
-	wireGuard?: boolean;
-	interfaceNameOverrides: Record<string, string>;
-	portMap: Record<string, number>;
+    /** Compat alias (read-only); kept optional in the resolved shape. */
+    wireGuard?: boolean;
+    interfaceNameOverrides: Record<string, string>;
+    portMap: Record<string, number>;
 };
 
 /** Read the merged config slice (defaults backfilled on first read). */
 function config(): ResolvedConfig {
-	const raw = (core.state.data.ctrlink ?? {}) as Partial<CtrlinkRelayConfig>;
-	const portMap: Record<string, number> = {};
-	for (const [name, port] of Object.entries(raw.portMap ?? {}))
-		if (Number.isInteger(port) && port >= 1 && port <= 65_535)
-			portMap[name] = port;
-	return {
-		enabled: raw.enabled ?? DEFAULTS.enabled,
-		nat: raw.nat ?? DEFAULTS.nat,
-		// Compat alias: `tunnel` replaces `wireGuard`; read `tunnel ?? wireGuard`.
-		tunnel: raw.tunnel ?? raw.wireGuard ?? DEFAULTS.tunnel,
-		announceHost: raw.announceHost ?? DEFAULTS.announceHost,
-		listenPortBase: raw.listenPortBase ?? DEFAULTS.listenPortBase,
-		interfaceAllow: raw.interfaceAllow ?? DEFAULTS.interfaceAllow,
-		interfaceIgnore: raw.interfaceIgnore ?? DEFAULTS.interfaceIgnore,
-		interfaceNameOverrides:
-			raw.interfaceNameOverrides ?? DEFAULTS.interfaceNameOverrides,
-		runtimeStatusFile: raw.runtimeStatusFile ?? DEFAULTS.runtimeStatusFile,
-		logLevel: raw.logLevel ?? DEFAULTS.logLevel,
-		portMap,
-	};
+    const raw = (core.state.data.ctrlink ?? {}) as Partial<CtrlinkRelayConfig>;
+    const portMap: Record<string, number> = {};
+    for (const [name, port] of Object.entries(raw.portMap ?? {}))
+        if (Number.isInteger(port) && port >= 1 && port <= 65_535)
+            portMap[name] = port;
+    return {
+        enabled: raw.enabled ?? DEFAULTS.enabled,
+        nat: raw.nat ?? DEFAULTS.nat,
+        // Compat alias: `tunnel` replaces `wireGuard`; read `tunnel ?? wireGuard`.
+        tunnel: raw.tunnel ?? raw.wireGuard ?? DEFAULTS.tunnel,
+        announceHost: raw.announceHost ?? DEFAULTS.announceHost,
+        listenPortBase: raw.listenPortBase ?? DEFAULTS.listenPortBase,
+        interfaceAllow: raw.interfaceAllow ?? DEFAULTS.interfaceAllow,
+        interfaceIgnore: raw.interfaceIgnore ?? DEFAULTS.interfaceIgnore,
+        interfaceNameOverrides:
+            raw.interfaceNameOverrides ?? DEFAULTS.interfaceNameOverrides,
+        runtimeStatusFile: raw.runtimeStatusFile ?? DEFAULTS.runtimeStatusFile,
+        logLevel: raw.logLevel ?? DEFAULTS.logLevel,
+        portMap,
+    };
 }
 
 /** Persist the full config slice (for a stable state file). */
 function saveConfig(
-	patch: Partial<CtrlinkRelayConfig>,
+    patch: Partial<CtrlinkRelayConfig>,
 ): ReturnType<typeof config> {
-	const next = { ...config(), ...patch };
-	core.state.data.ctrlink = {
-		...next,
-		relayIds: (core.state.data.ctrlink as Record<string, unknown>)?.relayIds as
-			| Record<string, string>
-			| undefined,
-	};
-	core.saveState();
-	return next;
+    const next = { ...config(), ...patch };
+    core.state.data.ctrlink = {
+        ...next,
+        relayIds: (core.state.data.ctrlink as Record<string, unknown>)
+            ?.relayIds as Record<string, string> | undefined,
+    };
+    core.saveState();
+    return next;
 }
 
 /**
@@ -298,33 +298,33 @@ function saveConfig(
  * which `network.interfaces` hides) from one that is genuinely gone.
  */
 function nameEligible(
-	name: string,
-	allow: RegExp[],
-	ignore: RegExp[],
+    name: string,
+    allow: RegExp[],
+    ignore: RegExp[],
 ): boolean {
-	// LAN bridges are infrastructure, never shareable endpoints — a bridge
-	// on the home-LAN subnet would advertise a duplicate of the pass-through
-	// NIC it extends. Same for the relay leg TUN netdevs `rtltun_*`: they are
-	// the transport itself, and treating one as an uplink makes the reconcile
-	// build `rtltun_rtltun_*` (a second tunnel for the tunnel), colliding
-	// listen ports and cascading the per-index addressing.
-	if (/^br-/.test(name) || /^rtltun_/.test(name)) return false;
-	return allow.length > 0
-		? allow.some((re) => re.test(name))
-		: !ignore.some((re) => re.test(name));
+    // LAN bridges are infrastructure, never shareable endpoints — a bridge
+    // on the home-LAN subnet would advertise a duplicate of the pass-through
+    // NIC it extends. Same for the relay leg TUN netdevs `rtltun_*`: they are
+    // the transport itself, and treating one as an uplink makes the reconcile
+    // build `rtltun_rtltun_*` (a second tunnel for the tunnel), colliding
+    // listen ports and cascading the per-index addressing.
+    if (/^br-/.test(name) || /^rtltun_/.test(name)) return false;
+    return allow.length > 0
+        ? allow.some((re) => re.test(name))
+        : !ignore.some((re) => re.test(name));
 }
 
 export function eligibleInterfaces(
-	ifaces: Array<{ name: string; addresses: string[] }>,
-	cfg: ReturnType<typeof config>,
+    ifaces: Array<{ name: string; addresses: string[] }>,
+    cfg: ReturnType<typeof config>,
 ): string[] {
-	const allow = cfg.interfaceAllow.map((r) => new RegExp(r, "i"));
-	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
-	return ifaces
-		.filter((i) => i.addresses.length > 0)
-		.filter((i) => nameEligible(i.name, allow, ignore))
-		.map((i) => i.name)
-		.sort();
+    const allow = cfg.interfaceAllow.map((r) => new RegExp(r, "i"));
+    const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
+    return ifaces
+        .filter((i) => i.addresses.length > 0)
+        .filter((i) => nameEligible(i.name, allow, ignore))
+        .map((i) => i.name)
+        .sort();
 }
 
 /**
@@ -335,10 +335,10 @@ export function eligibleInterfaces(
  * encoder (announce, WS snapshot/events, status).
  */
 export function advertisedInterfaces(
-	ifaces: Array<{ name: string; addresses: string[] }>,
-	cfg: ReturnType<typeof config>,
+    ifaces: Array<{ name: string; addresses: string[] }>,
+    cfg: ReturnType<typeof config>,
 ): string[] {
-	return eligibleInterfaces(ifaces, cfg).filter((n) => !directIfaces.has(n));
+    return eligibleInterfaces(ifaces, cfg).filter((n) => !directIfaces.has(n));
 }
 
 /**
@@ -350,40 +350,42 @@ export function advertisedInterfaces(
  * simply classifies no interface).
  */
 export async function refreshDirectIfaces(): Promise<void> {
-	try {
-		const next = new Set<string>();
-		let sawEncoder = false;
-		for (const e of knownEncoders()) {
-			if (!e.ip) continue;
-			sawEncoder = true;
-			const out = await core.run("ip", ["route", "get", e.ip], true);
-			const m = out.match(/\bdev ([\w.-]+)\b/);
-			if (m && !/\bvia\s/.test(out)) next.add(m[1]);
-		}
-		// No encoder currently known (all TTL-expired) — keep the previous
-		// mapping. Collapsing to an empty set would let a directly-connected
-		// interface leak back into the advertise during the expiry window,
-		// and the encoder would rebuild a redundant tunnel over it.
-		if (!sawEncoder) return;
-		const prev = [...directIfaces].join(",");
-		directIfaces.clear();
-		for (const name of next) directIfaces.add(name);
-		if (prev !== [...directIfaces].join(","))
-			console.log(`[ctrlink_relay] directly-connected ifaces: [${[...directIfaces].join(", ")}]`);
-	} catch {
-		/* core unbound / lookup failed — keep the previous mapping */
-	}
+    try {
+        const next = new Set<string>();
+        let sawEncoder = false;
+        for (const e of knownEncoders()) {
+            if (!e.ip) continue;
+            sawEncoder = true;
+            const out = await core.run("ip", ["route", "get", e.ip], true);
+            const m = out.match(/\bdev ([\w.-]+)\b/);
+            if (m && !/\bvia\s/.test(out)) next.add(m[1]);
+        }
+        // No encoder currently known (all TTL-expired) — keep the previous
+        // mapping. Collapsing to an empty set would let a directly-connected
+        // interface leak back into the advertise during the expiry window,
+        // and the encoder would rebuild a redundant tunnel over it.
+        if (!sawEncoder) return;
+        const prev = [...directIfaces].join(",");
+        directIfaces.clear();
+        for (const name of next) directIfaces.add(name);
+        if (prev !== [...directIfaces].join(","))
+            console.log(
+                `[ctrlink_relay] directly-connected ifaces: [${[...directIfaces].join(", ")}]`,
+            );
+    } catch {
+        /* core unbound / lookup failed — keep the previous mapping */
+    }
 }
 
 /** The interface address a relay should bind to (first IPv4, or the override). */
 function ifaceAddress(
-	name: string,
-	ifaces: Array<{ name: string; addresses: string[] }>,
-	cfg: ReturnType<typeof config> = config(),
+    name: string,
+    ifaces: Array<{ name: string; addresses: string[] }>,
+    cfg: ReturnType<typeof config> = config(),
 ): string | undefined {
-	const override = cfg.interfaceNameOverrides[name];
-	if (override) return override;
-	return ifaces.find((i) => i.name === name)?.addresses[0];
+    const override = cfg.interfaceNameOverrides[name];
+    if (override) return override;
+    return ifaces.find((i) => i.name === name)?.addresses[0];
 }
 
 // ----------------------------------------------------------------------
@@ -397,31 +399,31 @@ function ifaceAddress(
  * mapping is persisted immediately.
  */
 export function allocatePort(name: string): number {
-	const cfg = config();
-	const existing = cfg.portMap[name];
-	if (existing !== undefined) return existing;
-	const ports = Object.values(cfg.portMap);
-	const highWater =
-		ports.length > 0 ? Math.max(...ports) : cfg.listenPortBase - 1;
-	let port = highWater + 1;
-	// Defense against a corrupted map: never hand out a taken port.
-	while (ports.includes(port)) port += 1;
-	if (port > 65_535)
-		throw new ApiError(
-			`no free relay port for ${name} (high water ${highWater})`,
-			409,
-		);
-	saveConfig({ portMap: { ...cfg.portMap, [name]: port } });
-	return port;
+    const cfg = config();
+    const existing = cfg.portMap[name];
+    if (existing !== undefined) return existing;
+    const ports = Object.values(cfg.portMap);
+    const highWater =
+        ports.length > 0 ? Math.max(...ports) : cfg.listenPortBase - 1;
+    let port = highWater + 1;
+    // Defense against a corrupted map: never hand out a taken port.
+    while (ports.includes(port)) port += 1;
+    if (port > 65_535)
+        throw new ApiError(
+            `no free relay port for ${name} (high water ${highWater})`,
+            409,
+        );
+    saveConfig({ portMap: { ...cfg.portMap, [name]: port } });
+    return port;
 }
 
 /** Free a removed interface's port mapping (the other mappings stay put). */
 export function freePort(name: string): void {
-	const cfg = config();
-	if (cfg.portMap[name] === undefined) return;
-	const next = { ...cfg.portMap };
-	delete next[name];
-	saveConfig({ portMap: next });
+    const cfg = config();
+    if (cfg.portMap[name] === undefined) return;
+    const next = { ...cfg.portMap };
+    delete next[name];
+    saveConfig({ portMap: next });
 }
 
 /** Root of the per-interface sysfs dir (test seam: point at a fixture). */
@@ -429,7 +431,7 @@ let sysfsNetDir = "/sys/class/net";
 
 /** Test seam: point the operstate read at a fixture directory (null restores the default). */
 export function setSysfsNetForTest(dir: string | null): void {
-	sysfsNetDir = dir ?? "/sys/class/net";
+    sysfsNetDir = dir ?? "/sys/class/net";
 }
 
 /**
@@ -439,14 +441,16 @@ export function setSysfsNetForTest(dir: string | null): void {
  * surfaced as a failure, not a carrier loss.
  */
 export function carrierUp(name: string): boolean {
-	try {
-		return (
-			readFileSync(join(sysfsNetDir, name, "operstate"), "utf8").trim() !==
-			"down"
-		);
-	} catch {
-		return true;
-	}
+    try {
+        return (
+            readFileSync(
+                join(sysfsNetDir, name, "operstate"),
+                "utf8",
+            ).trim() !== "down"
+        );
+    } catch {
+        return true;
+    }
 }
 
 /**
@@ -457,13 +461,13 @@ export function carrierUp(name: string): boolean {
  * the existence probe: a present netdev always has one, a gone one does not.
  */
 function ifaceNetdevExists(name: string): boolean {
-	try {
-		// A present netdev always has a readable operstate; a gone one throws.
-		readFileSync(join(sysfsNetDir, name, "operstate"), "utf8");
-		return true;
-	} catch {
-		return false;
-	}
+    try {
+        // A present netdev always has a readable operstate; a gone one throws.
+        readFileSync(join(sysfsNetDir, name, "operstate"), "utf8");
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -473,15 +477,15 @@ function ifaceNetdevExists(name: string): boolean {
  * encoder's interfaces card shows.
  */
 function linkSpeed(name: string): number | undefined {
-	try {
-		const mbps = parseInt(
-			readFileSync(join("/sys/class/net", name, "speed"), "utf8").trim(),
-			10,
-		);
-		return mbps > 0 && mbps < 0xffffffff ? mbps : undefined;
-	} catch {
-		return undefined;
-	}
+    try {
+        const mbps = parseInt(
+            readFileSync(join("/sys/class/net", name, "speed"), "utf8").trim(),
+            10,
+        );
+        return mbps > 0 && mbps < 0xffffffff ? mbps : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -494,16 +498,16 @@ function linkSpeed(name: string): number | undefined {
  * nothing to advertise.
  */
 export function effectiveAnnounceHost(): string {
-	const cfg = config();
-	const manual = cfg.announceHost.trim();
-	if (manual) return manual;
-	const ifaces = netIfaces?.list() ?? [];
-	const auto =
-		[...relays.values()][0]?.interfaceAddress ??
-		advertisedInterfaces(ifaces, cfg)
-			.map((name) => ifaceAddress(name, ifaces, cfg))
-			.find(Boolean);
-	return auto ?? "";
+    const cfg = config();
+    const manual = cfg.announceHost.trim();
+    if (manual) return manual;
+    const ifaces = netIfaces?.list() ?? [];
+    const auto =
+        [...relays.values()][0]?.interfaceAddress ??
+        advertisedInterfaces(ifaces, cfg)
+            .map((name) => ifaceAddress(name, ifaces, cfg))
+            .find(Boolean);
+    return auto ?? "";
 }
 
 /**
@@ -513,24 +517,24 @@ export function effectiveAnnounceHost(): string {
  * entry (this list IS the relay's uplink set).
  */
 export function relayIfaceList(): CtrlinkRelayIface[] {
-	const cfg = config();
-	const ifaces = netIfaces?.list() ?? [];
-	return advertisedInterfaces(ifaces, cfg).map((name) => {
-		const port = allocatePort(name);
-		const i: CtrlinkRelayIface = {
-			iface_name: name,
-			ip: ifaceAddress(name, ifaces, cfg) ?? "",
-			udp_port: port,
-			state: relays.has(name) ? ("up" as const) : ("down" as const),
-			uplink: true,
-		};
-		// Tunnel offer: when the relay has a leg up for this uplink, advertise
-		// it (with the leg's UDP port) so the encoder builds a tunnel vif
-		// (full Internet).
-		const tunnel = relayTunnelSpecFor(name, port);
-		if (tunnel) i.tunnel = tunnel;
-		return i;
-	});
+    const cfg = config();
+    const ifaces = netIfaces?.list() ?? [];
+    return advertisedInterfaces(ifaces, cfg).map((name) => {
+        const port = allocatePort(name);
+        const i: CtrlinkRelayIface = {
+            iface_name: name,
+            ip: ifaceAddress(name, ifaces, cfg) ?? "",
+            udp_port: port,
+            state: relays.has(name) ? ("up" as const) : ("down" as const),
+            uplink: true,
+        };
+        // Tunnel offer: when the relay has a leg up for this uplink, advertise
+        // it (with the leg's UDP port) so the encoder builds a tunnel vif
+        // (full Internet).
+        const tunnel = relayTunnelSpecFor(name, port);
+        if (tunnel) i.tunnel = tunnel;
+        return i;
+    });
 }
 
 // --- Kernel command runner (ip / iptables / sysctl) ------------------------
@@ -544,21 +548,21 @@ let cachedRunner: CommandRunner | null = null;
 
 /** Inject a custom kernel runner (tests). `null` restores the sudo adapter. */
 export function setCommandRunner(r: CommandRunner | null): void {
-	commandRunnerOverride = r;
-	cachedRunner = null;
+    commandRunnerOverride = r;
+    cachedRunner = null;
 }
 
 /** Resolve the active runner (cached; a fresh `core.run`-based sudo adapter). */
 function runner(): CommandRunner {
-	if (commandRunnerOverride) return commandRunnerOverride;
-	if (!cachedRunner) {
-		cachedRunner = (cmd, ...args) =>
-			core
-				.run("/usr/bin/sudo", ["-n", cmd, ...args], true)
-				.then((stdout) => ({ stdout, exitCode: 0 }))
-				.catch(() => ({ stdout: "", exitCode: 1 }));
-	}
-	return cachedRunner;
+    if (commandRunnerOverride) return commandRunnerOverride;
+    if (!cachedRunner) {
+        cachedRunner = (cmd, ...args) =>
+            core
+                .run("/usr/bin/sudo", ["-n", cmd, ...args], true)
+                .then((stdout) => ({ stdout, exitCode: 0 }))
+                .catch(() => ({ stdout: "", exitCode: 1 }));
+    }
+    return cachedRunner;
 }
 
 /** Guard so the tunnel module is wired exactly once (module start). */
@@ -580,27 +584,27 @@ let tunnelConfigured = false;
  * change).
  */
 function tunnelTransportOuterIp(): string {
-	const cfg = config();
-	const manual = cfg.announceHost.trim();
-	if (manual) return manual;
-	const ifaces = netIfaces?.list() ?? [];
-	for (const name of directIfaces) {
-		const addr = ifaceAddress(name, ifaces, cfg);
-		if (addr) return addr;
-	}
-	return effectiveAnnounceHost();
+    const cfg = config();
+    const manual = cfg.announceHost.trim();
+    if (manual) return manual;
+    const ifaces = netIfaces?.list() ?? [];
+    for (const name of directIfaces) {
+        const addr = ifaceAddress(name, ifaces, cfg);
+        if (addr) return addr;
+    }
+    return effectiveAnnounceHost();
 }
 
 function configureRelayTunnelsNow(): void {
-	if (tunnelConfigured) return;
-	tunnelConfigured = true;
-	const cfg = config();
-	configureRelayTunnels({
-		enabled: (cfg.tunnel ?? true) && cfg.enabled,
-		// A live getter: the ded-link address is discovered at runtime and
-		// `relayTunnelSpecFor` resolves it on every snapshot.
-		transportOuterIp: tunnelTransportOuterIp,
-	});
+    if (tunnelConfigured) return;
+    tunnelConfigured = true;
+    const cfg = config();
+    configureRelayTunnels({
+        enabled: (cfg.tunnel ?? true) && cfg.enabled,
+        // A live getter: the ded-link address is discovered at runtime and
+        // `relayTunnelSpecFor` resolves it on every snapshot.
+        transportOuterIp: tunnelTransportOuterIp,
+    });
 }
 
 /** Serialize tunnel reconciles on a tail promise so passes cannot overlap: an
@@ -611,94 +615,96 @@ function configureRelayTunnelsNow(): void {
  * `directIfaces`. */
 let tunnelReconcileTail: Promise<void> = Promise.resolve();
 function reconcileTunnelsNow(): void {
-	tunnelReconcileTail = tunnelReconcileTail.then(async () => {
-		try {
-			// Refresh the direct-link set FIRST — the single authoritative
-			// ordering point.
-			await refreshDirectIfaces();
-			// No encoder known → tear down all tunnel devices (nothing to
-			// tunnel to, and leftovers like rtltun-<dedlink> are useless).
-			if (knownEncoders().length === 0) {
-				await reconcileRelayTunnelsNow([]);
-				return;
-			}
-			const ifaces = netIfaces?.list() ?? [];
-			// The server pump binds the ded-link IP (a live getter on the udpip
-			// module), so each uplink is just its name (egress dev). The ded-link
-			// itself is excluded (`directIfaces`) — never tunnel the direct link.
-			const uplinks: RelayUplink[] = advertisedInterfaces(
-				ifaces,
-				config(),
-			)
-				.filter((n) => !directIfaces.has(n))
-				.map((n) => ({ uplink: n }));
-			await reconcileRelayTunnelsNow(uplinks);
-		} catch {
-			// Never break the reconciliation chain.
-		}
-	});
+    tunnelReconcileTail = tunnelReconcileTail.then(async () => {
+        try {
+            // Refresh the direct-link set FIRST — the single authoritative
+            // ordering point.
+            await refreshDirectIfaces();
+            // No encoder known → tear down all tunnel devices (nothing to
+            // tunnel to, and leftovers like rtltun-<dedlink> are useless).
+            if (knownEncoders().length === 0) {
+                await reconcileRelayTunnelsNow([]);
+                return;
+            }
+            const ifaces = netIfaces?.list() ?? [];
+            // The server pump binds the ded-link IP (a live getter on the udpip
+            // module), so each uplink is just its name (egress dev). The ded-link
+            // itself is excluded (`directIfaces`) — never tunnel the direct link.
+            const uplinks: RelayUplink[] = advertisedInterfaces(
+                ifaces,
+                config(),
+            )
+                .filter((n) => !directIfaces.has(n))
+                .map((n) => ({ uplink: n }));
+            await reconcileRelayTunnelsNow(uplinks);
+        } catch {
+            // Never break the reconciliation chain.
+        }
+    });
 }
 
 function buildStatus(): CtrlinkRuntimeStatus {
-	const cfg = config();
-	const ifaces = netIfaces?.list() ?? [];
-	const availableInterfaces = advertisedInterfaces(ifaces, cfg).map((name) => {
-		const rate = liveRates.get(name);
-		return {
-			name,
-			address: ifaceAddress(name, ifaces, cfg) ?? "",
-			// High-water-mark mapping (protocol.md §1) — never base+index.
-			listenPort: allocatePort(name),
-			state: relays.has(name) ? ("up" as const) : ("down" as const),
-			speed: linkSpeed(name),
-			// The REAL relayed throughput (bytes/sec), sampled live — this is
-			// what the card shows, not the negotiated `speed` above.
-			rxBytesPerSec: rate?.rxBytesPerSec,
-			txBytesPerSec: rate?.txBytesPerSec,
-		};
-	});
-	const relaysArr = [...relays.entries()].map(([name, relay]) => {
-		const st = relay.stats();
-		return {
-			interfaceName: name,
-			interfaceAddress: relay.interfaceAddress,
-			stats: {
-				encRxPackets: st.encRxPackets,
-				encTxPackets: st.encTxPackets,
-				lastEncoderSeen: st.lastEncoderSeen,
-			},
-		};
-	});
-	const downList = [...downIfaces.keys()].filter((name) =>
-		availableInterfaces.some((i) => i.name === name),
-	);
-	// The encoders this relay learned about, each with its per-path
-	// last-discovery stamps and the live state of the control-channel
-	// WebSocket to it (the card shows the relay→encoder links).
-	const encoders = knownEncoders().map((e) => {
-		const ch = encoderChannels.get(e.encoderId);
-		return {
-			id: e.encoderId,
-			connected: !!ch && ch.ws.readyState === WebSocket.OPEN,
-			discoveredAt: { ...e.discoveredAt },
-			lastSeen: e.lastSeen,
-		};
-	});
-	return {
-		connected: relays.size > 0,
-		announceHost: effectiveAnnounceHost(),
-		availableInterfaces,
-		relays: relaysArr,
-		downInterfaces: downList,
-		failures: [...failures.entries()].map(([interfaceName, reason]) => ({
-			interfaceName,
-			reason,
-		})),
-		lastMdnsAnnounceAt,
-		lastUdpAnnounceAt: lastUdpAnnounceAt(),
-		lastWsAdvertiseAt,
-		encoders,
-	};
+    const cfg = config();
+    const ifaces = netIfaces?.list() ?? [];
+    const availableInterfaces = advertisedInterfaces(ifaces, cfg).map(
+        (name) => {
+            const rate = liveRates.get(name);
+            return {
+                name,
+                address: ifaceAddress(name, ifaces, cfg) ?? "",
+                // High-water-mark mapping (protocol.md §1) — never base+index.
+                listenPort: allocatePort(name),
+                state: relays.has(name) ? ("up" as const) : ("down" as const),
+                speed: linkSpeed(name),
+                // The REAL relayed throughput (bytes/sec), sampled live — this is
+                // what the card shows, not the negotiated `speed` above.
+                rxBytesPerSec: rate?.rxBytesPerSec,
+                txBytesPerSec: rate?.txBytesPerSec,
+            };
+        },
+    );
+    const relaysArr = [...relays.entries()].map(([name, relay]) => {
+        const st = relay.stats();
+        return {
+            interfaceName: name,
+            interfaceAddress: relay.interfaceAddress,
+            stats: {
+                encRxPackets: st.encRxPackets,
+                encTxPackets: st.encTxPackets,
+                lastEncoderSeen: st.lastEncoderSeen,
+            },
+        };
+    });
+    const downList = [...downIfaces.keys()].filter((name) =>
+        availableInterfaces.some((i) => i.name === name),
+    );
+    // The encoders this relay learned about, each with its per-path
+    // last-discovery stamps and the live state of the control-channel
+    // WebSocket to it (the card shows the relay→encoder links).
+    const encoders = knownEncoders().map((e) => {
+        const ch = encoderChannels.get(e.encoderId);
+        return {
+            id: e.encoderId,
+            connected: !!ch && ch.ws.readyState === WebSocket.OPEN,
+            discoveredAt: { ...e.discoveredAt },
+            lastSeen: e.lastSeen,
+        };
+    });
+    return {
+        connected: relays.size > 0,
+        announceHost: effectiveAnnounceHost(),
+        availableInterfaces,
+        relays: relaysArr,
+        downInterfaces: downList,
+        failures: [...failures.entries()].map(([interfaceName, reason]) => ({
+            interfaceName,
+            reason,
+        })),
+        lastMdnsAnnounceAt,
+        lastUdpAnnounceAt: lastUdpAnnounceAt(),
+        lastWsAdvertiseAt,
+        encoders,
+    };
 }
 
 /**
@@ -707,46 +713,46 @@ function buildStatus(): CtrlinkRuntimeStatus {
  * offer (no eligible interfaces), so the announce tick is skipped.
  */
 export function announcePayload(): CtrlinkAnnounce | null {
-	const cfg = config();
-	const ifaces = buildStatus().availableInterfaces;
-	if (ifaces.length === 0) return null;
-	// The announced relay identity: manual override if set, else the
-	// auto-detected LAN address (the first eligible interface).
-	const host = effectiveAnnounceHost() || ifaces[0].address;
-	if (!host) return null;
-	// A manual announceHost covers every tunnel (NATted / interconnect-only
-	// NIC). In auto mode the encoder dials each interface's OWN IP
-	// (protocol.md §3/§5: "the IP address is the address of the relay
-	// interface that the encoder should use to reach the relay").
-	const perIfaceAddress = cfg.announceHost.trim() === "";
-	return {
-		v: 1,
-		host,
-		hostname: hostname(),
-		interfaces: ifaces.map((i) => ({
-			name: i.name,
-			address: perIfaceAddress ? i.address || host : host,
-			listenPort: i.listenPort,
-			// Down paths stay advertised (port kept) so the encoder keeps the
-			// mapping and reuses it when the path returns (protocol.md §1/§5).
-			state: i.state,
-		})),
-		ts: Date.now(),
-	};
+    const cfg = config();
+    const ifaces = buildStatus().availableInterfaces;
+    if (ifaces.length === 0) return null;
+    // The announced relay identity: manual override if set, else the
+    // auto-detected LAN address (the first eligible interface).
+    const host = effectiveAnnounceHost() || ifaces[0].address;
+    if (!host) return null;
+    // A manual announceHost covers every tunnel (NATted / interconnect-only
+    // NIC). In auto mode the encoder dials each interface's OWN IP
+    // (protocol.md §3/§5: "the IP address is the address of the relay
+    // interface that the encoder should use to reach the relay").
+    const perIfaceAddress = cfg.announceHost.trim() === "";
+    return {
+        v: 1,
+        host,
+        hostname: hostname(),
+        interfaces: ifaces.map((i) => ({
+            name: i.name,
+            address: perIfaceAddress ? i.address || host : host,
+            listenPort: i.listenPort,
+            // Down paths stay advertised (port kept) so the encoder keeps the
+            // mapping and reuses it when the path returns (protocol.md §1/§5).
+            state: i.state,
+        })),
+        ts: Date.now(),
+    };
 }
 
 /** Write the runtime status file (best-effort, never throws). */
 async function writeStatusFile(): Promise<void> {
-	const cfg = config();
-	try {
-		const status = buildStatus();
-		await core.writeFileAtomic(
-			cfg.runtimeStatusFile,
-			JSON.stringify(status, null, 2),
-		);
-	} catch (e) {
-		core.logEvent("warn", "Relay", `status file: ${errorMessage(e)}`);
-	}
+    const cfg = config();
+    try {
+        const status = buildStatus();
+        await core.writeFileAtomic(
+            cfg.runtimeStatusFile,
+            JSON.stringify(status, null, 2),
+        );
+    } catch (e) {
+        core.logEvent("warn", "Relay", `status file: ${errorMessage(e)}`);
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -761,12 +767,12 @@ async function writeStatusFile(): Promise<void> {
 let tunFactoryOverride: TunFactory | undefined;
 let socketFactoryOverride: RelaySocketFactory | undefined;
 export function setRelayTunFactory(factory: TunFactory | undefined): void {
-	tunFactoryOverride = factory;
+    tunFactoryOverride = factory;
 }
 export function setRelaySocketFactory(
-	factory: RelaySocketFactory | undefined,
+    factory: RelaySocketFactory | undefined,
 ): void {
-	socketFactoryOverride = factory;
+    socketFactoryOverride = factory;
 }
 
 /**
@@ -776,79 +782,91 @@ export function setRelaySocketFactory(
  * undefined when it can't be resolved (tests, no gateway on that iface).
  */
 async function uplinkGateway(uplink: string): Promise<string | undefined> {
-	try {
-		const { stdout } = await runner()("ip", "-o", "-4", "route", "show", "default");
-		for (const m of stdout.matchAll(/default via (\S+) dev (\S+)/g)) {
-			if (m[2] === uplink) return m[1];
-		}
-	} catch {
-		/* no default route via this iface */
-	}
-	return undefined;
+    try {
+        const { stdout } = await runner()(
+            "ip",
+            "-o",
+            "-4",
+            "route",
+            "show",
+            "default",
+        );
+        for (const m of stdout.matchAll(/default via (\S+) dev (\S+)/g)) {
+            if (m[2] === uplink) return m[1];
+        }
+    } catch {
+        /* no default route via this iface */
+    }
+    return undefined;
 }
 
 async function startRelay(
-	name: string,
-	addr: string,
-	listenPort: number,
+    name: string,
+    addr: string,
+    listenPort: number,
 ): Promise<UdpRelay> {
-	const slot = uplinkSlot(name);
-	const tun = legTunFor(name);
-	const legPlan: LegPlan = {
-		slot,
-		tun,
-		uplinkIface: name,
-		uplinkGateway: await uplinkGateway(name),
-		nat: config().nat,
-	};
-	// Provision the kernel side (TUN link, uplink route, NAT) before wiring the
-	// leg's socket: the relay opens the TUN by name and the routes steer its /32
-	// vif traffic out the uplink.
-	await applyLegPlan(runner(), legPlan);
-	const relay = await createUdpRelay({
-		interfaceName: name,
-		listenPort,
-		interfaceAddress: addr,
-		vifIp: relayVifIp(name),
-		tunName: tun,
-		runCommand: runner(),
-		tunFactory: tunFactoryOverride,
-		socketFactory: socketFactoryOverride,
-		// When the encoder's /32 vif learns through this leg, install the
-		// FORWARD-path route (dedicated table) so the host can egress packets
-		// sourced by the encoder vif, plus the SNAT rule (nat on).
-		onEncoderVifLearned: (vifIp) => {
-			void applyVifPlan(runner(), legPlan, vifIp);
-		},
-	});
-	await relay.start();
-	relays.set(name, relay);
-	lastIfaceAddr.set(name, addr);
-	failures.delete(name);
-	noteUplinkLeg(name);
-	return relay;
+    const slot = uplinkSlot(name);
+    const tun = legTunFor(name);
+    const legPlan: LegPlan = {
+        slot,
+        tun,
+        uplinkIface: name,
+        uplinkGateway: await uplinkGateway(name),
+        nat: config().nat,
+    };
+    // Provision the kernel side (TUN link, uplink route, NAT) before wiring the
+    // leg's socket: the relay opens the TUN by name and the routes steer its /32
+    // vif traffic out the uplink.
+    await applyLegPlan(runner(), legPlan);
+    const relay = await createUdpRelay({
+        interfaceName: name,
+        listenPort,
+        interfaceAddress: addr,
+        vifIp: relayVifIp(name),
+        tunName: tun,
+        runCommand: runner(),
+        tunFactory: tunFactoryOverride,
+        socketFactory: socketFactoryOverride,
+        // When the encoder's /32 vif learns through this leg, install the
+        // FORWARD-path route (dedicated table) so the host can egress packets
+        // sourced by the encoder vif, plus the SNAT rule (nat on).
+        onEncoderVifLearned: (vifIp) => {
+            void applyVifPlan(runner(), legPlan, vifIp);
+        },
+    });
+    await relay.start();
+    relays.set(name, relay);
+    lastIfaceAddr.set(name, addr);
+    failures.delete(name);
+    noteUplinkLeg(name);
+    return relay;
 }
 
 async function stopRelay(name: string): Promise<void> {
-	const relay = relays.get(name);
-	if (!relay) return;
-	await relay.stop();
-	relays.delete(name);
-	liveRates.delete(name);
-	lastIfaceAddr.delete(name);
-	failures.delete(name);
-	downIfaces.delete(name);
-	clearUplinkLeg(name);
-	// Best-effort kernel teardown (never throws — the relay is already stopped).
-	const legPlan: LegPlan = {
-		slot: uplinkSlot(name),
-		tun: legTunFor(name),
-		uplinkIface: name,
-		uplinkGateway: await uplinkGateway(name),
-		nat: config().nat,
-	};
-	void removeVifPlan(runner(), legPlan, encoderVifIp(name)).catch(() => {});
-	void removeLegPlan(runner(), legPlan).catch(() => {});
+    const relay = relays.get(name);
+    if (!relay) return;
+    await relay.stop();
+    relays.delete(name);
+    liveRates.delete(name);
+    lastIfaceAddr.delete(name);
+    failures.delete(name);
+    downIfaces.delete(name);
+    clearUplinkLeg(name);
+    // Best-effort kernel teardown (never throws — the relay is already stopped).
+    const legPlan: LegPlan = {
+        slot: uplinkSlot(name),
+        tun: legTunFor(name),
+        uplinkIface: name,
+        uplinkGateway: await uplinkGateway(name),
+        nat: config().nat,
+    };
+    void removeVifPlan(runner(), legPlan, encoderVifIp(name)).catch(() => {});
+    void removeLegPlan(runner(), legPlan).catch(() => {});
+    // `relay.stop()` closed the TUN fd, but that does not always make the
+    // kernel drop the netdev (the libuv read poller can keep a reference), so a
+    // removed uplink would leave a stale `rtltun_<iface>` behind. Force it with
+    // the same belt-and-braces `ip link del` the encoder applies on stop.
+    void deleteTun(legPlan.tun).catch(() => {});
 }
 
 /**
@@ -859,7 +877,7 @@ async function stopRelay(name: string): Promise<void> {
  */
 const seenIfaces = new Set<string>();
 function markSeen(name: string): void {
-	seenIfaces.add(name);
+    seenIfaces.add(name);
 }
 
 /**
@@ -875,16 +893,16 @@ let runtimeSync = false;
 /** Rebuild the "seen" set after a process restart (from persisted mappings).
  * Exported for tests (to reset the history between cases). */
 export function reseedSeen(): void {
-	seenIfaces.clear();
-	for (const name of Object.keys(config().portMap)) seenIfaces.add(name);
+    seenIfaces.clear();
+    for (const name of Object.keys(config().portMap)) seenIfaces.add(name);
 }
 
 const ifaceInfo = (
-	name: string,
-	ifaces: Array<{ name: string; addresses: string[] }>,
+    name: string,
+    ifaces: Array<{ name: string; addresses: string[] }>,
 ): { addr: string; port: number } => ({
-	addr: ifaceAddress(name, ifaces) ?? "",
-	port: allocatePort(name),
+    addr: ifaceAddress(name, ifaces) ?? "",
+    port: allocatePort(name),
 });
 
 /**
@@ -909,222 +927,238 @@ const ifaceInfo = (
  * encoders by the caller — see `startEncoderChannels`).
  */
 export async function syncRelays(rollbackOnFailure = false): Promise<{
-	started: string[];
-	stopped: string[];
-	failures: CtrlinkRelayFailure[];
-	events: Array<{ type: CtrlinkRelayIfaceEventType; iface: CtrlinkRelayIface }>;
+    started: string[];
+    stopped: string[];
+    failures: CtrlinkRelayFailure[];
+    events: Array<{
+        type: CtrlinkRelayIfaceEventType;
+        iface: CtrlinkRelayIface;
+    }>;
 }> {
-	const cfg = config();
-	const ifaces = netIfaces.list();
-	const eligible = new Set(eligibleInterfaces(ifaces, cfg));
-	const started: string[] = [];
-	const stopped: string[] = [];
-	const failuresOut: CtrlinkRelayFailure[] = [];
-	const events: Array<{
-		type: CtrlinkRelayIfaceEventType;
-		iface: CtrlinkRelayIface;
-	}> = [];
-	/** Relays started by THIS pass — rolled back if a later one fails (spec §10.3). */
-	const startedThisPass: string[] = [];
+    const cfg = config();
+    const ifaces = netIfaces.list();
+    const eligible = new Set(eligibleInterfaces(ifaces, cfg));
+    const started: string[] = [];
+    const stopped: string[] = [];
+    const failuresOut: CtrlinkRelayFailure[] = [];
+    const events: Array<{
+        type: CtrlinkRelayIfaceEventType;
+        iface: CtrlinkRelayIface;
+    }> = [];
+    /** Relays started by THIS pass — rolled back if a later one fails (spec §10.3). */
+    const startedThisPass: string[] = [];
 
-	// Interfaces no longer offered. (protocol.md §1: removals never reindex
-	// the other ports.)
-	//
-	// A configured-in uplink whose netdev is still present is merely
-	// flapping — a cellular link mid-CGNAT transition keeps its netdev but
-	// briefly has no IPv4, and `network.interfaces` (which lists only
-	// addressful interfaces) hides it. Keep its mapping and report
-	// `interface_down`, so it returns on the SAME port instead of the churn
-	// every wwan0 address change used to cause. A netdev that is gone, or an
-	// interface no longer configured-in, is a real removal: free the mapping
-	// and report `interface_removed`.
-	const allow = cfg.interfaceAllow.map((r) => new RegExp(r, "i"));
-	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
-	// The persisted `portMap` is the source of truth for "ever offered", not the
-	// runtime `relays`/`downIfaces` maps. A mapping can survive a process
-	// restart with no live relay — e.g. an interface that was removed or
-	// renamed since it was last offered. Such a key would otherwise never be
-	// visited here, so `freePort` never runs and it stays in the state file
-	// forever, inflating `allocatePort`'s high-water mark. Fold the persisted
-	// keys in so stale ones are pruned on the next sync.
-	for (const name of new Set([
-		...relays.keys(),
-		...downIfaces.keys(),
-		...Object.keys(cfg.portMap),
-	])) {
-		if (eligible.has(name)) continue;
-		await stopRelay(name);
-		stopped.push(name);
-		if (nameEligible(name, allow, ignore) && ifaceNetdevExists(name)) {
-			// Flap: present netdev, still configured-in, just no IPv4 right
-			// now. Keep the mapping, mark down, no `interface_removed`.
-			failures.set(name, "no IPv4 address");
-			downIfaces.set(name, {});
-			if (seenIfaces.has(name))
-				events.push({
-					type: "interface_down",
-					iface: {
-						iface_name: name,
-						ip: "",
-						udp_port: config().portMap[name] ?? 0,
-						state: "down",
-						uplink: true,
-					},
-				});
-			core.logEvent("warn", "Relay", `${name} lost its IPv4 — port kept`);
-			continue;
-		}
-		if (seenIfaces.has(name)) {
-			const { addr, port } = ifaceInfo(name, ifaces);
-			events.push({
-				type: "interface_removed",
-				iface: {
-					iface_name: name,
-					ip: addr,
-					udp_port: port,
-					state: "down",
-					uplink: true,
-				},
-			});
-		}
-		freePort(name);
-		failures.delete(name);
-		seenIfaces.delete(name);
-	}
+    // Interfaces no longer offered. (protocol.md §1: removals never reindex
+    // the other ports.)
+    //
+    // A configured-in uplink whose netdev is still present is merely
+    // flapping — a cellular link mid-CGNAT transition keeps its netdev but
+    // briefly has no IPv4, and `network.interfaces` (which lists only
+    // addressful interfaces) hides it. Keep its mapping and report
+    // `interface_down`, so it returns on the SAME port instead of the churn
+    // every wwan0 address change used to cause. A netdev that is gone, or an
+    // interface no longer configured-in, is a real removal: free the mapping
+    // and report `interface_removed`.
+    const allow = cfg.interfaceAllow.map((r) => new RegExp(r, "i"));
+    const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
+    // The persisted `portMap` is the source of truth for "ever offered", not the
+    // runtime `relays`/`downIfaces` maps. A mapping can survive a process
+    // restart with no live relay — e.g. an interface that was removed or
+    // renamed since it was last offered. Such a key would otherwise never be
+    // visited here, so `freePort` never runs and it stays in the state file
+    // forever, inflating `allocatePort`'s high-water mark. Fold the persisted
+    // keys in so stale ones are pruned on the next sync.
+    for (const name of new Set([
+        ...relays.keys(),
+        ...downIfaces.keys(),
+        ...Object.keys(cfg.portMap),
+    ])) {
+        if (eligible.has(name)) continue;
+        await stopRelay(name);
+        stopped.push(name);
+        if (nameEligible(name, allow, ignore) && ifaceNetdevExists(name)) {
+            // Flap: present netdev, still configured-in, just no IPv4 right
+            // now. Keep the mapping, mark down, no `interface_removed`.
+            failures.set(name, "no IPv4 address");
+            downIfaces.set(name, {});
+            if (seenIfaces.has(name))
+                events.push({
+                    type: "interface_down",
+                    iface: {
+                        iface_name: name,
+                        ip: "",
+                        udp_port: config().portMap[name] ?? 0,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            core.logEvent("warn", "Relay", `${name} lost its IPv4 — port kept`);
+            continue;
+        }
+        if (seenIfaces.has(name)) {
+            const { addr, port } = ifaceInfo(name, ifaces);
+            events.push({
+                type: "interface_removed",
+                iface: {
+                    iface_name: name,
+                    ip: addr,
+                    udp_port: port,
+                    state: "down",
+                    uplink: true,
+                },
+            });
+        }
+        freePort(name);
+        failures.delete(name);
+        seenIfaces.delete(name);
+    }
 
-	// Start / update relays for eligible interfaces.
-	for (const name of [...eligible]) {
-		const addr = ifaceAddress(name, ifaces, cfg);
-		const port = allocatePort(name);
-		const existed = seenIfaces.has(name);
-		markSeen(name);
-		if (!addr) {
-			// No IPv4: mark down (mapping kept), report the transition.
-			failures.set(name, "no IPv4 address");
-			failuresOut.push({ interfaceName: name, reason: "no IPv4 address" });
-			if (existed) {
-				await stopRelay(name);
-				downIfaces.set(name, {});
-				events.push({
-					type: "interface_down",
-					iface: {
-						iface_name: name,
-						ip: "",
-						udp_port: port,
-						state: "down",
-						uplink: true,
-					},
-				});
-			}
-			core.logEvent("warn", "Relay", `no IPv4 on ${name}`);
-			continue;
-		}
-		// Carrier down: mark down (mapping kept), report the transition.
-		if (!carrierUp(name)) {
-			failures.set(name, "interface is down");
-			failuresOut.push({ interfaceName: name, reason: "interface is down" });
-			if (existed) {
-				await stopRelay(name);
-				downIfaces.set(name, {});
-				events.push({
-					type: "interface_down",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "down",
-						uplink: true,
-					},
-				});
-			}
-			core.logEvent("warn", "Relay", `${name} is down — port ${port} kept`);
-			continue;
-		}
-		const existing = relays.get(name);
-		const existingAddr = lastIfaceAddr.get(name);
-		if (existing && existingAddr === addr) continue; // already correct
-		const wasDown = !existing && (existed || downIfaces.has(name));
-		if (existing) {
-			// Interface address changed: restart on the SAME (kept) port.
-			await stopRelay(name);
-		}
-		try {
-			await startRelay(name, addr, port);
-			started.push(name);
-			startedThisPass.push(name);
-			if (wasDown)
-				events.push({
-					type: "interface_up",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "up",
-						uplink: true,
-					},
-				});
-			else if (existed || runtimeSync)
-				// `runtimeSync`: an interface first seen while the relay is
-				// already running (hotplug / new segment) must not wait for
-				// the next `hello` — connected encoders get it now.
-				events.push({
-					type: "interface_added",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "up",
-						uplink: true,
-					},
-				});
-		} catch (e) {
-			const reason = errorMessage(e);
-			failures.set(name, reason);
-			failuresOut.push({ interfaceName: name, reason });
-			if (existed) {
-				downIfaces.set(name, { reason });
-				events.push({
-					type: "interface_down",
-					iface: {
-						iface_name: name,
-						ip: addr,
-						udp_port: port,
-						state: "down",
-						uplink: true,
-					},
-				});
-			}
-			if (rollbackOnFailure) {
-				// A start is atomic: a failure stops the relays this pass brought up.
-				for (const s of startedThisPass) await stopRelay(s);
-				startedThisPass.length = 0;
-				started.length = 0;
-				// stopRelay() clears the rolled-back entries; re-record this one.
-				failures.set(name, reason);
-				core.logEvent(
-					"error",
-					"Relay",
-					`start ${name} failed — rolled back: ${reason}`,
-				);
-				core.notifyStateChange();
-				await writeStatusFile();
-				throw new ApiError(`cannot start relay on ${name}: ${reason}`, 409);
-			}
-			core.logEvent("error", "Relay", `start ${name}: ${reason}`);
-		}
-	}
+    // Start / update relays for eligible interfaces.
+    for (const name of [...eligible]) {
+        const addr = ifaceAddress(name, ifaces, cfg);
+        const port = allocatePort(name);
+        const existed = seenIfaces.has(name);
+        markSeen(name);
+        if (!addr) {
+            // No IPv4: mark down (mapping kept), report the transition.
+            failures.set(name, "no IPv4 address");
+            failuresOut.push({
+                interfaceName: name,
+                reason: "no IPv4 address",
+            });
+            if (existed) {
+                await stopRelay(name);
+                downIfaces.set(name, {});
+                events.push({
+                    type: "interface_down",
+                    iface: {
+                        iface_name: name,
+                        ip: "",
+                        udp_port: port,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            }
+            core.logEvent("warn", "Relay", `no IPv4 on ${name}`);
+            continue;
+        }
+        // Carrier down: mark down (mapping kept), report the transition.
+        if (!carrierUp(name)) {
+            failures.set(name, "interface is down");
+            failuresOut.push({
+                interfaceName: name,
+                reason: "interface is down",
+            });
+            if (existed) {
+                await stopRelay(name);
+                downIfaces.set(name, {});
+                events.push({
+                    type: "interface_down",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            }
+            core.logEvent(
+                "warn",
+                "Relay",
+                `${name} is down — port ${port} kept`,
+            );
+            continue;
+        }
+        const existing = relays.get(name);
+        const existingAddr = lastIfaceAddr.get(name);
+        if (existing && existingAddr === addr) continue; // already correct
+        const wasDown = !existing && (existed || downIfaces.has(name));
+        if (existing) {
+            // Interface address changed: restart on the SAME (kept) port.
+            await stopRelay(name);
+        }
+        try {
+            await startRelay(name, addr, port);
+            started.push(name);
+            startedThisPass.push(name);
+            if (wasDown)
+                events.push({
+                    type: "interface_up",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "up",
+                        uplink: true,
+                    },
+                });
+            else if (existed || runtimeSync)
+                // `runtimeSync`: an interface first seen while the relay is
+                // already running (hotplug / new segment) must not wait for
+                // the next `hello` — connected encoders get it now.
+                events.push({
+                    type: "interface_added",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "up",
+                        uplink: true,
+                    },
+                });
+        } catch (e) {
+            const reason = errorMessage(e);
+            failures.set(name, reason);
+            failuresOut.push({ interfaceName: name, reason });
+            if (existed) {
+                downIfaces.set(name, { reason });
+                events.push({
+                    type: "interface_down",
+                    iface: {
+                        iface_name: name,
+                        ip: addr,
+                        udp_port: port,
+                        state: "down",
+                        uplink: true,
+                    },
+                });
+            }
+            if (rollbackOnFailure) {
+                // A start is atomic: a failure stops the relays this pass brought up.
+                for (const s of startedThisPass) await stopRelay(s);
+                startedThisPass.length = 0;
+                started.length = 0;
+                // stopRelay() clears the rolled-back entries; re-record this one.
+                failures.set(name, reason);
+                core.logEvent(
+                    "error",
+                    "Relay",
+                    `start ${name} failed — rolled back: ${reason}`,
+                );
+                core.notifyStateChange();
+                await writeStatusFile();
+                throw new ApiError(
+                    `cannot start relay on ${name}: ${reason}`,
+                    409,
+                );
+            }
+            core.logEvent("error", "Relay", `start ${name}: ${reason}`);
+        }
+    }
 
-	core.notifyStateChange();
-	await writeStatusFile();
-	return { started, stopped, failures: failuresOut, events };
+    core.notifyStateChange();
+    await writeStatusFile();
+    return { started, stopped, failures: failuresOut, events };
 }
 
 async function stopAll(): Promise<void> {
-	for (const name of [...relays.keys()]) await stopRelay(name);
-	downIfaces.clear();
-	failures.clear();
-	core.notifyStateChange();
-	await writeStatusFile();
+    for (const name of [...relays.keys()]) await stopRelay(name);
+    downIfaces.clear();
+    failures.clear();
+    core.notifyStateChange();
+    await writeStatusFile();
 }
 
 /** A network interface set changed: resync + forward the interface events.
@@ -1134,17 +1168,17 @@ async function stopAll(): Promise<void> {
  * a dead path until the next reconnect. `enabled` (not relay count) gates it:
  * a disabled module never starts relays from a network event. */
 async function onNetworkChange(): Promise<void> {
-	if (!config().enabled) return;
-	// A segment change can move an encoder on- or off-link from one of our
-	// interfaces — reclassify before the events below are fanned out.
-	await refreshDirectIfaces();
-	const { events } = await syncRelays();
-	pushIfaceEvents(events);
-	// The uplink set / addresses may have moved — reconcile the tunnel netdev set.
-	reconcileTunnelsNow();
-	// A channel that opened before this change carried a stale snapshot —
-	// re-send the full `hello` (the only message carrying tunnel offers).
-	resnapshotStaleChannels();
+    if (!config().enabled) return;
+    // A segment change can move an encoder on- or off-link from one of our
+    // interfaces — reclassify before the events below are fanned out.
+    await refreshDirectIfaces();
+    const { events } = await syncRelays();
+    pushIfaceEvents(events);
+    // The uplink set / addresses may have moved — reconcile the tunnel netdev set.
+    reconcileTunnelsNow();
+    // A channel that opened before this change carried a stale snapshot —
+    // re-send the full `hello` (the only message carrying tunnel offers).
+    resnapshotStaleChannels();
 }
 
 // ----------------------------------------------------------------------
@@ -1158,21 +1192,21 @@ const RELAY_ID = hostname() || "ctrlirl-relay";
 const ENCODER_WS_RECONNECT_MS = 5_000;
 
 interface EncoderChannel {
-	ws: WebSocket;
-	gen: number;
-	timer?: ReturnType<typeof setTimeout>;
-	/** Keepalive ping timer (cleared when the channel closes). */
-	hbeat?: ReturnType<typeof setInterval>;
-	/** Signature of the last `hello`'s interface set (names + IPs + whether
-	 * each carries a tunnel offer). Compared against the live set to re-send
-	 * a full `hello` when it changes — the per-interface events do NOT carry
-	 * the tunnel offers, and the tunnel netdevs (and thus the specs) are
-	 * built asynchronously AFTER the first snapshot, so an encoder that got
-	 * a bare / pre-tunnel snapshot would otherwise have no tunnel. */
-	announcedSig?: string;
-	/** The encoder snapshot the channel was started with (needed to rebuild
-	 * a per-encoder `hello` on re-send). */
-	encoder: CtrlinkDiscoveredEncoder;
+    ws: WebSocket;
+    gen: number;
+    timer?: ReturnType<typeof setTimeout>;
+    /** Keepalive ping timer (cleared when the channel closes). */
+    hbeat?: ReturnType<typeof setInterval>;
+    /** Signature of the last `hello`'s interface set (names + IPs + whether
+     * each carries a tunnel offer). Compared against the live set to re-send
+     * a full `hello` when it changes — the per-interface events do NOT carry
+     * the tunnel offers, and the tunnel netdevs (and thus the specs) are
+     * built asynchronously AFTER the first snapshot, so an encoder that got
+     * a bare / pre-tunnel snapshot would otherwise have no tunnel. */
+    announcedSig?: string;
+    /** The encoder snapshot the channel was started with (needed to rebuild
+     * a per-encoder `hello` on re-send). */
+    encoder: CtrlinkDiscoveredEncoder;
 }
 /** The live relay → encoder channels, keyed by `encoder_id` (announces are
  * re-sent periodically, so the key is stable). */
@@ -1185,11 +1219,11 @@ const pendingConnects = new Set<string>();
  * signature are equivalent as far as the encoder's vif reconcile is
  * concerned. */
 function announcedSig(ifaces?: CtrlinkRelayIface[]): string {
-	const list = ifaces ?? relayIfaceList();
-	return list
-		.map((i) => `${i.iface_name}:${i.ip}:tunnel=${i.tunnel ? 1 : 0}`)
-		.sort()
-		.join("|");
+    const list = ifaces ?? relayIfaceList();
+    return list
+        .map((i) => `${i.iface_name}:${i.ip}:tunnel=${i.tunnel ? 1 : 0}`)
+        .sort()
+        .join("|");
 }
 
 /**
@@ -1203,59 +1237,59 @@ function announcedSig(ifaces?: CtrlinkRelayIface[]): string {
  * only when the signature moved.
  */
 function resnapshotStaleChannels(): void {
-	const liveSig = announcedSig();
-	for (const [, st] of encoderChannels) {
-		if (st.ws.readyState !== WebSocket.OPEN) continue;
-		if (st.announcedSig === liveSig) continue;
-		// Fresh registry entry (the channel-start snapshot may be stale —
-		// `wsPort` in particular); fall back to the stored one.
-		const enc =
-			knownEncoders().find((x) => x.encoderId === st.encoder.encoderId) ??
-			st.encoder;
-		const hello = helloMessage(enc);
-		let sent: CtrlinkRelayIface[] = [];
-		if (hello.type === "hello") sent = hello.interfaces;
-		st.announcedSig = announcedSig(sent);
-		try {
-			st.ws.send(JSON.stringify(hello));
-			console.log(
-				`ctrlink_relay: re-sent full snapshot to encoder ${enc.encoderId} (${sent.length} iface(s)) — startup snapshot was stale`,
-			);
-		} catch (e) {
-			console.warn(
-				`ctrlink_relay: snapshot re-send to ${enc.encoderId} failed: ${errorMessage(e)}`,
-			);
-		}
-	}
+    const liveSig = announcedSig();
+    for (const [, st] of encoderChannels) {
+        if (st.ws.readyState !== WebSocket.OPEN) continue;
+        if (st.announcedSig === liveSig) continue;
+        // Fresh registry entry (the channel-start snapshot may be stale —
+        // `wsPort` in particular); fall back to the stored one.
+        const enc =
+            knownEncoders().find((x) => x.encoderId === st.encoder.encoderId) ??
+            st.encoder;
+        const hello = helloMessage(enc);
+        let sent: CtrlinkRelayIface[] = [];
+        if (hello.type === "hello") sent = hello.interfaces;
+        st.announcedSig = announcedSig(sent);
+        try {
+            st.ws.send(JSON.stringify(hello));
+            console.log(
+                `ctrlink_relay: re-sent full snapshot to encoder ${enc.encoderId} (${sent.length} iface(s)) — startup snapshot was stale`,
+            );
+        } catch (e) {
+            console.warn(
+                `ctrlink_relay: snapshot re-send to ${enc.encoderId} failed: ${errorMessage(e)}`,
+            );
+        }
+    }
 }
 
 /** The full snapshot message (protocol.md §3/§4: sent on every (re)connect). */
 function helloMessage(_e?: CtrlinkDiscoveredEncoder): CtrlinkRelayWsMessage {
-	return {
-		type: "hello",
-		relay_id: RELAY_ID,
-		proto: CTRLINK_RELAY_WS_PROTOCOL,
-		interfaces: relayIfaceList(),
-	};
+    return {
+        type: "hello",
+        relay_id: RELAY_ID,
+        proto: CTRLINK_RELAY_WS_PROTOCOL,
+        interfaces: relayIfaceList(),
+    };
 }
 
 function closeEncoderChannel(key: string, gen: number): void {
-	const st = encoderChannels.get(key);
-	if (!st || st.gen !== gen) return; // already replaced / stopped
-	if (st.timer) clearTimeout(st.timer);
-	if (st.hbeat) clearInterval(st.hbeat);
-	encoderChannels.delete(key);
-	try {
-		st.ws.close();
-	} catch {
-		/* already closed */
-	}
+    const st = encoderChannels.get(key);
+    if (!st || st.gen !== gen) return; // already replaced / stopped
+    if (st.timer) clearTimeout(st.timer);
+    if (st.hbeat) clearInterval(st.hbeat);
+    encoderChannels.delete(key);
+    try {
+        st.ws.close();
+    } catch {
+        /* already closed */
+    }
 }
 
 function stopEncoderChannel(key: string): void {
-	const st = encoderChannels.get(key);
-	if (st) closeEncoderChannel(key, st.gen);
-	pendingConnects.delete(key);
+    const st = encoderChannels.get(key);
+    if (st) closeEncoderChannel(key, st.gen);
+    pendingConnects.delete(key);
 }
 
 /**
@@ -1264,102 +1298,102 @@ function stopEncoderChannel(key: string): void {
  * retry with a backoff while the encoder is still known.
  */
 function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
-	if (pendingConnects.has(e.encoderId)) return;
-	// An open (or connecting) channel already exists: do NOT dial again. The
-	// reconcile runs every announce tick, and a re-dial leaks the previous
-	// socket (the relay never closes it), so the encoder sees a fresh
-	// "relay WS connected" every 5 s — the flapping pattern. A failed connect
-	// removes the entry via `fail()`, which owns the re-dial.
-	const existing = encoderChannels.get(e.encoderId);
-	if (
-		existing &&
-		(existing.ws.readyState === WebSocket.OPEN ||
-			existing.ws.readyState === WebSocket.CONNECTING)
-	)
-		return;
-	pendingConnects.add(e.encoderId);
-	const gen = (existing?.gen ?? 0) + 1;
-	const url = `ws://${e.ip}:${e.wsPort}/ctrlink${
-		e.token ? `?token=${encodeURIComponent(e.token)}` : ""
-	}`;
-	let ws: WebSocket;
-	try {
-		ws = new WebSocket(url);
-	} catch {
-		pendingConnects.delete(e.encoderId);
-		return;
-	}
-	const st: EncoderChannel = { ws, gen, encoder: e };
-	encoderChannels.set(e.encoderId, st);
-	ws.onopen = (): void => {
-		pendingConnects.delete(e.encoderId);
-		// The channel is live: keep the encoder's TTL fresh (a live channel
-		// is self-sustaining; discovery only matters for the dial). Stamp
-		// NOW — `e` is a snapshot from channel start and goes stale.
-		noteEncoder({ ...e, lastSeen: Date.now() });
-		// Full snapshot on (re)connect — the encoder has a consistent view.
-		st.ws.send(JSON.stringify(helloMessage(e)));
-		st.announcedSig = announcedSig();
-		lastWsAdvertiseAt = Date.now();
-		// Keepalive: the encoder replies `pong`; every frame in both
-		// directions refreshes the registry TTL (protocol.md §3).
-		st.hbeat = setInterval(() => {
-			if (st.ws.readyState !== WebSocket.OPEN) return;
-			try {
-				st.ws.send(JSON.stringify({ type: "ping" }));
-			} catch {
-				/* close handler owns the re-dial */
-			}
-		}, CTRLINK_ANNOUNCE_INTERVAL_MS);
-		st.hbeat.unref?.();
-		console.log(
-			`ctrlink_relay: WS connected to encoder ${e.encoderId} — snapshot sent (${relayIfaceList().length} iface(s))`,
-		);
-		// The link state surfaced on the card changed — refresh it now
-		// (don't wait for the next announce tick).
-		core.notifyStateChange();
-		void writeStatusFile();
-	};
-	ws.onmessage = (ev: MessageEvent): void => {
-		// Any frame from the encoder (pong / events) proves the channel is
-		// alive → refresh the registry TTL so the sweep never reaps a live
-		// channel. `e` is a channel-start snapshot — stamp NOW.
-		noteEncoder({ ...e, lastSeen: Date.now() });
-		// No tunnel key exchange: the relay pins this encoder as a single
-		// peer (first datagram source wins) on each `rtltun-<if>` pump.
-		void ev;
-	};
-	const fail = (why: string): void => {
-		if (encoderChannels.get(e.encoderId) !== st) return; // replaced
-		closeEncoderChannel(e.encoderId, st.gen);
-		// Release the "dial in progress" flag. Without this a close after the
-		// first successful open leaves the id in `pendingConnects` forever:
-		// the re-dial (`startEncoderChannel`) and the re-announce path
-		// (`onEncoderAnnounced` `isNew`) are both gated on it, so the relay
-		// permanently stops re-dialing after any encoder restart — no `hello`,
-		// no tunnel offers.
-		pendingConnects.delete(e.encoderId);
-		// The link state surfaced on the card changed — refresh it now.
-		core.notifyStateChange();
-		void writeStatusFile();
-		if (knownEncoders().some((x) => x.encoderId === e.encoderId)) {
-			console.warn(
-				`ctrlink_relay: WS to encoder ${e.encoderId} lost (${why}) — retrying in ${ENCODER_WS_RECONNECT_MS / 1000}s`,
-			);
-			st.timer = setTimeout(() => {
-				// Dial the freshest registry entry (its ip/port/token can
-				// have moved since this channel started) rather than the
-				// channel-start snapshot.
-				const fresh = knownEncoders().find(
-					(x) => x.encoderId === e.encoderId,
-				);
-				if (fresh) startEncoderChannel(fresh);
-			}, ENCODER_WS_RECONNECT_MS);
-			st.timer.unref?.();
-		}
-	};
-	ws.onerror = (): void => {}; // the close handler carries the reason
-	ws.onclose = (ev): void => fail(ev.reason || "closed");
+    if (pendingConnects.has(e.encoderId)) return;
+    // An open (or connecting) channel already exists: do NOT dial again. The
+    // reconcile runs every announce tick, and a re-dial leaks the previous
+    // socket (the relay never closes it), so the encoder sees a fresh
+    // "relay WS connected" every 5 s — the flapping pattern. A failed connect
+    // removes the entry via `fail()`, which owns the re-dial.
+    const existing = encoderChannels.get(e.encoderId);
+    if (
+        existing &&
+        (existing.ws.readyState === WebSocket.OPEN ||
+            existing.ws.readyState === WebSocket.CONNECTING)
+    )
+        return;
+    pendingConnects.add(e.encoderId);
+    const gen = (existing?.gen ?? 0) + 1;
+    const url = `ws://${e.ip}:${e.wsPort}/ctrlink${
+        e.token ? `?token=${encodeURIComponent(e.token)}` : ""
+    }`;
+    let ws: WebSocket;
+    try {
+        ws = new WebSocket(url);
+    } catch {
+        pendingConnects.delete(e.encoderId);
+        return;
+    }
+    const st: EncoderChannel = { ws, gen, encoder: e };
+    encoderChannels.set(e.encoderId, st);
+    ws.onopen = (): void => {
+        pendingConnects.delete(e.encoderId);
+        // The channel is live: keep the encoder's TTL fresh (a live channel
+        // is self-sustaining; discovery only matters for the dial). Stamp
+        // NOW — `e` is a snapshot from channel start and goes stale.
+        noteEncoder({ ...e, lastSeen: Date.now() });
+        // Full snapshot on (re)connect — the encoder has a consistent view.
+        st.ws.send(JSON.stringify(helloMessage(e)));
+        st.announcedSig = announcedSig();
+        lastWsAdvertiseAt = Date.now();
+        // Keepalive: the encoder replies `pong`; every frame in both
+        // directions refreshes the registry TTL (protocol.md §3).
+        st.hbeat = setInterval(() => {
+            if (st.ws.readyState !== WebSocket.OPEN) return;
+            try {
+                st.ws.send(JSON.stringify({ type: "ping" }));
+            } catch {
+                /* close handler owns the re-dial */
+            }
+        }, CTRLINK_ANNOUNCE_INTERVAL_MS);
+        st.hbeat.unref?.();
+        console.log(
+            `ctrlink_relay: WS connected to encoder ${e.encoderId} — snapshot sent (${relayIfaceList().length} iface(s))`,
+        );
+        // The link state surfaced on the card changed — refresh it now
+        // (don't wait for the next announce tick).
+        core.notifyStateChange();
+        void writeStatusFile();
+    };
+    ws.onmessage = (ev: MessageEvent): void => {
+        // Any frame from the encoder (pong / events) proves the channel is
+        // alive → refresh the registry TTL so the sweep never reaps a live
+        // channel. `e` is a channel-start snapshot — stamp NOW.
+        noteEncoder({ ...e, lastSeen: Date.now() });
+        // No tunnel key exchange: the relay pins this encoder as a single
+        // peer (first datagram source wins) on each `rtltun-<if>` pump.
+        void ev;
+    };
+    const fail = (why: string): void => {
+        if (encoderChannels.get(e.encoderId) !== st) return; // replaced
+        closeEncoderChannel(e.encoderId, st.gen);
+        // Release the "dial in progress" flag. Without this a close after the
+        // first successful open leaves the id in `pendingConnects` forever:
+        // the re-dial (`startEncoderChannel`) and the re-announce path
+        // (`onEncoderAnnounced` `isNew`) are both gated on it, so the relay
+        // permanently stops re-dialing after any encoder restart — no `hello`,
+        // no tunnel offers.
+        pendingConnects.delete(e.encoderId);
+        // The link state surfaced on the card changed — refresh it now.
+        core.notifyStateChange();
+        void writeStatusFile();
+        if (knownEncoders().some((x) => x.encoderId === e.encoderId)) {
+            console.warn(
+                `ctrlink_relay: WS to encoder ${e.encoderId} lost (${why}) — retrying in ${ENCODER_WS_RECONNECT_MS / 1000}s`,
+            );
+            st.timer = setTimeout(() => {
+                // Dial the freshest registry entry (its ip/port/token can
+                // have moved since this channel started) rather than the
+                // channel-start snapshot.
+                const fresh = knownEncoders().find(
+                    (x) => x.encoderId === e.encoderId,
+                );
+                if (fresh) startEncoderChannel(fresh);
+            }, ENCODER_WS_RECONNECT_MS);
+            st.timer.unref?.();
+        }
+    };
+    ws.onerror = (): void => {}; // the close handler carries the reason
+    ws.onclose = (ev): void => fail(ev.reason || "closed");
 }
 
 /**
@@ -1370,17 +1404,17 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
  * dead peer closes itself (the `fail` handler then owns the cleanup).
  */
 function reconcileEncoderChannels(): void {
-	for (const enc of knownEncoders()) startEncoderChannel(enc);
-	for (const [key, st] of [...encoderChannels]) {
-		if (
-			!knownEncoders().some((e) => e.encoderId === key) &&
-			st.ws.readyState !== WebSocket.OPEN &&
-			st.ws.readyState !== WebSocket.CONNECTING
-		)
-			stopEncoderChannel(key);
-	}
-	// A new encoder may have appeared → reconcile the tunnel netdev set.
-	reconcileTunnelsNow();
+    for (const enc of knownEncoders()) startEncoderChannel(enc);
+    for (const [key, st] of [...encoderChannels]) {
+        if (
+            !knownEncoders().some((e) => e.encoderId === key) &&
+            st.ws.readyState !== WebSocket.OPEN &&
+            st.ws.readyState !== WebSocket.CONNECTING
+        )
+            stopEncoderChannel(key);
+    }
+    // A new encoder may have appeared → reconcile the tunnel netdev set.
+    reconcileTunnelsNow();
 }
 
 /**
@@ -1397,73 +1431,74 @@ function reconcileEncoderChannels(): void {
 const CONTROL_SERVER_INTERVAL_MS = 10_000;
 /** Reset the control-server poll throttle (tests — the timestamp persists across cases). */
 export function resetControlServerCheck(): void {
-	lastControlServerCheck = 0;
+    lastControlServerCheck = 0;
 }
 async function ensureControlServerEncoders(): Promise<void> {
-	if (Date.now() - lastControlServerCheck < CONTROL_SERVER_INTERVAL_MS) return;
-	lastControlServerCheck = Date.now();
-	if (core.config.DRY_RUN) return;
-	try {
-		const devs = await core.listDevices();
-		// The bridge target runs the ctrlink_streamer module; the roles that
-		// run it come from the roles' own module lists (the module never names
-		// a role).
-		const streamerRoles = new Set(core.roleRuns("ctrlink_streamer"));
-		for (const d of devs) {
-			if (d.role === undefined || !streamerRoles.has(d.role) || !d.online)
-				continue;
-			const info = (await core.requestDevice(
-				d.id,
-				"ctrlink_streamer.encoderInfo",
-			)) as {
-				encoderId?: string;
-				ip?: string;
-				wsPort?: number;
-				token?: string;
-			} | null;
-			if (!info?.ip || !info.wsPort) continue;
-			// Canonical identity: the encoder's OWN `encoder_id` (what its
-			// UDP / mDNS announces carry), NOT the control server's device
-			// name — a renamed device (the server entry saying
-			// "moblin-encoder" while the box announces "rpi4") would
-			// otherwise register under two ids and show twice.
-			const id = info.encoderId ?? d.hostname ?? d.id;
-			if (knownEncoders().some((x) => x.encoderId === id)) continue;
-			noteEncoder({
-				encoderId: id,
-				ip: info.ip,
-				wsPort: info.wsPort,
-				proto: CTRLINK_RELAY_WS_PROTOCOL,
-				token: info.token,
-				discoveredAt: { "control-server": Date.now() },
-				lastSeen: Date.now(),
-			});
-			void refreshDirectIfaces();
-			const enc = knownEncoders().find((x) => x.encoderId === id);
-			if (enc) {
-				startEncoderChannel(enc);
-				reconcileTunnelsNow();
-			}
-		}
-	} catch {
-		/* control server down or link closed — UDP discovery keeps working */
-	}
+    if (Date.now() - lastControlServerCheck < CONTROL_SERVER_INTERVAL_MS)
+        return;
+    lastControlServerCheck = Date.now();
+    if (core.config.DRY_RUN) return;
+    try {
+        const devs = await core.listDevices();
+        // The bridge target runs the ctrlink_streamer module; the roles that
+        // run it come from the roles' own module lists (the module never names
+        // a role).
+        const streamerRoles = new Set(core.roleRuns("ctrlink_streamer"));
+        for (const d of devs) {
+            if (d.role === undefined || !streamerRoles.has(d.role) || !d.online)
+                continue;
+            const info = (await core.requestDevice(
+                d.id,
+                "ctrlink_streamer.encoderInfo",
+            )) as {
+                encoderId?: string;
+                ip?: string;
+                wsPort?: number;
+                token?: string;
+            } | null;
+            if (!info?.ip || !info.wsPort) continue;
+            // Canonical identity: the encoder's OWN `encoder_id` (what its
+            // UDP / mDNS announces carry), NOT the control server's device
+            // name — a renamed device (the server entry saying
+            // "moblin-encoder" while the box announces "rpi4") would
+            // otherwise register under two ids and show twice.
+            const id = info.encoderId ?? d.hostname ?? d.id;
+            if (knownEncoders().some((x) => x.encoderId === id)) continue;
+            noteEncoder({
+                encoderId: id,
+                ip: info.ip,
+                wsPort: info.wsPort,
+                proto: CTRLINK_RELAY_WS_PROTOCOL,
+                token: info.token,
+                discoveredAt: { "control-server": Date.now() },
+                lastSeen: Date.now(),
+            });
+            void refreshDirectIfaces();
+            const enc = knownEncoders().find((x) => x.encoderId === id);
+            if (enc) {
+                startEncoderChannel(enc);
+                reconcileTunnelsNow();
+            }
+        }
+    } catch {
+        /* control server down or link closed — UDP discovery keeps working */
+    }
 }
 
 /** The events the last `pushIfaceEvents` call handed to the encoder WS
  * channels (test seam). */
 let lastPushEvents: Array<{
-	type: CtrlinkRelayIfaceEventType;
-	iface: CtrlinkRelayIface;
+    type: CtrlinkRelayIfaceEventType;
+    iface: CtrlinkRelayIface;
 }> = [];
 
 /** Test seam: the events the last `pushIfaceEvents` forwarded to the
  * connected encoders (empty after a push with no changes). */
 export function lastWsPushEvents(): Array<{
-	type: CtrlinkRelayIfaceEventType;
-	iface: CtrlinkRelayIface;
+    type: CtrlinkRelayIfaceEventType;
+    iface: CtrlinkRelayIface;
 }> {
-	return lastPushEvents;
+    return lastPushEvents;
 }
 
 /** Forward interface change events to every connected encoder (§4).
@@ -1471,22 +1506,27 @@ export function lastWsPushEvents(): Array<{
  * `interface_added` for hot-plugged media) would make the encoder tunnel a
  * segment it already owns — it must stay a plain direct uplink. */
 export function pushIfaceEvents(
-	events: Array<{ type: CtrlinkRelayIfaceEventType; iface: CtrlinkRelayIface }>,
+    events: Array<{
+        type: CtrlinkRelayIfaceEventType;
+        iface: CtrlinkRelayIface;
+    }>,
 ): void {
-	const visible = events.filter((ev) => !directIfaces.has(ev.iface.iface_name));
-	lastPushEvents = visible;
-	for (const ev of visible) {
-		for (const [key, st] of encoderChannels) {
-			const msg = JSON.stringify({ type: ev.type, iface: ev.iface });
-			try {
-				if (st.ws.readyState === WebSocket.OPEN) st.ws.send(msg);
-			} catch (e) {
-				console.warn(
-					`ctrlink_relay: WS send to ${key} failed: ${errorMessage(e)}`,
-				);
-			}
-		}
-	}
+    const visible = events.filter(
+        (ev) => !directIfaces.has(ev.iface.iface_name),
+    );
+    lastPushEvents = visible;
+    for (const ev of visible) {
+        for (const [key, st] of encoderChannels) {
+            const msg = JSON.stringify({ type: ev.type, iface: ev.iface });
+            try {
+                if (st.ws.readyState === WebSocket.OPEN) st.ws.send(msg);
+            } catch (e) {
+                console.warn(
+                    `ctrlink_relay: WS send to ${key} failed: ${errorMessage(e)}`,
+                );
+            }
+        }
+    }
 }
 
 /**
@@ -1494,46 +1534,47 @@ export function pushIfaceEvents(
  * Exposed for tests.
  */
 export function onEncoderAnnounced(e: CtrlinkDiscoveredEncoder): void {
-	const isNew = !encoderChannels.has(e.encoderId) && !pendingConnects.has(e.encoderId);
-	void (async () => {
-		// A (new) encoder may sit on one of our segments — reclassify the
-		// direct set before the snapshot/events go out to it.
-		await refreshDirectIfaces();
-		// The encoder is now known → the transport link is classified.
-		// Recompute the tunnel uplink set NOW (excluding the transport link)
-		// so we never build a `rtltun-<dedlink>` tunnel-over-the-tunnel; this
-		// also refreshes `lastUplinks` for the next reconcile.
-		reconcileTunnelsNow();
-		if (!isNew) return;
-		startEncoderChannel(e);
-	})();
+    const isNew =
+        !encoderChannels.has(e.encoderId) && !pendingConnects.has(e.encoderId);
+    void (async () => {
+        // A (new) encoder may sit on one of our segments — reclassify the
+        // direct set before the snapshot/events go out to it.
+        await refreshDirectIfaces();
+        // The encoder is now known → the transport link is classified.
+        // Recompute the tunnel uplink set NOW (excluding the transport link)
+        // so we never build a `rtltun-<dedlink>` tunnel-over-the-tunnel; this
+        // also refreshes `lastUplinks` for the next reconcile.
+        reconcileTunnelsNow();
+        if (!isNew) return;
+        startEncoderChannel(e);
+    })();
 }
 
 /** Stop all relay → encoder channels (module stop). */
 export function stopEncoderChannels(): void {
-	for (const key of [...encoderChannels.keys()]) stopEncoderChannel(key);
-	lastWsAdvertiseAt = undefined;
-	pendingConnects.clear();
+    for (const key of [...encoderChannels.keys()]) stopEncoderChannel(key);
+    lastWsAdvertiseAt = undefined;
+    pendingConnects.clear();
 }
 
 /** mDNS browse callback (protocol.md §2/§3): encoder TXT is flat
  * (id/ip/port/proto/tok). */
 function onMdnsEncoder(f: MdnsFound): void {
-	const encoderId = f.fields.get("id");
-	const ip = f.fields.get("ip");
-	const wsPort = Number(f.fields.get("port") ?? "");
-	if (!encoderId || !ip || !Number.isInteger(wsPort) || wsPort <= 0) return;
-	const enc: CtrlinkDiscoveredEncoder = {
-		encoderId,
-		ip,
-		wsPort,
-		proto: Number(f.fields.get("proto") ?? "1") || 1,
-		token: f.fields.get("tok") ?? undefined,
-		discoveredAt: { mdns: Date.now() },
-		lastSeen: Date.now(),
-	};
-	noteEncoder(enc);
-	onEncoderAnnounced(enc);
+    const encoderId = f.fields.get("id");
+    const ip = f.fields.get("ip");
+    const wsPort = Number(f.fields.get("port") ?? "");
+    if (!encoderId || !ip || !Number.isInteger(wsPort) || wsPort <= 0) return;
+    const enc: CtrlinkDiscoveredEncoder = {
+        encoderId,
+        ip,
+        wsPort,
+        proto: Number(f.fields.get("proto") ?? "1") || 1,
+        token: f.fields.get("tok") ?? undefined,
+        discoveredAt: { mdns: Date.now() },
+        lastSeen: Date.now(),
+    };
+    noteEncoder(enc);
+    onEncoderAnnounced(enc);
 }
 
 /**
@@ -1542,47 +1583,47 @@ function onMdnsEncoder(f: MdnsFound): void {
  * control-server reconciler. Idempotent.
  */
 function startDiscovery(): void {
-	startListeningForEncoders(onEncoderAnnounced, {
-		dryRun: core.config.DRY_RUN,
-	});
-	// mDNS path: encoders advertise `_ctrlirl-encoder._udp.local`.
-	mdnsBrowseStop?.();
-	mdnsBrowseStop = startMdnsBrowser({
-		service: MDNS_ENCODER_SERVICE,
-		dryRun: core.config.DRY_RUN,
-		onFound: onMdnsEncoder,
-	});
-	if (!encoderSweep) {
-		encoderSweep = setInterval(async () => {
-			sweepEncoders();
-			// Self-heal the direct set: a sweep may have dropped encoders,
-			// releasing interfaces that were filtered out for them. Await it
-			// so the tunnel reconcile below sees a fresh transport-link
-			// exclusion.
-			await refreshDirectIfaces();
-			reconcileEncoderChannels();
-			reconcileTunnelsNow();
-			// A channel that opened before the network list was populated got
-			// a bare `hello` (0 tunnel offers). Re-send the full snapshot now
-			// that the uplink set is known — this is the guaranteed catch-up
-			// for the startup race (runs every announce tick, idempotent).
-			resnapshotStaleChannels();
-			void ensureControlServerEncoders();
-		}, CTRLINK_ANNOUNCE_INTERVAL_MS);
-		encoderSweep.unref?.();
-	}
+    startListeningForEncoders(onEncoderAnnounced, {
+        dryRun: core.config.DRY_RUN,
+    });
+    // mDNS path: encoders advertise `_ctrlirl-encoder._udp.local`.
+    mdnsBrowseStop?.();
+    mdnsBrowseStop = startMdnsBrowser({
+        service: MDNS_ENCODER_SERVICE,
+        dryRun: core.config.DRY_RUN,
+        onFound: onMdnsEncoder,
+    });
+    if (!encoderSweep) {
+        encoderSweep = setInterval(async () => {
+            sweepEncoders();
+            // Self-heal the direct set: a sweep may have dropped encoders,
+            // releasing interfaces that were filtered out for them. Await it
+            // so the tunnel reconcile below sees a fresh transport-link
+            // exclusion.
+            await refreshDirectIfaces();
+            reconcileEncoderChannels();
+            reconcileTunnelsNow();
+            // A channel that opened before the network list was populated got
+            // a bare `hello` (0 tunnel offers). Re-send the full snapshot now
+            // that the uplink set is known — this is the guaranteed catch-up
+            // for the startup race (runs every announce tick, idempotent).
+            resnapshotStaleChannels();
+            void ensureControlServerEncoders();
+        }, CTRLINK_ANNOUNCE_INTERVAL_MS);
+        encoderSweep.unref?.();
+    }
 }
 
 /** Stop encoder discovery and tear down every relay → encoder channel. */
 function stopDiscovery(): void {
-	stopListeningForEncoders();
-	mdnsBrowseStop?.();
-	mdnsBrowseStop = undefined;
-	if (encoderSweep) {
-		clearInterval(encoderSweep);
-		encoderSweep = undefined;
-	}
-	stopEncoderChannels();
+    stopListeningForEncoders();
+    mdnsBrowseStop?.();
+    mdnsBrowseStop = undefined;
+    if (encoderSweep) {
+        clearInterval(encoderSweep);
+        encoderSweep = undefined;
+    }
+    stopEncoderChannels();
 }
 
 /**
@@ -1593,287 +1634,305 @@ function stopDiscovery(): void {
  * full list comes back with the next WS hello).
  */
 function startAdvertiseAll(): void {
-	// Per-segment announce sockets: bind addresses are the REAL interface
-	// addresses, not the announce payload's (a manual `announceHost`
-	// override collapses the payload to one IP — see `startAnnouncing`).
-	const segs = buildStatus()
-		.availableInterfaces.map((i) => i.address)
-		.filter((a): a is string => typeof a === "string" && a.length > 0);
-	startAnnouncing(announcePayload, {
-		dryRun: core.config.DRY_RUN,
-		binds: segs,
-	});
-	mdnsAdvertiseStop?.();
-	mdnsAdvertiseStop = startMdnsAdvertiser({
-		instance: hostname() || "ctrlirl-relay",
-		service: MDNS_RELAY_SERVICE,
-		servicePort: CTRLINK_DISCOVERY_PORT,
-		dryRun: core.config.DRY_RUN,
-		onAdvertise: (ts) => {
-			lastMdnsAnnounceAt = ts;
-		},
-		buildTxt: (): string[] | null => {
-			const p = announcePayload();
-			if (!p) return null;
-			const fields = [`h=${p.hostname ?? p.host}`, `ip=${p.host}`];
-			const i = p.interfaces
-				.map((e) => `${e.name}=${e.address}:${e.listenPort}`)
-				.join(";");
-			if (i) fields.push(`i=${i}`);
-			return fields;
-		},
-	});
+    // Per-segment announce sockets: bind addresses are the REAL interface
+    // addresses, not the announce payload's (a manual `announceHost`
+    // override collapses the payload to one IP — see `startAnnouncing`).
+    const segs = buildStatus()
+        .availableInterfaces.map((i) => i.address)
+        .filter((a): a is string => typeof a === "string" && a.length > 0);
+    startAnnouncing(announcePayload, {
+        dryRun: core.config.DRY_RUN,
+        binds: segs,
+    });
+    mdnsAdvertiseStop?.();
+    mdnsAdvertiseStop = startMdnsAdvertiser({
+        instance: hostname() || "ctrlirl-relay",
+        service: MDNS_RELAY_SERVICE,
+        servicePort: CTRLINK_DISCOVERY_PORT,
+        dryRun: core.config.DRY_RUN,
+        onAdvertise: (ts) => {
+            lastMdnsAnnounceAt = ts;
+        },
+        buildTxt: (): string[] | null => {
+            const p = announcePayload();
+            if (!p) return null;
+            const fields = [`h=${p.hostname ?? p.host}`, `ip=${p.host}`];
+            const i = p.interfaces
+                .map((e) => `${e.name}=${e.address}:${e.listenPort}`)
+                .join(";");
+            if (i) fields.push(`i=${i}`);
+            return fields;
+        },
+    });
 }
 
 /** Stop both relay-advertise paths (UDP + mDNS). */
 function stopAdvertiseAll(): void {
-	stopAnnouncing();
-	mdnsAdvertiseStop?.();
-	mdnsAdvertiseStop = undefined;
-	lastMdnsAnnounceAt = undefined;
+    stopAnnouncing();
+    mdnsAdvertiseStop?.();
+    mdnsAdvertiseStop = undefined;
+    lastMdnsAnnounceAt = undefined;
 }
 
 // ----------------------------------------------------------------------
 // Registration
 // ----------------------------------------------------------------------
 const registration: BackendModule<ModuleCore> = {
-	kind: "device",
-	id: "ctrlink_relay",
-	title: "Ctrlink Relay",
-	/** Depends on the network module for the interface list + uplinks file. */
-	dependencies: ["network"],
-	methods: [
-		"ctrlink_relay.start",
-		"ctrlink_relay.stop",
-		"ctrlink_relay.status",
-		"ctrlink_relay.getConfig",
-		"ctrlink_relay.setConfig",
-	],
-	events: ["ctrlink_relay.stats"],
-	configDefaults: {
-		enabled: false,
-		nat: true,
-		// The UDP IP tunnel is the default (and only) transport.
-		tunnel: true,
-		listenPortBase: 4000,
-		interfaceAllow: [],
-		interfaceIgnore: ["docker.*", "veth.*"],
-		interfaceNameOverrides: {},
-		logLevel: "info",
-	},
-	log,
-	bind(c) {
-		core = c;
-		netIfaces = requireCapability<NetworkInterfaces>("network.interfaces");
-		// Bind-time validation only: the relay needs the network uplinks
-		// capability to exist (TUN IPs surface through it) but never calls it.
-		requireCapability<Uplinks>("network.uplinks");
-	},
-	/**
-	 * `modules.configure`: persist the settings-page fields to the module slice.
-	 * Without this hook the settings page would only save `enabled`. The core
-	 * restarts the module afterwards, so a port-base change
-	 * re-syncs the relays (spec §5.4).
-	 */
-	configure(patch, s) {
-		const next: Partial<CtrlinkRelayConfig> = {};
-		if (typeof patch.enabled === "boolean") {
-			next.enabled = patch.enabled;
-			s.enabled = patch.enabled;
-		}
-		if (typeof patch.nat === "boolean") next.nat = patch.nat;
-		// `tunnel` replaces `wireGuard`; accept both (the alias is read back
-		// as `tunnel ?? wireGuard`).
-		if (typeof patch.tunnel === "boolean") {
-			next.tunnel = patch.tunnel;
-			s.tunnel = patch.tunnel;
-		}
-		if (typeof patch.wireGuard === "boolean") {
-			next.wireGuard = patch.wireGuard;
-			s.wireGuard = patch.wireGuard;
-		}
-		if (typeof patch.announceHost === "string")
-			next.announceHost = patch.announceHost.trim();
-		if (typeof patch.listenPortBase === "number")
-			next.listenPortBase = patch.listenPortBase;
-		if (Array.isArray(patch.interfaceAllow))
-			next.interfaceAllow = (patch.interfaceAllow as string[]).filter(
-				(v) => typeof v === "string",
-			);
-		if (Array.isArray(patch.interfaceIgnore))
-			next.interfaceIgnore = (patch.interfaceIgnore as string[]).filter(
-				(v) => typeof v === "string",
-			);
-		if (typeof patch.logLevel === "string")
-			next.logLevel = patch.logLevel as CtrlinkRelayConfig["logLevel"];
-		if (Object.keys(next).length > 0) saveConfig(next);
-	},
-	async start(ctx) {
-		core = ctx.core;
-		// Make sure the interface monitor is running (it may not be if the
-		// network module's slice is disabled on this role).
-		await netIfaces.ensureMonitoring();
-		netUnsub = netIfaces.onChanged(() => void onNetworkChange());
-		// Plain-UDP↔TUN multi-uplink transport: one `rtltun-<if>` netdev +
-		// `udpip` server pump per advertised uplink + per-uplink egress policy
-		// route / NAT. First pass is empty (no encoders yet) and grows as they
-		// announce.
-		configureRelayTunnelsNow();
-		reconcileTunnelsNow();
-		// Sample each relay's live forwarded throughput (bytes/sec) for the
-		// card's "real speed" — the negotiated link speed is not what matters.
-		startRateSampler();
-		// Interface history: an interface that got a port mapping before this
-		// process started must not be re-announced as `interface_added` — it
-		// goes out in the WS snapshot (protocol.md §4).
-		reseedSeen();
-		runtimeSync = false; // the snapshot sync below is silent for first-seen ifaces
-		// Learn encoders (protocol.md §2): UDP announces on the discovery
-		// port + a throttled control-server lookup. The listener callback
-		// dials each new encoder's WebSocket; the sweep drops encoders that
-		// stop announcing and reconciles the channel set.
-		if (config().enabled) startDiscovery();
-		// Autostart if the slice is enabled. Best-effort: a single interface's
-		// bind conflict must not crash the client on boot — the failed interface
-		// is recorded in status (`failures`) and the others keep running.
-		if (config().enabled) {
-			const res = await syncRelays(false);
-			pushIfaceEvents(res.events);
-			if (res.started.length > 0) startAdvertiseAll();
-			void ensureControlServerEncoders();
-			// A WS channel that opened before the network list was populated
-			// got a `hello` with few/no `wg` offers (the startup race) —
-			// re-send the full snapshot now that the set is known.
-			resnapshotStaleChannels();
-		}
-		// From here on, interface changes are runtime events: first-seen
-		// interfaces are announced `interface_added` to the connected
-		// encoders instead of waiting for the next `hello`.
-		runtimeSync = true;
-	},
-	async stop() {
-		netUnsub?.();
-		netUnsub = undefined;
-		runtimeSync = false;
-		stopRateSampler();
-		stopAdvertiseAll();
-		stopDiscovery();
-		void stopRelayTunnels();
-		await stopAll();
-	},
-	async status() {
-		return {
-			state: {
-				ctrlink: buildStatus() as unknown as CtrlinkRelayState,
-			},
-		};
-	},
-	async dispatch(method: string, p: Params) {
-		switch (method) {
-			case "ctrlink_relay.status":
-				return { ctrlink: buildStatus() };
-			case "ctrlink_relay.getConfig":
-				return { config: config() };
-			case "ctrlink_relay.start": {
-				core.cancelAutostart();
-				const patch: Partial<CtrlinkRelayConfig> = {};
-				if (p.announceHost !== undefined && p.announceHost !== "") {
-					patch.announceHost = requireHost(p, "announceHost");
-				}
-				if (Object.keys(patch).length > 0) saveConfig(patch);
-				saveConfig({ enabled: true });
-				startDiscovery();
-				void ensureControlServerEncoders();
-				// Best-effort: never throw on a per-interface bind conflict — the
-				// failed interface is surfaced in `ctrlink.failures`, others run.
-				const result = await syncRelays(false);
-				pushIfaceEvents(result.events);
-				// Both UDP + mDNS advertise paths (per-segment sockets), so a
-				// UI start (e.g. after an announceHost change) is consistent
-				// with the autostart path.
-				if (result.started.length > 0) startAdvertiseAll();
-				return { ctrlink: buildStatus(), ...result };
-			}
-			case "ctrlink_relay.stop":
-				core.cancelAutostart();
-				saveConfig({ enabled: false });
-				stopAnnouncing();
-				stopDiscovery();
-				await stopAll();
-				return { ctrlink: buildStatus() };
-			case "ctrlink_relay.setConfig": {
-				const patch: Partial<CtrlinkRelayConfig> = {};
-				if (p.enabled !== undefined)
-					patch.enabled = requireBoolean(p, "enabled");
-				if (p.nat !== undefined) patch.nat = requireBoolean(p, "nat");
-								if (p.announceHost !== undefined) {
-					const ip = String(p.announceHost).trim();
-					patch.announceHost = ip === "" ? "" : requireHost(p, "announceHost");
-				}
-				if (p.listenPortBase !== undefined) {
-					const base = Number(p.listenPortBase);
-					if (!Number.isInteger(base) || base < 1 || base > 65535)
-						throw new ApiError("listenPortBase out of range", 400);
-					patch.listenPortBase = base;
-				}
-				if (p.interfaceAllow !== undefined)
-					patch.interfaceAllow = optionalStringList(p, "interfaceAllow") ?? [];
-				if (p.interfaceIgnore !== undefined)
-					patch.interfaceIgnore =
-						optionalStringList(p, "interfaceIgnore") ?? [];
-				if (p.interfaceNameOverrides !== undefined) {
-					const overrides = p.interfaceNameOverrides as Record<string, unknown>;
-					if (typeof overrides !== "object" || overrides === null)
-						throw new ApiError("interfaceNameOverrides must be an object", 400);
-					patch.interfaceNameOverrides = Object.fromEntries(
-						Object.entries(overrides).map(([k, v]) => [k, String(v)]),
-					);
-				}
-				if (p.runtimeStatusFile !== undefined) {
-					const path = String(p.runtimeStatusFile);
-					if (!path.startsWith("/"))
-						throw new ApiError(
-							"runtimeStatusFile must be an absolute path",
-							400,
-						);
-					patch.runtimeStatusFile = path;
-				}
-				if (p.logLevel !== undefined) {
-					const level = String(p.logLevel);
-					if (!["trace", "debug", "info", "warn", "error"].includes(level))
-						throw new ApiError("invalid logLevel", 400);
-					patch.logLevel = level as CtrlinkRelayConfig["logLevel"];
-				}
-				saveConfig(patch);
-				// Restart affected relays if the config that affects them changed
-				// and forward the resulting interface events to the connected
-				// encoders (a config change can add/drop interfaces — the
-				// encoder must not wait for the next `hello` for that).
-				if (
-					patch.listenPortBase !== undefined ||
-					patch.interfaceAllow !== undefined ||
-					patch.interfaceIgnore !== undefined ||
-					patch.interfaceNameOverrides !== undefined
-				) {
-					if (config().enabled) {
-						const res = await syncRelays();
-						pushIfaceEvents(res.events);
-						if (res.started.length > 0) startAdvertiseAll();
-					} else await stopAll();
-				}
-				// A tunnel/wireGuard toggle (re)loads the tunnel transport:
-				// re-bind the enabled state + reconcile the netdev set now.
-				if (patch.tunnel !== undefined || patch.wireGuard !== undefined) {
-					configureRelayTunnelsNow();
-					reconcileTunnelsNow();
-				}
-				return { config: config(), ctrlink: buildStatus() };
-			}
-			default:
-				throw new ApiError(`unknown method ${method}`, 404);
-		}
-	},
-	services: { consumes: ["network.interfaces", "network.uplinks"] },
+    kind: "device",
+    id: "ctrlink_relay",
+    title: "Ctrlink Relay",
+    /** Depends on the network module for the interface list + uplinks file. */
+    dependencies: ["network"],
+    methods: [
+        "ctrlink_relay.start",
+        "ctrlink_relay.stop",
+        "ctrlink_relay.status",
+        "ctrlink_relay.getConfig",
+        "ctrlink_relay.setConfig",
+    ],
+    events: ["ctrlink_relay.stats"],
+    configDefaults: {
+        enabled: false,
+        nat: true,
+        // The UDP IP tunnel is the default (and only) transport.
+        tunnel: true,
+        listenPortBase: 4000,
+        interfaceAllow: [],
+        interfaceIgnore: ["docker.*", "veth.*"],
+        interfaceNameOverrides: {},
+        logLevel: "info",
+    },
+    log,
+    bind(c) {
+        core = c;
+        netIfaces = requireCapability<NetworkInterfaces>("network.interfaces");
+        // Bind-time validation only: the relay needs the network uplinks
+        // capability to exist (TUN IPs surface through it) but never calls it.
+        requireCapability<Uplinks>("network.uplinks");
+    },
+    /**
+     * `modules.configure`: persist the settings-page fields to the module slice.
+     * Without this hook the settings page would only save `enabled`. The core
+     * restarts the module afterwards, so a port-base change
+     * re-syncs the relays (spec §5.4).
+     */
+    configure(patch, s) {
+        const next: Partial<CtrlinkRelayConfig> = {};
+        if (typeof patch.enabled === "boolean") {
+            next.enabled = patch.enabled;
+            s.enabled = patch.enabled;
+        }
+        if (typeof patch.nat === "boolean") next.nat = patch.nat;
+        // `tunnel` replaces `wireGuard`; accept both (the alias is read back
+        // as `tunnel ?? wireGuard`).
+        if (typeof patch.tunnel === "boolean") {
+            next.tunnel = patch.tunnel;
+            s.tunnel = patch.tunnel;
+        }
+        if (typeof patch.wireGuard === "boolean") {
+            next.wireGuard = patch.wireGuard;
+            s.wireGuard = patch.wireGuard;
+        }
+        if (typeof patch.announceHost === "string")
+            next.announceHost = patch.announceHost.trim();
+        if (typeof patch.listenPortBase === "number")
+            next.listenPortBase = patch.listenPortBase;
+        if (Array.isArray(patch.interfaceAllow))
+            next.interfaceAllow = (patch.interfaceAllow as string[]).filter(
+                (v) => typeof v === "string",
+            );
+        if (Array.isArray(patch.interfaceIgnore))
+            next.interfaceIgnore = (patch.interfaceIgnore as string[]).filter(
+                (v) => typeof v === "string",
+            );
+        if (typeof patch.logLevel === "string")
+            next.logLevel = patch.logLevel as CtrlinkRelayConfig["logLevel"];
+        if (Object.keys(next).length > 0) saveConfig(next);
+    },
+    async start(ctx) {
+        core = ctx.core;
+        // Make sure the interface monitor is running (it may not be if the
+        // network module's slice is disabled on this role).
+        await netIfaces.ensureMonitoring();
+        netUnsub = netIfaces.onChanged(() => void onNetworkChange());
+        // Plain-UDP↔TUN multi-uplink transport: one `rtltun-<if>` netdev +
+        // `udpip` server pump per advertised uplink + per-uplink egress policy
+        // route / NAT. First pass is empty (no encoders yet) and grows as they
+        // announce.
+        configureRelayTunnelsNow();
+        reconcileTunnelsNow();
+        // Sample each relay's live forwarded throughput (bytes/sec) for the
+        // card's "real speed" — the negotiated link speed is not what matters.
+        startRateSampler();
+        // Interface history: an interface that got a port mapping before this
+        // process started must not be re-announced as `interface_added` — it
+        // goes out in the WS snapshot (protocol.md §4).
+        reseedSeen();
+        runtimeSync = false; // the snapshot sync below is silent for first-seen ifaces
+        // Learn encoders (protocol.md §2): UDP announces on the discovery
+        // port + a throttled control-server lookup. The listener callback
+        // dials each new encoder's WebSocket; the sweep drops encoders that
+        // stop announcing and reconciles the channel set.
+        if (config().enabled) startDiscovery();
+        // Autostart if the slice is enabled. Best-effort: a single interface's
+        // bind conflict must not crash the client on boot — the failed interface
+        // is recorded in status (`failures`) and the others keep running.
+        if (config().enabled) {
+            const res = await syncRelays(false);
+            pushIfaceEvents(res.events);
+            if (res.started.length > 0) startAdvertiseAll();
+            void ensureControlServerEncoders();
+            // A WS channel that opened before the network list was populated
+            // got a `hello` with few/no `wg` offers (the startup race) —
+            // re-send the full snapshot now that the set is known.
+            resnapshotStaleChannels();
+        }
+        // From here on, interface changes are runtime events: first-seen
+        // interfaces are announced `interface_added` to the connected
+        // encoders instead of waiting for the next `hello`.
+        runtimeSync = true;
+    },
+    async stop() {
+        netUnsub?.();
+        netUnsub = undefined;
+        runtimeSync = false;
+        stopRateSampler();
+        stopAdvertiseAll();
+        stopDiscovery();
+        void stopRelayTunnels();
+        await stopAll();
+    },
+    async status() {
+        return {
+            state: {
+                ctrlink: buildStatus() as unknown as CtrlinkRelayState,
+            },
+        };
+    },
+    async dispatch(method: string, p: Params) {
+        switch (method) {
+            case "ctrlink_relay.status":
+                return { ctrlink: buildStatus() };
+            case "ctrlink_relay.getConfig":
+                return { config: config() };
+            case "ctrlink_relay.start": {
+                core.cancelAutostart();
+                const patch: Partial<CtrlinkRelayConfig> = {};
+                if (p.announceHost !== undefined && p.announceHost !== "") {
+                    patch.announceHost = requireHost(p, "announceHost");
+                }
+                if (Object.keys(patch).length > 0) saveConfig(patch);
+                saveConfig({ enabled: true });
+                startDiscovery();
+                void ensureControlServerEncoders();
+                // Best-effort: never throw on a per-interface bind conflict — the
+                // failed interface is surfaced in `ctrlink.failures`, others run.
+                const result = await syncRelays(false);
+                pushIfaceEvents(result.events);
+                // Both UDP + mDNS advertise paths (per-segment sockets), so a
+                // UI start (e.g. after an announceHost change) is consistent
+                // with the autostart path.
+                if (result.started.length > 0) startAdvertiseAll();
+                return { ctrlink: buildStatus(), ...result };
+            }
+            case "ctrlink_relay.stop":
+                core.cancelAutostart();
+                saveConfig({ enabled: false });
+                stopAnnouncing();
+                stopDiscovery();
+                await stopAll();
+                return { ctrlink: buildStatus() };
+            case "ctrlink_relay.setConfig": {
+                const patch: Partial<CtrlinkRelayConfig> = {};
+                if (p.enabled !== undefined)
+                    patch.enabled = requireBoolean(p, "enabled");
+                if (p.nat !== undefined) patch.nat = requireBoolean(p, "nat");
+                if (p.announceHost !== undefined) {
+                    const ip = String(p.announceHost).trim();
+                    patch.announceHost =
+                        ip === "" ? "" : requireHost(p, "announceHost");
+                }
+                if (p.listenPortBase !== undefined) {
+                    const base = Number(p.listenPortBase);
+                    if (!Number.isInteger(base) || base < 1 || base > 65535)
+                        throw new ApiError("listenPortBase out of range", 400);
+                    patch.listenPortBase = base;
+                }
+                if (p.interfaceAllow !== undefined)
+                    patch.interfaceAllow =
+                        optionalStringList(p, "interfaceAllow") ?? [];
+                if (p.interfaceIgnore !== undefined)
+                    patch.interfaceIgnore =
+                        optionalStringList(p, "interfaceIgnore") ?? [];
+                if (p.interfaceNameOverrides !== undefined) {
+                    const overrides = p.interfaceNameOverrides as Record<
+                        string,
+                        unknown
+                    >;
+                    if (typeof overrides !== "object" || overrides === null)
+                        throw new ApiError(
+                            "interfaceNameOverrides must be an object",
+                            400,
+                        );
+                    patch.interfaceNameOverrides = Object.fromEntries(
+                        Object.entries(overrides).map(([k, v]) => [
+                            k,
+                            String(v),
+                        ]),
+                    );
+                }
+                if (p.runtimeStatusFile !== undefined) {
+                    const path = String(p.runtimeStatusFile);
+                    if (!path.startsWith("/"))
+                        throw new ApiError(
+                            "runtimeStatusFile must be an absolute path",
+                            400,
+                        );
+                    patch.runtimeStatusFile = path;
+                }
+                if (p.logLevel !== undefined) {
+                    const level = String(p.logLevel);
+                    if (
+                        !["trace", "debug", "info", "warn", "error"].includes(
+                            level,
+                        )
+                    )
+                        throw new ApiError("invalid logLevel", 400);
+                    patch.logLevel = level as CtrlinkRelayConfig["logLevel"];
+                }
+                saveConfig(patch);
+                // Restart affected relays if the config that affects them changed
+                // and forward the resulting interface events to the connected
+                // encoders (a config change can add/drop interfaces — the
+                // encoder must not wait for the next `hello` for that).
+                if (
+                    patch.listenPortBase !== undefined ||
+                    patch.interfaceAllow !== undefined ||
+                    patch.interfaceIgnore !== undefined ||
+                    patch.interfaceNameOverrides !== undefined
+                ) {
+                    if (config().enabled) {
+                        const res = await syncRelays();
+                        pushIfaceEvents(res.events);
+                        if (res.started.length > 0) startAdvertiseAll();
+                    } else await stopAll();
+                }
+                // A tunnel/wireGuard toggle (re)loads the tunnel transport:
+                // re-bind the enabled state + reconcile the netdev set now.
+                if (
+                    patch.tunnel !== undefined ||
+                    patch.wireGuard !== undefined
+                ) {
+                    configureRelayTunnelsNow();
+                    reconcileTunnelsNow();
+                }
+                return { config: config(), ctrlink: buildStatus() };
+            }
+            default:
+                throw new ApiError(`unknown method ${method}`, 404);
+        }
+    },
+    services: { consumes: ["network.interfaces", "network.uplinks"] },
 };
 
 export default registration;
