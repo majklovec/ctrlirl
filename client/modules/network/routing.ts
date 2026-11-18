@@ -135,7 +135,11 @@ export async function detectInterfaces(modemList?: Modem[]): Promise<Iface[]> {
     const entries: Iface[] = [];
     for (const line of addrs.split("\n")) {
         const [, iface, , cidr] = line.split(/\s+/);
-        if (!iface || !cidr || isVirtual(iface)) continue;
+        // CtrLink tunnel TUNs (`utn<R>-<iface>`) are real uplink paths (a
+        // tunnel to a relay's shared uplink) and ARE bondable — every other
+        // synthetic interface stays excluded by `isVirtual`.
+        if (!iface || !cidr || (isVirtual(iface) && !isCtrlinkTun(iface)))
+            continue;
         const [addr, prefix] = cidr.split("/");
         entries.push({ iface, ip: addr, prefix: parseInt(prefix, 10), cidr });
     }
@@ -256,11 +260,14 @@ export const selection = (): ModemConfig =>
     ((core.state.data.network as Record<string, unknown> | undefined)
         ?.selection ?? {}) as ModemConfig;
 
-/** The interfaces chosen for bonding: by name, else by IP, else all of them. */
+/** The interfaces chosen for bonding: by name, else by IP, else all of them.
+ * An empty array (`{modems: []}`) means "no interfaces selected" — it does
+ * NOT fall through to "all". Only the absence of the key (`modems: undefined`)
+ * means "all". */
 export function resolveSelection(all: Iface[]): Iface[] {
     const { modems: names, ips } = selection();
-    if (names?.length) return all.filter((i) => names.includes(i.iface));
-    if (ips?.length) return all.filter((i) => ips.includes(i.ip));
+    if (names !== undefined) return all.filter((i) => names.includes(i.iface));
+    if (ips !== undefined) return all.filter((i) => ips.includes(i.ip));
     return all;
 }
 
@@ -643,8 +650,43 @@ export async function reconfigure(): Promise<ReconfigureResult> {
     return withRoutingLock(async () => {
         try {
             const selected = resolveSelection(await detectInterfaces());
-            if (selected.length === 0)
-                return failure("No interfaces selected for bonding.");
+
+            // No interfaces selected: flush managed routing tables and write
+            // an uplinks file containing only programmatic extras (if any).
+            if (selected.length === 0) {
+                await applyRouting([]);
+                const lines = uplinksLines([]);
+                const content = lines.length
+                    ? `${lines.join("\n")}\n`
+                    : "";
+                const previous =
+                    lastUplinksContent ??
+                    (await Bun.file(UPLINKS_FILE)
+                        .text()
+                        .catch(() => null));
+                const changed = previous !== content;
+                if (changed && !core.config.DRY_RUN) {
+                    if (content) {
+                        await core.writeFileAtomic(UPLINKS_FILE, content);
+                    } else {
+                        await Bun.file(UPLINKS_FILE)
+                            .write("")
+                            .catch(() => {});
+                    }
+                    lastUplinksContent = content;
+                    console.log(
+                        `Uplinks file cleared (no interfaces selected)`,
+                    );
+                }
+                core.notifyStateChange();
+                return {
+                    ok: true,
+                    selected: [],
+                    uplinksFile: UPLINKS_FILE,
+                    ips: [],
+                    changed,
+                };
+            }
 
             const plan = await Promise.all(
                 selected.map(

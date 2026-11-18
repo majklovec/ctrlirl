@@ -98,7 +98,11 @@ async function selectModems(p: Params) {
 		ips?.filter((ip) => !all.some((iface) => iface.ip === ip)) ?? [];
 	if (badIps.length) throw new ApiError(`Unknown IPs: ${badIps.join(", ")}`);
 	return applySelection(
-		names?.length ? { modems: names } : ips?.length ? { ips } : {},
+		names !== undefined
+			? { modems: names }
+			: ips !== undefined
+				? { ips }
+				: {},
 	);
 }
 
@@ -110,9 +114,9 @@ async function toggleModem(p: Params) {
 	const names = new Set(resolveSelection(all).map((iface) => iface.iface));
 	if (!names.delete(name)) names.add(name);
 	// A CtrLink TUN leaving the bond drops its auto-registered programmatic
-	// uplink (ctrlink_streamer, id `ctrlink:<tun>`) too — otherwise
+	// uplink (ctrlink_streamer, id `ctrlink:tun:<tun>`) too — otherwise
 	// srtla_send would keep using the path the user just excluded.
-	const uplinkId = `ctrlink:${name}`;
+	const uplinkId = `ctrlink:tun:${name}`;
 	if (
 		!names.has(name) &&
 		listProgrammaticUplinks().some((e) => e.id === uplinkId)

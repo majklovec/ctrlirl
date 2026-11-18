@@ -26,7 +26,9 @@ export interface Iface {
     gateway?: string;
 }
 
-/** The persisted bond selection (by interface name, else by IP; empty = all). */
+/** The persisted bond selection (by interface name, else by IP).
+ * An empty array means "no interfaces selected"; the *absence* of the key
+ * means "all interfaces". */
 export interface ModemConfig {
     modems?: string[];
     ips?: string[];
