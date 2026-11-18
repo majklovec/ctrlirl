@@ -1330,6 +1330,13 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 	const fail = (why: string): void => {
 		if (encoderChannels.get(e.encoderId) !== st) return; // replaced
 		closeEncoderChannel(e.encoderId, st.gen);
+		// Release the "dial in progress" flag. Without this a close after the
+		// first successful open leaves the id in `pendingConnects` forever:
+		// the re-dial (`startEncoderChannel`) and the re-announce path
+		// (`onEncoderAnnounced` `isNew`) are both gated on it, so the relay
+		// permanently stops re-dialing after any encoder restart — no `hello`,
+		// no tunnel offers.
+		pendingConnects.delete(e.encoderId);
 		// The link state surfaced on the card changed — refresh it now.
 		core.notifyStateChange();
 		void writeStatusFile();
@@ -1337,10 +1344,15 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 			console.warn(
 				`ctrlink_relay: WS to encoder ${e.encoderId} lost (${why}) — retrying in ${ENCODER_WS_RECONNECT_MS / 1000}s`,
 			);
-			st.timer = setTimeout(
-				() => startEncoderChannel(e),
-				ENCODER_WS_RECONNECT_MS,
-			);
+			st.timer = setTimeout(() => {
+				// Dial the freshest registry entry (its ip/port/token can
+				// have moved since this channel started) rather than the
+				// channel-start snapshot.
+				const fresh = knownEncoders().find(
+					(x) => x.encoderId === e.encoderId,
+				);
+				if (fresh) startEncoderChannel(fresh);
+			}, ENCODER_WS_RECONNECT_MS);
 			st.timer.unref?.();
 		}
 	};

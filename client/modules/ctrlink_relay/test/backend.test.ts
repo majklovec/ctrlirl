@@ -36,7 +36,56 @@ import {
 	stopAnnouncing,
 	sweepEncoders,
 } from "../discovery";
-import { CTRLINK_ANNOUNCE_TTL_MS } from "../../../../shared/ctrlink_discovery";
+import {
+	CTRLINK_ANNOUNCE_TTL_MS,
+	type CtrlinkDiscoveredEncoder,
+} from "../../../../shared/ctrlink_discovery";
+
+/** Controllable `WebSocket` for the re-dial regression test. A real
+ * localhost socket opens synchronously, which masks the async
+ * pending-`connect` guard; the live bug is a socket that DROPS BEFORE IT
+ * OPENS (the encoder process dies while the relay's dial is in flight), so
+ * the lifecycle is driven explicitly. The backend uses the global
+ * `WebSocket`; tests swap it out for the duration of a test. */
+const RealWebSocket = globalThis.WebSocket;
+let liveWs: FakeWs | undefined;
+class FakeWs {
+	static readonly CONNECTING = 0;
+	static readonly OPEN = 1;
+	static readonly CLOSING = 2;
+	static readonly CLOSED = 3;
+	readyState = FakeWs.CONNECTING;
+	onopen?: () => void;
+	onmessage?: (ev: unknown) => void;
+	onerror?: () => void;
+	onclose?: (ev: { reason: string }) => void;
+	constructor(_url: string) {
+		liveWs = this;
+	}
+	/** Complete the (pending) connection and fire `onopen`. */
+	complete(): void {
+		if (this.readyState !== FakeWs.CONNECTING) return;
+		this.readyState = FakeWs.OPEN;
+		this.onopen?.();
+	}
+	/**
+	 * The remote endpoint vanishes (the encoder process restarts): fire
+	 * `onclose`. Legal from CONNECTING (the socket never opened) and from
+	 * OPEN — exactly like a peer that dies before / mid-connection.
+	 */
+	drop(): void {
+		if (this.readyState === FakeWs.CLOSED) return;
+		this.readyState = FakeWs.CLOSED;
+		this.onclose?.({ reason: "Server closed" });
+	}
+	/** Client-side close. */
+	close(): void {
+		if (this.readyState === FakeWs.CLOSED) return;
+		this.readyState = FakeWs.CLOSED;
+	}
+	/** No-op (the test never asserts on frames). */
+	send(_data: unknown): void {}
+}
 
 /** Expire every registry entry (the discovery registry is module-level and
  * TTL'd — a plain `sweepEncoders()` only drops already-expired entries). */
@@ -823,6 +872,59 @@ describe("encoder discovery + WS channels (protocol.md §2–§5)", () => {
 		});
 		expect(sweepEncoders()).toEqual([]);
 		expect(knownEncoders().some((e) => e.encoderId === "enc-live")).toBe(true);
+	});
+
+	test("a closed WS channel re-dials after the encoder re-announces (protocol.md §3 re-dial)", async () => {
+		// Regression: the `fail()` close handler used to leave the encoder id
+		// stuck in `pendingConnects`, so every later dial attempt — the 5 s
+		// retry timer AND the re-announce path — was a no-op. After one drop
+		// the relay never re-dialed a restarted encoder, so no `hello` → no
+		// tunnel offers. Reproduce the live sequence with a controllable
+		// WebSocket: dial → open → the encoder restarts (socket drops) → the
+		// encoder re-announces → the relay MUST dial a SECOND time.
+		cfg.bind?.(fakeCore({}));
+		liveWs = undefined;
+		globalThis.WebSocket = FakeWs as unknown as typeof WebSocket;
+		try {
+			const enc = (): CtrlinkDiscoveredEncoder => ({
+				encoderId: "enc-redial",
+				ip: "127.0.0.1",
+				wsPort: 8123,
+				proto: 1,
+				discoveredAt: { udp: Date.now() },
+				lastSeen: Date.now(),
+			});
+			noteEncoder(enc());
+			mod.onEncoderAnnounced(enc());
+			// First dial: a socket was created (CONNECTING until completed).
+			// `onEncoderAnnounced` dials after its (async) direct-iface
+			// refresh, so poll for the socket.
+			await until(() => liveWs !== undefined);
+			const firstWs = liveWs!;
+
+			// The encoder restarts BEFORE the dial completes: the in-flight
+			// socket closes. This is the exact live sequence — and the case
+			// `onopen` never clears, because it never fired. `fail()` must
+			// release the "dial in progress" flag itself (the regression).
+			firstWs.drop();
+			expect(firstWs.readyState).toBe(FakeWs.CLOSED);
+
+			// The encoder (re)announces — the relay must dial a FRESH socket.
+			// WITHOUT the fix the stuck `pendingConnects` makes
+			// `onEncoderAnnounced` compute `isNew=false`, and the 5 s retry is
+			// blocked by the same flag → no second socket is ever created.
+			noteEncoder(enc());
+			mod.onEncoderAnnounced(enc());
+			await until(() => liveWs !== undefined && liveWs !== firstWs);
+			const secondWs = liveWs!;
+			expect(secondWs).not.toBe(firstWs);
+			expect(secondWs.readyState).toBe(FakeWs.CONNECTING);
+			secondWs.complete();
+			expect(secondWs.readyState).toBe(FakeWs.OPEN);
+			secondWs.close(); // clean teardown (also releases the channel)
+		} finally {
+			globalThis.WebSocket = RealWebSocket;
+		}
 	});
 
 	test("discoveredAt keeps a per-path last-discovery timestamp", () => {
