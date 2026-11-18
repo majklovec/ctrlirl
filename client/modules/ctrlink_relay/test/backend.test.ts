@@ -13,20 +13,27 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { makeMockTunDevice } from "@ctrlirl/udp-relay";
 import type { ModuleCore } from "../../../../client/backend/module_core";
 import {
 	clearCapabilities,
 	provideCapability,
 } from "../../../../shared/capabilities";
-import { ROLES } from "../../../../shared/registry";
-import { rolesWithModule } from "../../../../shared/roles";
 import type {
 	NetworkInterfaces,
 	Uplinks,
 } from "../../../../shared/contracts/module_capabilities";
-import { makeMockTunDevice } from "@ctrlirl/udp-relay";
+import {
+	CTRLINK_ANNOUNCE_TTL_MS,
+	type CtrlinkDiscoveredEncoder,
+} from "../../../../shared/ctrlink_discovery";
+import { ROLES } from "../../../../shared/registry";
+import { rolesWithModule } from "../../../../shared/roles";
 import * as mod from "../backend";
 import {
+	__setNeighborSourceForTest,
+	__setUnicastSocketForTest,
+	__tickAnnounceForTest,
 	knownEncoderIps,
 	knownEncoders,
 	noteEncoder,
@@ -34,10 +41,6 @@ import {
 	stopAnnouncing,
 	sweepEncoders,
 } from "../discovery";
-import {
-	CTRLINK_ANNOUNCE_TTL_MS,
-	type CtrlinkDiscoveredEncoder,
-} from "../../../../shared/ctrlink_discovery";
 
 /** Controllable `WebSocket` for the re-dial regression test. A real
  * localhost socket opens synchronously, which masks the async
@@ -521,9 +524,9 @@ describe("relay slots forward no user-space traffic", () => {
 		// slot port.
 		// The slot's port mapping exists (announced over WS as the tunnel
 		// identity) — there is just nothing bound to it.
-		const { config } = (
-			await cfg.dispatch("ctrlink_relay.getConfig", {})
-		) as { config: { portMap: Record<string, number> } };
+		const { config } = (await cfg.dispatch("ctrlink_relay.getConfig", {})) as {
+			config: { portMap: Record<string, number> };
+		};
 		expect(config.portMap.lo).toBe(base);
 
 		// The slot performs NO user-space forwarding and installs NO vif
@@ -833,7 +836,10 @@ describe("immediate interface-change push via the encoder WS (protocol.md §4)",
 			// is still there, but `network.interfaces` (addressful only) no
 			// longer offers it. That must be a DOWN, not a removal — the port
 			// mapping must survive.
-			live.splice(live.findIndex((i) => i.name === "wwan0"), 1);
+			live.splice(
+				live.findIndex((i) => i.name === "wwan0"),
+				1,
+			);
 			interfaceHandler?.();
 			await until(() =>
 				mod
@@ -864,14 +870,19 @@ describe("immediate interface-change push via the encoder WS (protocol.md §4)",
 			);
 			const up = mod
 				.lastWsPushEvents()
-				.find((e) => e.type === "interface_up" && e.iface.iface_name === "wwan0");
+				.find(
+					(e) => e.type === "interface_up" && e.iface.iface_name === "wwan0",
+				);
 			expect(up?.iface.udp_port).toBe(wwanPort);
 			expect(mod.allocatePort("wwan0")).toBe(wwanPort);
 
 			// A truly removed interface (netdev gone) IS a removal: the port
 			// is freed, so a new interface now lands on wwan0's old port.
 			rmSync(join(dir, "wwan0"), { recursive: true, force: true });
-			live.splice(live.findIndex((i) => i.name === "wwan0"), 1);
+			live.splice(
+				live.findIndex((i) => i.name === "wwan0"),
+				1,
+			);
 			interfaceHandler?.();
 			await until(() =>
 				mod
@@ -940,8 +951,9 @@ describe("encoder discovery + WS channels (protocol.md §2–§5)", () => {
 		const ids = knownEncoders().map((e) => e.encoderId);
 		expect(ids).toContain("rpi4");
 		expect(ids).not.toContain("enc-1");
-		const via = knownEncoders().find((e) => e.encoderId === "rpi4")
-			?.discoveredAt;
+		const via = knownEncoders().find(
+			(e) => e.encoderId === "rpi4",
+		)?.discoveredAt;
 		expect(via?.["control-server"]).toBeTypeOf("number");
 		expect(Object.keys(via ?? {})).toEqual(["control-server"]);
 	});
@@ -1067,17 +1079,29 @@ describe("encoder discovery + WS channels (protocol.md §2–§5)", () => {
 			proto: 1,
 		};
 		const udpAt = Date.now() - 5_000;
-		noteEncoder({ ...base, discoveredAt: { udp: udpAt }, lastSeen: Date.now() });
+		noteEncoder({
+			...base,
+			discoveredAt: { udp: udpAt },
+			lastSeen: Date.now(),
+		});
 		// A second path (mDNS) (re)announces the same encoder — both stay.
 		const mdnsAt = Date.now();
-		noteEncoder({ ...base, discoveredAt: { mdns: mdnsAt }, lastSeen: Date.now() });
+		noteEncoder({
+			...base,
+			discoveredAt: { mdns: mdnsAt },
+			lastSeen: Date.now(),
+		});
 		let entry = knownEncoders().find((e) => e.encoderId === "enc-via");
 		expect(entry?.discoveredAt).toEqual({ udp: udpAt, mdns: mdnsAt });
 		// A keptalive re-injects an entry captured BEFORE the mdns path
 		// appeared — merging keeps the stored mdns stamp; the fresh udp
 		// stamp wins for its own path.
 		const udpAt2 = Date.now();
-		noteEncoder({ ...base, discoveredAt: { udp: udpAt2 }, lastSeen: Date.now() });
+		noteEncoder({
+			...base,
+			discoveredAt: { udp: udpAt2 },
+			lastSeen: Date.now(),
+		});
 		entry = knownEncoders().find((e) => e.encoderId === "enc-via");
 		expect(entry?.discoveredAt).toEqual({ udp: udpAt2, mdns: mdnsAt });
 	});
@@ -1233,5 +1257,89 @@ describe("directly-connected interfaces are not advertised", () => {
 		expect(mod.lastWsPushEvents().map((e) => e.iface.iface_name)).toEqual([
 			"eno2",
 		]);
+	});
+});
+
+describe("neighbor unicast: ICMP port-unreachable (ECONNREFUSED) handling", () => {
+	afterEach(() => {
+		__setNeighborSourceForTest(undefined);
+		__setUnicastSocketForTest(undefined);
+		stopAnnouncing();
+	});
+
+	// A kernel-queued ICMP port-unreachable surfaces as ECONNREFUSED on the
+	// dgram send (nothing listens on 10333 at the target). The Bun runtime
+	// never surfaces it on a real socket, so a fake seam drives it. Asserts
+	// are PER-IP: earlier tests leave entries in the encoder registry, and
+	// the tick's known-encoder unicast path shares the same socket.
+	const NEIGHBOR = "192.0.2.99";
+	const refusedRecorder = (): string[] => {
+		const ips: string[] = [];
+		__setUnicastSocketForTest({
+			send: (_p, _port, ip, cb) => {
+				ips.push(ip);
+				cb(
+					Object.assign(new Error("send ECONNREFUSED"), {
+						code: "ECONNREFUSED",
+					}),
+				);
+			},
+		});
+		return ips;
+	};
+	const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 10)); // the tick's unicast phase is async
+
+	test("a non-encoder neighbor warns once and is skipped", async () => {
+		const logs: string[] = [];
+		const origWarn = console.warn;
+		const origLog = console.log;
+		console.warn = (...a: unknown[]) => logs.push(a.join(" "));
+		console.log = () => {};
+		const warns = (): string[] =>
+			logs.filter((l) => l.includes(`no discovery listener at ${NEIGHBOR}`));
+		const sends = refusedRecorder();
+		__setNeighborSourceForTest(async () => [NEIGHBOR]);
+		try {
+			__tickAnnounceForTest();
+			await flush();
+			// The failed send: one informative warn + one re-send to drain
+			// the socket's queued ICMP error.
+			expect(sends.filter((ip) => ip === NEIGHBOR)).toHaveLength(2);
+			expect(warns()).toHaveLength(1);
+			expect(warns()[0]).toMatch(/skipping 300s/);
+			// Tick 2: the target is in the skip list → no datagrams, no new
+			// warns.
+			__tickAnnounceForTest();
+			await flush();
+			expect(sends.filter((ip) => ip === NEIGHBOR)).toHaveLength(2);
+			expect(warns()).toHaveLength(1);
+		} finally {
+			console.warn = origWarn;
+			console.log = origLog;
+		}
+	});
+
+	test("the skip list is cleared on stop (a later encoder is re-probed)", async () => {
+		const origWarn = console.warn;
+		const origLog = console.log;
+		console.warn = () => {};
+		console.log = () => {};
+		const sends = refusedRecorder();
+		__setNeighborSourceForTest(async () => [NEIGHBOR]);
+		try {
+			__tickAnnounceForTest(); // marks NEIGHBOR as port-unreachable
+			await flush();
+			const before = sends.filter((ip) => ip === NEIGHBOR).length;
+			expect(before).toBe(2);
+			stopAnnouncing(); // clears the skip list
+			__tickAnnounceForTest(); // re-probes the neighbor
+			await flush();
+			expect(sends.filter((ip) => ip === NEIGHBOR).length).toBeGreaterThan(
+				before,
+			);
+		} finally {
+			console.warn = origWarn;
+			console.log = origLog;
+		}
 	});
 });

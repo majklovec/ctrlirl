@@ -1,0 +1,7 @@
+{
+    "$schema": "../../../../shared/install/schema.json",
+    "version": 1,
+    "capabilities": {
+        "ambient": ["CAP_NET_ADMIN", "CAP_NET_BROADCAST"]
+    }
+}

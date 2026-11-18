@@ -24,16 +24,17 @@
  * remote TTL entries stay fresh. `buildPayload` is called every tick so the
  * announce always reflects the live interface set.
  */
-import dgram from "node:dgram";
+
 import { execFile } from "node:child_process";
+import dgram from "node:dgram";
 import {
-	isCtrlinkEncoderAnnounce,
 	CTRLINK_ANNOUNCE_INTERVAL_MS,
 	CTRLINK_ANNOUNCE_TTL_MS,
 	CTRLINK_BROADCAST_ADDR,
 	CTRLINK_DISCOVERY_PORT,
 	type CtrlinkAnnounce,
 	type CtrlinkDiscoveredEncoder,
+	isCtrlinkEncoderAnnounce,
 } from "../../../shared/ctrlink_discovery";
 
 /** Run `ip -4 neigh show` and return its stdout (ARP-neighbor refresh). */
@@ -79,6 +80,34 @@ export function lastUdpAnnounceAt(): number | undefined {
 	return udpAnnounceAt;
 }
 
+/** A send-capable UDP sender (both `dgram.Socket` and the test fake). */
+type UnicastSender = {
+	send(
+		payload: string,
+		port: number,
+		ip: string,
+		cb: (e?: Error) => void,
+	): void;
+};
+/** Test seam: a stand-in for the unbound unicast socket, so tests can drive
+ * the unicast path (and its ECONNREFUSED handling) deterministically — some
+ * runtimes (Bun) never surface the ICMP port-unreachable on a real socket.
+ * Production leaves this undefined. */
+let __testUnicast: UnicastSender | undefined;
+export function __setUnicastSocketForTest(s?: UnicastSender): void {
+	__testUnicast = s;
+}
+/** Test seam: run one full announce tick (the real sockets stay untouched —
+ * the broadcast section iterates the (empty) real announce-socket list). */
+export function __tickAnnounceForTest(): void {
+	tickAnnounce(() => ({
+		v: 1,
+		host: "test-host",
+		interfaces: [],
+		ts: 1,
+	}));
+}
+
 /** Compact one-line summary of an announce's shared interfaces (debug logs). */
 function endpointSummary(eps: CtrlinkAnnounce["interfaces"]): string {
 	return eps.map((e) => `${e.name}=${e.address}: ${e.listenPort}`).join(", ");
@@ -87,6 +116,14 @@ function endpointSummary(eps: CtrlinkAnnounce["interfaces"]): string {
 /** Per-target throttle: a permanently-unreachable encoder IP must not spam
  * the log on every announce tick (60 s). */
 const lastUnicastWarn = new Map<string, number>();
+/** Epoch-ms expiry per ARP-neighbor IP that answered with ICMP
+ * port-unreachable (nothing listens on the discovery port there). Probing
+ * such a host every tick is pointless AND each of its ICMP replies queues a
+ * pending error on the unbound socket that makes the NEXT send fail (often
+ * to a different IP). Skip these targets for a while; an encoder that boots
+ * on that host later is re-probed after the expiry. */
+const deadNeighborUntil = new Map<string, number>();
+const DEAD_NEIGHBOR_SKIP_MS = 5 * 60_000;
 
 /** True once a limited broadcast has been refused (EACCES — the kernel
  * denies 255.255.255.255 sends without CAP_NET_BROADCAST). Sticky: the
@@ -96,9 +133,24 @@ let broadcastRefused = false;
 let neighborCache: { at: number; ips: string[] } | undefined;
 const NEIGHBOR_CACHE_MS = 30_000;
 
+/** Test seam: override the neighbor source (the relay backend tests run
+ * without root, where `ip neigh` is empty / unavailable). Production leaves
+ * this undefined → the real `ip -4 neigh show` source is used. */
+let neighborSourceOverride: (() => Promise<string[]>) | undefined;
+export function __setNeighborSourceForTest(
+	fn: (() => Promise<string[]>) | undefined,
+): void {
+	neighborSourceOverride = fn;
+}
+
 /** Refresh the ARP-neighbor cache: the IPv4 addresses of every RESOLVED
  * neighbor on any local interface. */
 async function refreshNeighbors(): Promise<string[]> {
+	if (neighborSourceOverride) {
+		const ips = await neighborSourceOverride();
+		neighborCache = { at: Date.now(), ips: Array.from(new Set(ips)) };
+		return neighborCache.ips;
+	}
 	if (neighborCache && Date.now() - neighborCache.at < NEIGHBOR_CACHE_MS)
 		return neighborCache.ips;
 	let out = "";
@@ -172,7 +224,7 @@ function dropDeadSocket(s: dgram.Socket): void {
  * the unicast from reaching encoders on other subnets). Sockets whose send
  * fails (segment vanished) are dropped via `dropDeadSocket`. */
 function tickAnnounce(buildPayload: () => CtrlinkAnnounce | null): void {
-	if (announceSockets.length === 0) return;
+	if (announceSockets.length === 0 && !unicastSocket && !__testUnicast) return;
 	const announce = buildPayload();
 	if (!announce) return;
 	const payload = JSON.stringify(announce);
@@ -216,23 +268,54 @@ function tickAnnounce(buildPayload: () => CtrlinkAnnounce | null): void {
 	// addresses, so the 192.168.10.x neighbor is unreachable from the
 	// 192.168.1.211 socket — the unbound socket lets the routing table pick
 	// the egress per destination.
-	const us = unicastSocket;
+	const us = __testUnicast ?? unicastSocket;
 	if (!us) return;
-	// Unicast to every ARP neighbor UNCONDITIONALLY: the limited
-	// broadcast (255.255.255.255) needs CAP_NET_BROADCAST and, on this
-	// runtime, Bun's dgram swallows the refusal — no callback, no packet.
-	// A neighbor that merely answered ARP is a live candidate encoder on a
-	// directly-connected segment; on a point-to-point relay link this
-	// unicast IS the entire discovery path. Cheap (a few small datagrams
-	// per 5 s) and non-encoder neighbors simply drop the port-10333 UDP.
+	// Unicast to every ARP neighbor: the limited broadcast
+	// (255.255.255.255) needs CAP_NET_BROADCAST and, on this runtime, Bun's
+	// dgram swallows the refusal — no callback, no packet. A neighbor that
+	// merely answered ARP is a live candidate encoder on a directly-connected
+	// segment; on a point-to-point relay link this unicast IS the entire
+	// discovery path. Cheap (a few small datagrams per 5 s); non-encoder
+	// neighbors respond with an ICMP port-unreachable, which we learn from
+	// and skip for a while (see `deadNeighborUntil` below).
 	void (async (): Promise<void> => {
+		const now = Date.now();
 		for (const ip of await refreshNeighbors()) {
+			const deadline = deadNeighborUntil.get(ip);
+			if (deadline && deadline > now) continue; // port-unreachable last observation — skip a while
 			try {
 				us.send(payload, CTRLINK_DISCOVERY_PORT, ip, (e) => {
 					if (!e) return;
-					const now = Date.now();
-					if (now - (lastUnicastWarn.get(ip) ?? 0) < 60_000) return;
-					lastUnicastWarn.set(ip, now);
+					const code = (e as NodeJS.ErrnoException).code;
+					// ECONNREFUSED on a UDP send = the kernel queued an ICMP
+					// port-unreachable for this target (nothing listens on
+					// the discovery port there): a non-encoder neighbor. The
+					// queued error also makes the socket's NEXT send fail —
+					// often to a different, real encoder — so re-send this
+					// datagram once to drain it (the retry carries no queued
+					// error and delivers). No-listener targets are skipped
+					// for a while; the one line per event is the only log.
+					if (code === "ECONNREFUSED") {
+						const t = Date.now();
+						if ((deadNeighborUntil.get(ip) ?? 0) < t - 60_000) {
+							console.warn(
+								`ctrlink_relay: no discovery listener at ${ip}:10333 (port unreachable) — skipping ${DEAD_NEIGHBOR_SKIP_MS / 1000}s`,
+							);
+						}
+						deadNeighborUntil.set(ip, t + DEAD_NEIGHBOR_SKIP_MS);
+						try {
+							// A no-op callback: this send only has to drain
+							// the socket's queued error; a failure surfaces
+							// on a later tick like any other.
+							us.send(payload, CTRLINK_DISCOVERY_PORT, ip, () => {});
+						} catch {
+							/* socket gone mid-tick — next tick retries */
+						}
+						return;
+					}
+					const t2 = Date.now();
+					if (t2 - (lastUnicastWarn.get(ip) ?? 0) < 60_000) return;
+					lastUnicastWarn.set(ip, t2);
 					console.warn(
 						`ctrlink_relay: neighbor unicast ${ip} failed: ${e.message}`,
 					);
@@ -337,6 +420,7 @@ export function stopAnnouncing(): void {
 	const socks = announceSockets;
 	announceSockets = [];
 	neighborCache = undefined;
+	deadNeighborUntil.clear();
 	if (had) console.log("ctrlink_relay: discovery advertise stopped");
 	for (const a of socks) {
 		try {

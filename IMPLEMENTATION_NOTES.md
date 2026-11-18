@@ -116,8 +116,8 @@ Documented in docs/install-rules.md.
 | Module | Rules | Source |
 |---|---|---|
 | `network` | sysctl `ip_forward=1`, `rp_filter=2` (loose mode for the bridged L2 traffic); nft `forward` rules for the `10.7.0.0/16` ctrlirl tunnel range | inferred from `client/modules/network/*` (routing/bridge handling) and the handoff's table |
-| `ctrlink_relay` | `CAP_NET_ADMIN` (per-uplink `rtltun-<if>` TUN netdev + egress route + NAT) | inferred from `client/modules/ctrlink_relay/backend.ts` + `shared/lib/udpip` |
-| `ctrlink_streamer` (M6) | `CAP_NET_ADMIN` (per-uplink `rltun<R>_<if>` vif management, `R` = relay index) | inferred from `client/modules/ctrlink_streamer/backend.ts` + `shared/lib/udpip` |
+| `ctrlink_relay` | `CAP_NET_ADMIN` (per-uplink `rtltun-<if>` TUN netdev + egress route + NAT) + `CAP_NET_BROADCAST` (discovery limited broadcast on UDP 10333) | `client/modules/ctrlink_relay/install/install.json` (created 2026-11; capabilities inferred from `client/modules/ctrlink_relay/backend.ts` + `discovery.ts`) |
+| `ctrlink_streamer` (M6) | `CAP_NET_ADMIN` (per-uplink `rltun<R>_<if>` vif management, `R` = relay index) + `CAP_NET_BROADCAST` (encoder announces on UDP 10333) | inferred from `client/modules/ctrlink_streamer/backend.ts` + `shared/lib/udpip` |
 | `modems` | `ModemManager` dependency; udev `55-ctrlirl-modem.rules` (usb dialout/uucp group, AT port access) with `usb` `change` trigger; content via `contentFile` | inferred from `client/modules/modems/modems.ts` (ModemManager D-Bus + AT port) |
 | `encoder` | `ffmpeg` + `libav-tools` dependency check only (no host config of its own) | inferred from `client/modules/encoder/encoder.ts` (`Bun.spawn([this.bin …])` of ffmpeg) |
 | `ssh` | **not ported** | the repo's ssh module manages its *own* plain sshd (pid file, no init system — `client/modules/ssh/backend.ts`), so there is no system unit/config to install. The handoff's ssh pilot predates that design. |
