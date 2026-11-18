@@ -42,19 +42,29 @@ import type {
 	NetworkInterfaces,
 	Uplinks,
 } from "../../../shared/contracts/module_capabilities";
-import { runCommand, setCmdRunner } from "@ctrlirl/udpip";
-
 import {
+	applyLegPlan,
+	applyVifPlan,
 	createUdpRelay,
-	type IfaceRawSocket,
-	resolveInterfaceAddress,
+	removeLegPlan,
+	removeVifPlan,
+	type CommandRunner,
+	type LegPlan,
+	type RelaySocketFactory,
 	type UdpRelay,
+	type TunFactory,
 } from "@ctrlirl/udp-relay";
 import {
 	configureRelayTunnels,
+	clearUplinkLeg,
+	encoderVifIp,
+	legTunFor,
+	noteUplinkLeg,
 	reconcileRelayTunnelsNow,
 	relayTunnelSpecFor,
+	relayVifIp,
 	stopRelayTunnels,
+	uplinkSlot,
 	type RelayUplink,
 } from "./udpip";
 import {
@@ -224,21 +234,6 @@ const lastIfaceAddr = new Map<string, string>();
 const directIfaces = new Set<string>();
 /** Interfaces that failed to start (name → reason), surfaced in status/card. */
 const failures = new Map<string, string>();
-/**
- * Vif reply-path routes this relay installed, keyed by interface name. We keep
- * the learned vif IP and the dedicated table number so `stopRelay` can tear the
- * rule + route back down (a stale table entry would keep the reply route alive
- * after the relay is gone, mirroring the stale main-table routes the old code
- * left behind).
- */
-const vifRoutes = new Map<string, { vifIp: string; table: number }>();
-/**
- * Base of the dedicated routing-table range for vif reply paths. Kept in a
- * range the streamer's per-source tables (base 100) never touch, and the rule
- * priority stays well below NetworkManager's per-interface rules (~32760) so
- * ours are consulted first.
- */
-const VIF_TABLE_BASE = 200;
 
 type ResolvedConfig = Omit<
 	Required<Omit<CtrlinkRelayConfig, "wireGuard">>,
@@ -294,6 +289,33 @@ function saveConfig(
  * unit-testable: takes the interface list and a config, returns the
  * eligible names (already filtered and sorted).
  */
+/**
+ * The address-independent half of the uplink filter: `true` when `name` would
+ * be a shareable uplink purely by name — not a LAN bridge / tunnel netdev and
+ * matching the allow/ignore config. Extracted from {@link eligibleInterfaces}
+ * so the reconcile can tell an interface that is merely flapping (its netdev
+ * persists and it is still configured-in, but it momentarily has no IPv4 —
+ * which `network.interfaces` hides) from one that is genuinely gone.
+ */
+function nameEligible(
+	name: string,
+	allow: RegExp[],
+	ignore: RegExp[],
+): boolean {
+	// LAN bridges are infrastructure, never shareable endpoints — a bridge
+	// on the home-LAN subnet would advertise a duplicate of the pass-through
+	// NIC it extends. Same for the tunnel `utn-*` netdevs (and the legacy
+	// `wg-*` ones): they are the transport itself, and treating one as an
+	// uplink makes the reconcile build `utn-utn-*` (a second tunnel for the
+	// tunnel), colliding listen ports and cascading the per-index
+	// addressing.
+	if (/^br-/.test(name) || /^utn-/.test(name) || /^wg-/.test(name))
+		return false;
+	return allow.length > 0
+		? allow.some((re) => re.test(name))
+		: !ignore.some((re) => re.test(name));
+}
+
 export function eligibleInterfaces(
 	ifaces: Array<{ name: string; addresses: string[] }>,
 	cfg: ReturnType<typeof config>,
@@ -302,24 +324,7 @@ export function eligibleInterfaces(
 	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
 	return ifaces
 		.filter((i) => i.addresses.length > 0)
-		// LAN bridges are infrastructure, never shareable endpoints — a bridge
-		// on the home-LAN subnet would advertise a duplicate of the pass-through
-		// NIC it extends. Same for the tunnel `utn-*` netdevs (and the legacy
-		// `wg-*` ones): they are the transport itself, and treating one as an
-		// uplink makes the reconcile build `utn-utn-*` (a second tunnel for the
-		// tunnel), colliding listen ports and cascading the per-index
-		// addressing.
-		.filter(
-			(i) =>
-				!/^br-/.test(i.name) &&
-				!/^utn-/.test(i.name) &&
-				!/^wg-/.test(i.name),
-		)
-		.filter((i) =>
-			allow.length > 0
-				? allow.some((re) => re.test(i.name))
-				: !ignore.some((re) => re.test(i.name)),
-		)
+		.filter((i) => nameEligible(i.name, allow, ignore))
 		.map((i) => i.name)
 		.sort();
 }
@@ -447,6 +452,23 @@ export function carrierUp(name: string): boolean {
 }
 
 /**
+ * Does the netdev exist at all (independent of its carrier/addresses)? A
+ * cellular uplink that is flapping through a CGNAT address change keeps its
+ * netdev but briefly has no IPv4 — the `network.interfaces` list (which drops
+ * addressless entries) makes it look removed. Reading the operstate file is
+ * the existence probe: a present netdev always has one, a gone one does not.
+ */
+function ifaceNetdevExists(name: string): boolean {
+	try {
+		// A present netdev always has a readable operstate; a gone one throws.
+		readFileSync(join(sysfsNetDir, name, "operstate"), "utf8");
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Negotiated link speed in Mb/s from sysfs; `undefined` when the kernel
  * reports it unknown (-1 / EINVAL — Wi-Fi, most modems, no carrier). Mirrors
  * the network module's `linkSpeed` so the relay card shows the same value the
@@ -496,30 +518,50 @@ export function relayIfaceList(): CtrlinkRelayIface[] {
 	const cfg = config();
 	const ifaces = netIfaces?.list() ?? [];
 	return advertisedInterfaces(ifaces, cfg).map((name) => {
+		const port = allocatePort(name);
 		const i: CtrlinkRelayIface = {
 			iface_name: name,
 			ip: ifaceAddress(name, ifaces, cfg) ?? "",
-			udp_port: allocatePort(name),
+			udp_port: port,
 			state: relays.has(name) ? ("up" as const) : ("down" as const),
 			uplink: true,
 		};
-		// Tunnel offer: when the relay has a `utn-<if>` netdev up for this
-		// uplink, advertise it so the encoder builds a tunnel vif (full
-		// Internet).
-		const tunnel = relayTunnelSpecFor(name);
+		// Tunnel offer: when the relay has a leg up for this uplink, advertise
+		// it (with the leg's UDP port) so the encoder builds a tunnel vif
+		// (full Internet).
+		const tunnel = relayTunnelSpecFor(name, port);
 		if (tunnel) i.tunnel = tunnel;
 		return i;
 	});
 }
 
+// --- Kernel command runner (ip / iptables / sysctl) ------------------------
 /**
- * The one place the WG transport's kernel commands get elevated: every `ip`
- * / `wg` / `iptables` / `modprobe` / `sysctl` run goes through `sudo -n`
- * (the user runs with `sudo -n` non-interactively on this device). Kept at a
- * single seam so a host without `sudo` can inject its own runner.
+ * The one place the transport's kernel commands get issued: every `ip` /
+ * `iptables` / `sysctl` run is a `CommandRunner` (tests inject a no-op
+ * recorder; production elevates through `sudo -n`). Kept at a single seam.
  */
-const sudoCmdRunner = (bin: string, args: string[]): Promise<string> =>
-	runCommand("/usr/bin/sudo", ["-n", bin, ...args]);
+let commandRunnerOverride: CommandRunner | null = null;
+let cachedRunner: CommandRunner | null = null;
+
+/** Inject a custom kernel runner (tests). `null` restores the sudo adapter. */
+export function setCommandRunner(r: CommandRunner | null): void {
+	commandRunnerOverride = r;
+	cachedRunner = null;
+}
+
+/** Resolve the active runner (cached; a fresh `core.run`-based sudo adapter). */
+function runner(): CommandRunner {
+	if (commandRunnerOverride) return commandRunnerOverride;
+	if (!cachedRunner) {
+		cachedRunner = (cmd, ...args) =>
+			core
+				.run("/usr/bin/sudo", ["-n", cmd, ...args], true)
+				.then((stdout) => ({ stdout, exitCode: 0 }))
+				.catch(() => ({ stdout: "", exitCode: 1 }));
+	}
+	return cachedRunner;
+}
 
 /** Guard so the tunnel module is wired exactly once (module start). */
 let tunnelConfigured = false;
@@ -555,7 +597,6 @@ function configureRelayTunnelsNow(): void {
 	if (tunnelConfigured) return;
 	tunnelConfigured = true;
 	const cfg = config();
-	setCmdRunner(sudoCmdRunner);
 	configureRelayTunnels({
 		enabled: (cfg.tunnel ?? true) && cfg.enabled,
 		// A live getter: the ded-link address is discovered at runtime and
@@ -714,16 +755,38 @@ async function writeStatusFile(): Promise<void> {
 // Relay lifecycle
 // ----------------------------------------------------------------------
 /**
- * Inject the per-interface raw socket (tests run without CAP_NET_ADMIN and
- * supply a mock). Production leaves this undefined → the relay opens a real
- * raw socket. `setIfaceSocketFactory` is exported only so the test module can
- * override it (the binding itself is not exported for assignment).
+ * Inject the per-interface TUN device / UDP socket (tests run without
+ * CAP_NET_ADMIN and supply mocks). Production leaves these undefined → the
+ * relay opens real TUNs and sockets. The setters are exported only so the test
+ * module can override them (the bindings are not exported for assignment).
  */
-let ifaceSocketFactory: ((name: string) => IfaceRawSocket) | undefined;
-export function setIfaceSocketFactory(
-	factory: ((name: string) => IfaceRawSocket) | undefined,
+let tunFactoryOverride: TunFactory | undefined;
+let socketFactoryOverride: RelaySocketFactory | undefined;
+export function setRelayTunFactory(factory: TunFactory | undefined): void {
+	tunFactoryOverride = factory;
+}
+export function setRelaySocketFactory(
+	factory: RelaySocketFactory | undefined,
 ): void {
-	ifaceSocketFactory = factory;
+	socketFactoryOverride = factory;
+}
+
+/**
+ * Discover the default-route gateway reachable via `uplink`
+ * (`ip -o -4 route show default` → `default via <gw> dev <uplink>`), used as the
+ * leg's NAT source so the egress upstream can route replies back. Best-effort:
+ * undefined when it can't be resolved (tests, no gateway on that iface).
+ */
+async function uplinkGateway(uplink: string): Promise<string | undefined> {
+	try {
+		const { stdout } = await runner()("ip", "-o", "-4", "route", "show", "default");
+		for (const m of stdout.matchAll(/default via (\S+) dev (\S+)/g)) {
+			if (m[2] === uplink) return m[1];
+		}
+	} catch {
+		/* no default route via this iface */
+	}
+	return undefined;
 }
 
 async function startRelay(
@@ -731,60 +794,40 @@ async function startRelay(
 	addr: string,
 	listenPort: number,
 ): Promise<UdpRelay> {
-	// SNAT source = the egress NIC's *own* IP, not the (possibly overridden)
-	// vif bind address. Once a packet leaves the tether, the reply must come
-	// back to an address the egress upstream (phone / carrier NAT) can route
-	// into that NIC — which is the NIC's real IP. The vif bind address may be
-	// an encoder-reachable LAN override that the phone can't route back, in
-	// which case replies vanish (forward-only traffic). Best-effort: if the
-	// NIC IP can't be resolved (tests, fake iface), fall back to interfaceAddress.
-	let natAddress: string | undefined;
-	try {
-		natAddress = resolveInterfaceAddress(name);
-	} catch {
-		natAddress = undefined;
-	}
+	const slot = uplinkSlot(name);
+	const tun = legTunFor(name);
+	const legPlan: LegPlan = {
+		slot,
+		tun,
+		uplinkIface: name,
+		uplinkGateway: await uplinkGateway(name),
+		nat: config().nat,
+	};
+	// Provision the kernel side (TUN link, uplink route, NAT) before wiring the
+	// leg's socket: the relay opens the TUN by name and the routes steer its /32
+	// vif traffic out the uplink.
+	await applyLegPlan(runner(), legPlan);
 	const relay = await createUdpRelay({
 		interfaceName: name,
 		listenPort,
 		interfaceAddress: addr,
-		natAddress,
-		ifaceSocket: ifaceSocketFactory?.(name),
-		// SNAT to the relay's own IP (default on) so a *remote* destination
-		// can receive the stream and reply to the relay, not the private vif
-		// IP the transparent bridge can't route back through.
-		nat: config().nat,
-		// When the relay learns the vif IP an encoder bridges through this
-		// interface, park a FORWARD-path route in a DEDICATED table (never the
-		// main one): the relay egresses whole packets with the vif IP as their
-		// SOURCE, but the host's default route is source-pinned
-		// (`... src <relayIp>`), so the kernel can't route vif-sourced traffic
-		// and emits ICMP host-unreachable (SRT handshake dies, leg 0 kbps). A
-		// `from <vif>` rule + source-agnostic `default dev <iface>` in a
-		// dedicated table gives that traffic a real egress. Best-effort: a
-		// routing failure must not break the relay itself.
-		//
-		// NAT mode: not needed — the relay SNATs the source to its own IP, so
-		// outbound traffic already routes normally through the host default
-		// route. Only the transparent bridge (nat=false) egresses vif-sourced
-		// packets, which is the case that needs this route.
-		onVifLearned: (vifIp) => {
-			if (config().nat) return;
-			void installVifRoute(name, vifIp).catch((e: unknown) =>
-				core.logEvent(
-					"warn",
-					"Relay",
-					`vif reply-route ${vifIp} dev ${name}: ${
-						e instanceof Error ? e.message : String(e)
-					}`,
-				),
-			);
+		vifIp: relayVifIp(name),
+		tunName: tun,
+		runCommand: runner(),
+		tunFactory: tunFactoryOverride,
+		socketFactory: socketFactoryOverride,
+		// When the encoder's /32 vif learns through this leg, install the
+		// FORWARD-path route (dedicated table) so the host can egress packets
+		// sourced by the encoder vif, plus the SNAT rule (nat on).
+		onEncoderVifLearned: (vifIp) => {
+			void applyVifPlan(runner(), legPlan, vifIp);
 		},
 	});
 	await relay.start();
 	relays.set(name, relay);
 	lastIfaceAddr.set(name, addr);
 	failures.delete(name);
+	noteUplinkLeg(name);
 	return relay;
 }
 
@@ -797,93 +840,17 @@ async function stopRelay(name: string): Promise<void> {
 	lastIfaceAddr.delete(name);
 	failures.delete(name);
 	downIfaces.delete(name);
-	void removeVifRoute(name);
-}
-
-// ----------------------------------------------------------------------
-// Vif forward-path routing (dedicated table, never the main table)
-// ----------------------------------------------------------------------
-/**
- * Assign the dedicated routing table for `name`'s vif forward path. Derived
- * from the interface's position in the current eligible list — stable for the
- * life of a relay, and cleaned up on stop, so a later interface shift is
- * harmless.
- */
-function vifTableFor(name: string): number {
-	const ifaces = netIfaces?.list() ?? [];
-	const eligible = eligibleInterfaces(ifaces, config());
-	const idx = Math.max(0, eligible.indexOf(name));
-	return VIF_TABLE_BASE + idx;
-}
-
-/**
- * Install the FORWARD-path route for a learned vif IP so the packets the relay
- * egresses *on behalf of* that vif (source = vif IP) are actually routable:
- *   - `${table}`: a source-AGNOSTIC `default dev <name>` route.
- *   - a `from <vifIp> lookup ${table}` rule.
- *
- * Why: the relay forwards whole IP packets out its physical interface with the
- * ORIGINAL (vif) source address intact. The host's normal default route is
- * source-pinned by DHCP (`... src <relayIp>`), so the kernel refuses to route
- * packets sourced `vifIp` — "Network is unreachable" → ICMP host-unreachable,
- * which kills the SRT handshake and leaves the leg at 0 kbps. A dedicated table
- * with a source-agnostic default plus a `from <vifIp>` rule gives vif-sourced
- * traffic a real egress without touching the main table. The reverse (OBS→vif)
- * needs no route: the raw tap (SO_RCVALL) captures it straight off the
- * interface. Best-effort throughout.
- */
-async function installVifRoute(name: string, vifIp: string): Promise<void> {
-	// Re-learn of a changed vif: tear down the previous one first.
-	const prev = vifRoutes.get(name);
-	if (prev && prev.vifIp !== vifIp) await removeVifRoute(name, prev);
-	const table = vifTableFor(name);
-	vifRoutes.set(name, { vifIp, table });
-	const tableStr = String(table);
-	// Source-agnostic default out this interface (on-link): works for a routed
-	// NIC (nearest-hop / proxy-ARP) and for a tunnel vif (single peer).
-	await core
-		.run(
-			"ip",
-			["route", "replace", "default", "dev", name, "table", tableStr],
-			true,
-		)
-		.catch(routeWarn(name, vifIp, "route"));
-	// `rule` has no `replace`: del the old one (idempotent) then add.
-	await core
-		.run("ip", ["rule", "del", "from", vifIp, "lookup", tableStr], true)
-		.catch(routeWarn(name, vifIp, "rule-del"));
-	await core
-		.run("ip", ["rule", "add", "from", vifIp, "lookup", tableStr], true)
-		.catch(routeWarn(name, vifIp, "rule-add"));
-}
-
-/** Tear down a vif forward-path route + rule. Best-effort, never throws. */
-async function removeVifRoute(
-	name: string,
-	entry?: { vifIp: string; table: number },
-): Promise<void> {
-	const e = entry ?? vifRoutes.get(name);
-	if (!e) return;
-	vifRoutes.delete(name);
-	const tableStr = String(e.table);
-	await core
-		.run("ip", ["rule", "del", "from", e.vifIp, "lookup", tableStr], true)
-		.catch(routeWarn(name, e.vifIp, "rule-del"));
-	await core
-		.run("ip", ["route", "flush", "table", tableStr], true)
-		.catch(routeWarn(name, e.vifIp, "flush"));
-}
-
-/** Build a consistent, non-fatal warning logger for a vif routing failure. */
-function routeWarn(name: string, vifIp: string, what: string) {
-	return (e: unknown) =>
-		core.logEvent(
-			"warn",
-			"Relay",
-			`vif ${what} ${vifIp} dev ${name}: ${
-				e instanceof Error ? e.message : String(e)
-			}`,
-		);
+	clearUplinkLeg(name);
+	// Best-effort kernel teardown (never throws — the relay is already stopped).
+	const legPlan: LegPlan = {
+		slot: uplinkSlot(name),
+		tun: legTunFor(name),
+		uplinkIface: name,
+		uplinkGateway: await uplinkGateway(name),
+		nat: config().nat,
+	};
+	void removeVifPlan(runner(), legPlan, encoderVifIp(name)).catch(() => {});
+	void removeLegPlan(runner(), legPlan).catch(() => {});
 }
 
 /**
@@ -962,29 +929,69 @@ export async function syncRelays(rollbackOnFailure = false): Promise<{
 	/** Relays started by THIS pass — rolled back if a later one fails (spec §10.3). */
 	const startedThisPass: string[] = [];
 
-	// Interfaces no longer eligible: stop the relay, free the mapping
-	// (protocol.md §1: removals do not reindex the other ports).
-	for (const name of [...relays.keys(), ...downIfaces.keys()]) {
-		if (!eligible.has(name)) {
-			await stopRelay(name);
-			stopped.push(name);
-			if (seenIfaces.has(name)) {
-				const { addr, port } = ifaceInfo(name, ifaces);
+	// Interfaces no longer offered. (protocol.md §1: removals never reindex
+	// the other ports.)
+	//
+	// A configured-in uplink whose netdev is still present is merely
+	// flapping — a cellular link mid-CGNAT transition keeps its netdev but
+	// briefly has no IPv4, and `network.interfaces` (which lists only
+	// addressful interfaces) hides it. Keep its mapping and report
+	// `interface_down`, so it returns on the SAME port instead of the churn
+	// every wwan0 address change used to cause. A netdev that is gone, or an
+	// interface no longer configured-in, is a real removal: free the mapping
+	// and report `interface_removed`.
+	const allow = cfg.interfaceAllow.map((r) => new RegExp(r, "i"));
+	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
+	// The persisted `portMap` is the source of truth for "ever offered", not the
+	// runtime `relays`/`downIfaces` maps. A mapping can survive a process
+	// restart with no live relay — e.g. a legacy `wg-*` tunnel-netdev from
+	// before tunnel netdevs stopped being offered. Such a key would otherwise
+	// never be visited here, so `freePort` never runs and it stays in the state
+	// file forever, inflating `allocatePort`'s high-water mark. Fold the
+	// persisted keys in so stale ones are pruned on the next sync.
+	for (const name of new Set([
+		...relays.keys(),
+		...downIfaces.keys(),
+		...Object.keys(cfg.portMap),
+	])) {
+		if (eligible.has(name)) continue;
+		await stopRelay(name);
+		stopped.push(name);
+		if (nameEligible(name, allow, ignore) && ifaceNetdevExists(name)) {
+			// Flap: present netdev, still configured-in, just no IPv4 right
+			// now. Keep the mapping, mark down, no `interface_removed`.
+			failures.set(name, "no IPv4 address");
+			downIfaces.set(name, {});
+			if (seenIfaces.has(name))
 				events.push({
-					type: "interface_removed",
+					type: "interface_down",
 					iface: {
 						iface_name: name,
-						ip: addr,
-						udp_port: port,
+						ip: "",
+						udp_port: config().portMap[name] ?? 0,
 						state: "down",
 						uplink: true,
 					},
 				});
-			}
-			freePort(name);
-			failures.delete(name);
-			seenIfaces.delete(name);
+			core.logEvent("warn", "Relay", `${name} lost its IPv4 — port kept`);
+			continue;
 		}
+		if (seenIfaces.has(name)) {
+			const { addr, port } = ifaceInfo(name, ifaces);
+			events.push({
+				type: "interface_removed",
+				iface: {
+					iface_name: name,
+					ip: addr,
+					udp_port: port,
+					state: "down",
+					uplink: true,
+				},
+			});
+		}
+		freePort(name);
+		failures.delete(name);
+		seenIfaces.delete(name);
 	}
 
 	// Start / update relays for eligible interfaces.
@@ -1116,9 +1123,6 @@ export async function syncRelays(rollbackOnFailure = false): Promise<{
 
 async function stopAll(): Promise<void> {
 	for (const name of [...relays.keys()]) await stopRelay(name);
-	// Sweep any vif reply-routes whose relay left the map (defensive: stopRelay
-	// already clears most of these, a re-learn race can linger).
-	for (const name of [...vifRoutes.keys()]) await removeVifRoute(name);
 	downIfaces.clear();
 	failures.clear();
 	core.notifyStateChange();

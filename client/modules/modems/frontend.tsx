@@ -440,29 +440,31 @@ function modemPanel(host: DeviceCard, modem: ModemInfo): m.Vnode {
 		void loadProfile(host, modem);
 	return (
 		<article class="modem" key={modem.index}>
-			<h3>
-				<span>{`#${modem.index} ${name}`}</span>
-				<Badge text={modem.state} kind={stateKind(modem.state)} />
-			</h3>
-			<DefinitionList
-				rows={[
-					[t("dev.signal"), signal(modem.signalQuality)],
-					[t("dev.operator"), modem.operatorName],
-					[t("dev.tech"), modem.accessTech],
-					[t("dev.registration"), modem.registrationState],
-					[t("dev.power"), modem.powerState],
-					[t("dev.imei"), modem.imei],
-				]}
-			/>
-			<Actions>
-				{control(
-					t("dev.scan"),
-					"modems.scan",
-					"secondary",
-					() => void scanNetworks(host, modem.index),
-				)}
-				{control(t("ui.reset"), "modems.reset", "danger")}
-			</Actions>
+			<div class="info">
+				<h3>
+					<span>{`#${modem.index} ${name}`}</span>
+					<Badge text={modem.state} kind={stateKind(modem.state)} />
+				</h3>
+				<DefinitionList
+					rows={[
+						[t("dev.signal"), signal(modem.signalQuality)],
+						[t("dev.operator"), modem.operatorName],
+						[t("dev.tech"), modem.accessTech],
+						[t("dev.registration"), modem.registrationState],
+						[t("dev.power"), modem.powerState],
+						[t("dev.imei"), modem.imei],
+					]}
+				/>
+				<Actions>
+					{control(
+						t("dev.scan"),
+						"modems.scan",
+						"secondary",
+						() => void scanNetworks(host, modem.index),
+					)}
+					{control(t("ui.reset"), "modems.reset", "danger")}
+				</Actions>
+			</div>
 			{netSetupRow(host, modem)}
 		</article>
 	);

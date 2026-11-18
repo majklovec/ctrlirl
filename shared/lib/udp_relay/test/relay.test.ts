@@ -114,6 +114,21 @@ describe("createUdpRelay validation", () => {
 });
 
 describe("relay data path (mocks)", () => {
+    test("start() brings its own TUN link up (survives the openTun reopen)", async () => {
+        const calls: string[] = [];
+        const runCommand = (cmd: string, ...args: string[]) => {
+            calls.push([cmd, ...args].join(" "));
+            return Promise.resolve({ stdout: "", exitCode: 0 });
+        };
+        const { opts } = relaySetup({ runCommand, tunName: "rltun9" });
+        const relay: UdpRelay = await createUdpRelay(opts);
+        await relay.start();
+        await relay.stop();
+        // The link-up is issued by the relay (after it owns the freshly-
+        // reopened TUN), not by the backend's leg plan which predates it.
+        expect(calls).toContain("ip link set dev rltun9 up");
+    });
+
     test("encoder data frame → TUN gets exact IP payload", async () => {
         const { opts, tun, sock } = relaySetup();
         const relay: UdpRelay = await createUdpRelay(opts);

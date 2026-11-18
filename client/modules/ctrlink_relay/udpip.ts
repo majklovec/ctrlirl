@@ -1,60 +1,20 @@
 /*
- * Relay-side plain-UDP↔TUN multi-uplink transport. One `utn-<uplink>` TUN
- * netdev + a `udpip` server pump per eligible uplink (the relay owns the
- * physical uplinks).
+ * Relay-side plain-UDP↔TUN multi-uplink transport — slot / offer bookkeeping.
  *
- * The pump binds `<uplinkIP>:<port>` and pins a single peer (the first
- * datagram source wins), so the relay installs no default route via the
- * netdev: egress is policy+routed on the relay (per-uplink table + MASQUERADE
- * + FORWARD) and outer UDP always leaves over the physical uplink. No crypto,
- * no key exchange, no per-encoder peers.
+ * The actual forwarding leg per uplink (a `createUdpRelay` TUN + UDP socket +
+ * kernel routing/NAT) is owned by the backend's per-interface relay lifecycle
+ * (`startRelay` / `stopRelay`). This module owns the STABLE per-uplink slot
+ * (`10.200.<slot+1>.x` addressing, the leg TUN name `rltun<slot>`) and builds
+ * the `CtrlinkTunnelSpec` offer the relay attaches to its announce so the
+ * encoder knows exactly which vif to build (endpoint / port / peer IP / MTU).
  *
- * All kernel work goes through the lib's `execCmd` seam (tests inject a
- * recorder); `sudo` is prepended at the one `setCmdRunner` seam.
+ * There is exactly ONE leg per uplink (subsuming the old raw-tap bridge leg
+ * and the old separate `utn-<if>` Go-pump tunnel). Slots are assigned
+ * monotonically and never reindex on removal — the same philosophy as the
+ * persistable listen-port allocator.
  */
-import {
-	setupTunnelVif,
-	removeTunnelVif,
-	ensureTunnelRelayEgress,
-	revokeTunnelRelayEgress,
-	tunnelAddress,
-	tunnelListenPort,
-	tunnelRouteTable,
-	DEFAULT_TUN_MTU,
-} from "@ctrlirl/udpip";
+import { relayTunName } from "@ctrlirl/udp-relay";
 import type { CtrlinkTunnelSpec } from "../../../shared/ctrlink_discovery";
-
-/** One relay `utn-<uplink>` netdev and its egress state. */
-interface NetdevState {
-	name: string;
-	/** 0-based stable uplink index (addressing + routing table + listen port). */
-	index: number;
-	/** The relay's tunnel IP, e.g. `10.200.1.1`. */
-	localIp: string;
-	/** The relay's tunnel UDP listen port for this netdev. */
-	listenPort: number;
-	/** The encoder's /30 on this tunnel, e.g. `10.200.1.2/30`. */
-	encoderSubnet: string;
-	routeTable: number;
-	rulePriority: number;
-}
-
-const netdevs = new Map<string, NetdevState>();
-const inFlight = new Set<string>();
-
-let configured = false;
-/** The relay's outer IP on the dedicated relay↔encoder link (tunnel endpoint
- * the encoder dials). A live getter (the ded-link address is only known after
- * discovery + can change), falling back to a static value. Set by
- * `configureRelayTunnels`. */
-let transportOuterIp: string | (() => string) = "";
-
-/** Resolve the current transport outer IP (dynamic getter or static). */
-function currentTransportOuterIp(): string {
-	return typeof transportOuterIp === "function"
-		? (transportOuterIp() ?? "")
-		: transportOuterIp;
-}
 
 export interface RelayTunnelConfig {
 	enabled: boolean;
@@ -63,6 +23,23 @@ export interface RelayTunnelConfig {
 	 * getter is preferred: the ded-link address is only known once the
 	 * encoder is discovered and can change at runtime. */
 	transportOuterIp: string | (() => string);
+}
+
+/** One eligible uplink the relay can expose as a tunnel. */
+export interface RelayUplink {
+	/** The physical uplink name (e.g. `eth0`) — egress leaves over it. */
+	uplink: string;
+}
+
+const slotMap = new Map<string, number>();
+const upUplinks = new Set<string>();
+let configured = false;
+let transportOuterIp: string | (() => string) = "";
+
+function currentTransportOuterIp(): string {
+	return typeof transportOuterIp === "function"
+		? (transportOuterIp() ?? "")
+		: transportOuterIp;
 }
 
 /** Arm the module (bind time). Idempotent. */
@@ -76,149 +53,84 @@ export function relayTunnelsEnabled(): boolean {
 	return configured;
 }
 
-/** One eligible uplink the relay can expose as a tunnel. */
-export interface RelayUplink {
-	/** The physical uplink name (e.g. `eth0`) — egress leaves over it. */
-	uplink: string;
+/** Stable 0-based slot for an uplink (monotonic, never reindexes on removal). */
+function slotFor(uplink: string): number {
+	const existing = slotMap.get(uplink);
+	if (existing !== undefined) return existing;
+	const max = [...slotMap.values()].reduce((m, v) => Math.max(m, v), -1);
+	const slot = max + 1;
+	slotMap.set(uplink, slot);
+	return slot;
+}
+
+/** The leg TUN name for an uplink (subsuming the old `utn-<if>` netdev). */
+export function legTunFor(uplink: string): string {
+	return relayTunName(slotFor(uplink));
+}
+
+/** The stable slot ordinal for `uplink` (used to build the leg's `LegPlan`). */
+export function uplinkSlot(uplink: string): number {
+	return slotFor(uplink);
+}
+
+/** The relay's own /32 on this uplink's leg, e.g. `10.200.1.1`. */
+export function relayVifIp(uplink: string): string {
+	return `10.200.${slotFor(uplink) + 1}.1`;
+}
+
+/** The encoder's /32 on this uplink's leg, e.g. `10.200.1.2`. */
+export function encoderVifIp(uplink: string): string {
+	return `10.200.${slotFor(uplink) + 1}.2`;
+}
+
+/** Register a started leg (marks the uplink "up" so its offer is attached). */
+export function noteUplinkLeg(uplink: string): void {
+	slotFor(uplink);
+	upUplinks.add(uplink);
+}
+
+/** Clear a stopped leg (slot persists for stable re-assignment on restart). */
+export function clearUplinkLeg(uplink: string): void {
+	upUplinks.delete(uplink);
 }
 
 /**
- * The eligible uplinks the relay currently runs on — the set we build a
- * `utn-<if>` netdev for. Supplied by the backend on each reconcile (it owns
- * interface discovery); we persist the last set for reconciles in between.
- */
-let lastUplinks: RelayUplink[] = [];
-
-/**
- * Reconcile the relay's tunnel netdevs toward the desired state. `uplinks` is
- * the current eligible-uplink set (each with its physical IP).
+ * Reconcile the stable slot set toward the desired uplinks. The legs
+ * themselves are owned by the backend's per-interface lifecycle; this only
+ * pre-allocates slots (cheap and idempotent) so a later `startRelay` reuses
+ * them.
  */
 export async function reconcileRelayTunnelsNow(
-	uplinks: RelayUplink[] = lastUplinks,
+	uplinks: RelayUplink[] = [],
 ): Promise<void> {
-	if (!configured) {
-		void teardownAll();
-		return;
-	}
-	lastUplinks = uplinks;
-	const key = uplinks.map((u) => u.uplink).join("\0");
-	if (inFlight.has(key)) return;
-	inFlight.add(key);
-	try {
-		await reconcilePass(uplinks);
-	} catch (e) {
-		console.warn(`ctrlink_relay udpip: reconcile failed: ${String(e)}`);
-	} finally {
-		inFlight.delete(key);
-	}
-}
-
-async function reconcilePass(uplinks: RelayUplink[]): Promise<void> {
-	const desired = new Set(uplinks.map((u) => u.uplink));
-
-	// 1. Remove netdevs whose uplink is gone.
-	for (const name of [...netdevs.keys()])
-		if (!desired.has(name)) await teardownNetdev(name);
-
-	// 2. Ensure one netdev + egress per uplink (stable index = sorted pos).
-	const sorted = [...uplinks].sort((a, b) =>
-		a.uplink.localeCompare(b.uplink),
-	);
-	for (let i = 0; i < sorted.length; i++) {
-		const { uplink } = sorted[i];
-		const existing = netdevs.get(uplink);
-		if (existing && existing.index !== i) await teardownNetdev(uplink);
-		if (netdevs.get(uplink)) continue;
-		await ensureNetdev(uplink, i);
-	}
-}
-
-async function ensureNetdev(uplink: string, index: number): Promise<void> {
-	const addr = tunnelAddress(index);
-	const name = `utn-${uplink}`;
-	const listenPort = tunnelListenPort(index);
-	// Server pump: bind the DED-LINK IP (the address the encoder dials) on the
-	// per-uplink port, NOT the uplink's own IP — the encoder reaches the relay
-	// only over the direct relay↔encoder link, and a socket bound to the uplink
-	// IP would never receive packets dst'd to the ded-link IP. Uplink egress
-	// still leaves over the physical uplink (policy route + MASQUERADE below);
-	// the first datagram source wins (single-peer pin on the trusted link).
-	const bindIp = currentTransportOuterIp();
-	if (!bindIp) {
-		console.warn(
-			`ctrlink_relay udpip: skipping utn-${uplink}: ded-link IP not known yet`,
-		);
-		return;
-	}
-	await setupTunnelVif({
-		name,
-		localIp: addr.relayIp,
-		prefix: 30,
-		mtu: DEFAULT_TUN_MTU,
-		mode: "server",
-		bind: `${bindIp}:${listenPort}`,
-		allow: "first",
-	});
-	// Per-uplink egress: policy route tunnel-sourced traffic out the physical
-	// uplink + MASQUERADE + FORWARD (idempotent).
-	await ensureTunnelRelayEgress({
-		uplink,
-		tunName: name,
-		encoderSubnet: `${addr.encoderIp}/30`,
-		routeTable: tunnelRouteTable(index),
-		rulePriority: 1000 + index,
-	});
-	netdevs.set(uplink, {
-		name,
-		index,
-		localIp: addr.relayIp,
-		listenPort,
-		encoderSubnet: `${addr.encoderIp}/30`,
-		routeTable: tunnelRouteTable(index),
-		rulePriority: 1000 + index,
-	});
-}
-
-async function teardownNetdev(uplink: string): Promise<void> {
-	const nd = netdevs.get(uplink);
-	if (!nd) return;
-	await revokeTunnelRelayEgress({
-		uplink,
-		tunName: nd.name,
-		encoderSubnet: nd.encoderSubnet,
-		routeTable: nd.routeTable,
-	});
-	await removeTunnelVif(nd.name);
-	netdevs.delete(uplink);
-}
-
-async function teardownAll(): Promise<void> {
-	for (const uplink of [...netdevs.keys()]) await teardownNetdev(uplink);
+	for (const { uplink } of uplinks) slotFor(uplink);
 }
 
 /** Tear everything down (module stop / disable). */
 export async function stopRelayTunnels(): Promise<void> {
-	await teardownAll();
+	upUplinks.clear();
 }
 
 /**
  * The tunnel offer for one uplink (the announce payload attaches it).
- * `undefined` when the netdev isn't up (the encoder then has no tunnel for
- * that uplink).
+ * `undefined` when the leg isn't up (the encoder then has no tunnel for that
+ * uplink).
  */
-export function relayTunnelSpecFor(uplink: string): CtrlinkTunnelSpec | undefined {
-	const nd = netdevs.get(uplink);
-	if (!nd || !configured) return undefined;
-	const addr = tunnelAddress(nd.index);
+export function relayTunnelSpecFor(
+	uplink: string,
+	port: number,
+): CtrlinkTunnelSpec | undefined {
+	if (!configured || !upUplinks.has(uplink)) return undefined;
+	const slot = slotFor(uplink);
 	return {
-		virtualInterface: nd.name,
+		virtualInterface: `utn-${uplink}`,
 		endpoint: currentTransportOuterIp(),
-		udpPort: nd.listenPort,
-		localAddr: nd.localIp,
-		peerAddr: addr.encoderIp,
-		prefix: 30,
-		mtu: DEFAULT_TUN_MTU,
-		uplinkIndex: nd.index,
+		udpPort: port,
+		localAddr: relayVifIp(uplink),
+		peerAddr: encoderVifIp(uplink),
+		prefix: 32,
+		mtu: 1400,
+		uplinkIndex: slot,
 	};
 }
 
@@ -234,21 +146,23 @@ export function relayTunnelStateForTest(): {
 	}>;
 } {
 	return {
-		netdevs: [...netdevs.entries()].map(([u, s]) => ({
-			uplink: u,
-			name: s.name,
-			localIp: s.localIp,
-			index: s.index,
-			listenPort: s.listenPort,
-		})),
+		netdevs: [...upUplinks].map((u) => {
+			const slot = slotFor(u);
+			return {
+				uplink: u,
+				name: relayTunName(slot),
+				localIp: relayVifIp(u),
+				index: slot,
+				listenPort: 51820 + slot,
+			};
+		}),
 	};
 }
 
 /** Test reset: clear all module state. */
 export function resetRelayTunnelTestState(): void {
-	netdevs.clear();
-	inFlight.clear();
-	lastUplinks = [];
+	slotMap.clear();
+	upUplinks.clear();
 	configured = false;
 	transportOuterIp = "";
 }

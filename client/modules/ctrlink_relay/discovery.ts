@@ -25,6 +25,7 @@
  * announce always reflects the live interface set.
  */
 import dgram from "node:dgram";
+import { execFile } from "node:child_process";
 import {
 	isCtrlinkEncoderAnnounce,
 	CTRLINK_ANNOUNCE_INTERVAL_MS,
@@ -34,7 +35,21 @@ import {
 	type CtrlinkAnnounce,
 	type CtrlinkDiscoveredEncoder,
 } from "../../../shared/ctrlink_discovery";
-import { execCmd } from "@ctrlirl/udpip";
+
+/** Run `ip -4 neigh show` and return its stdout (ARP-neighbor refresh). */
+async function ipNeigh(): Promise<string> {
+	return new Promise<string>((resolve, reject) => {
+		execFile(
+			"ip",
+			["-4", "neigh", "show"],
+			{ encoding: "utf8", maxBuffer: 1024 * 1024 },
+			(err, stdout) => {
+				if (err) reject(err);
+				else resolve(stdout);
+			},
+		);
+	});
+}
 
 /** One announce socket PER attached segment: a `255.255.255.255` datagram
  * only egresses on the subnet of the socket's BIND address, so one
@@ -88,7 +103,7 @@ async function refreshNeighbors(): Promise<string[]> {
 		return neighborCache.ips;
 	let out = "";
 	try {
-		out = await execCmd("ip", ["-4", "neigh", "show"]);
+		out = await ipNeigh();
 	} catch (e) {
 		neighborCache = { at: Date.now(), ips: neighborCache?.ips ?? [] };
 		return neighborCache.ips;

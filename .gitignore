@@ -16,7 +16,6 @@ pipeline/majklovec
 generated/
 dist/*
 # The plain-UDP↔TUN pump binary (built by build.sh, deployed by hand — not committed).
-shared/lib/udpip/dist/
 users.db
 config/
 

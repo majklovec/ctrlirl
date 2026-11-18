@@ -1,32 +1,36 @@
 /*
  * Encoder-side plain-UDP↔TUN multi-uplink vifs. For each relay-announced
  * uplink carrying a `tunnel` spec, the encoder builds ONE `utn<R>-<if>` TUN
- * netdev (`R` = the relay's stable 0-based index on this encoder, so two
- * relays exposing the same uplink name can't clash) + a `udpip` client pump
- * that forwards IP datagrams to the relay:
- *   - local /30 (`10.200.<n>.2`),
- *   - a per-vif routing table (rule `from <localIp> table <t>` + default via
- *     the vif) so `ping -I utn<R>-<if>` egresses through that uplink,
- *   - an explicit transport-isolation route so the outer tunnel UDP leaves
- *     over the dedicated relay↔encoder link, never via the tunnel.
+ * (`R` = the relay's stable 0-based index on this encoder, so two relays
+ * exposing the same uplink name can't clash) backed by `createVirtualInterface`
+ * (TUN + a UDP datagram socket that dials the relay and forwards IP packets),
+ * plus per-vif policy routing so the vif egresses deterministically:
+ *   - a source route (`from <localIp> lookup <t>` + `default dev <tun>`) via
+ *     `applyVifSourceRoute`, and
+ *   - an explicit transport-isolation route (`<endpoint>/32 dev <transportDev>
+ *     table <t>`) so the OUTER tunnel UDP always leaves over the dedicated
+ *     relay↔encoder link, never via the vif.
  *
  * On-link filter: an uplink whose name already exists as one of the encoder's
  * OWN interfaces is ignored — the encoder reaches that subnet directly and
  * doesn't tunnel it.
  *
- * No crypto, no key exchange — the relay pins this encoder as a single peer
- * on its side. All kernel work goes through the lib's `execCmd` seam (tests
- * inject a recorder); `sudo` is prepended at the one `setCmdRunner` seam.
+ * No crypto, no key exchange — the relay pins this encoder as a single peer on
+ * its side. Kernel `ip` work is a `CommandRunner` (tests inject a no-op); the
+ * TUN/socket is a `vifFactory` seam (tests inject a mock).
  */
+import { execFile } from "node:child_process";
 import {
-	setupTunnelVif,
-	removeTunnelVif,
-	ensureTunnelEncoderRouting,
-	revokeTunnelEncoderRouting,
-	tunnelListenPort,
-	tunnelRouteTable,
-	DEFAULT_TUN_MTU,
-} from "@ctrlirl/udpip";
+	applyVifSourceRoute,
+	createVirtualInterface,
+	removeVifSourceRoute,
+	vifSourceTable,
+} from "@ctrlirl/udp-relay";
+import type {
+	CommandRunner,
+	VirtualInterface,
+	VirtualInterfaceOptions,
+} from "@ctrlirl/udp-relay";
 import type { CtrlinkTunnelSpec } from "../../../shared/ctrlink_discovery";
 
 export interface EncoderTunnelOffer {
@@ -44,8 +48,12 @@ interface EncoderVif {
 	index: number;
 	localIp: string;
 	listenPort: number;
-	routeTable: number;
-	rulePriority: number;
+	table: number;
+	/** The relay endpoint this vif dials (the transport-isolation target). */
+	endpoint: string;
+	/** The relay's per-uplink UDP port this vif dials (`spec.udpPort`). */
+	port: number;
+	vif: VirtualInterface;
 }
 
 /** The `utn<relayIndex>-<uplink>` netdev name for one (relay, uplink) pair. */
@@ -60,13 +68,53 @@ let configured = false;
 let transportDev = "eth0";
 let inFlight = false;
 
+/** The relay's per-uplink tunnel listen port (the vif's target display value;
+ * the live socket binds an ephemeral port). Kept for continuity with the
+ * `/30` slot addressing the relay uses. */
+const TUNNEL_LISTEN_BASE = 51820;
+
+/** Test seam: TUN/socket factory (default `createVirtualInterface`). */
+let vifFactory: (opts: VirtualInterfaceOptions) => Promise<VirtualInterface> =
+	createVirtualInterface;
+/** Test seam: `ip`/`iptables` runner (default a real `execFile` adapter). */
+let commandRunner: CommandRunner = defaultRunner;
+
+/** Production `ip` runner: spawn via `execFile`, never throw (the lib checks
+ * `exitCode`; a missing/failed binary just reports a non-zero code). */
+function defaultRunner(
+	cmd: string,
+	...args: string[]
+): Promise<{ stdout: string; exitCode: number }> {
+	return new Promise((resolve) => {
+		execFile(cmd, args, { encoding: "utf8" }, (err, stdout, stderr) => {
+			resolve({
+				stdout: `${stdout ?? ""}${stderr ?? ""}`,
+				exitCode: err ? (typeof err.code === "number" ? err.code : 1) : 0,
+			});
+		});
+	});
+}
+
+export function setVifFactory(
+	f: ((opts: VirtualInterfaceOptions) => Promise<VirtualInterface>) | null,
+): void {
+	vifFactory = f ?? createVirtualInterface;
+}
+
+export function setVifCommandRunner(r: CommandRunner | null): void {
+	commandRunner = r ?? defaultRunner;
+}
+
 /** Arm the module (bind / start). Idempotent. */
 export function configureEncoderTunnels(cfg: {
 	enabled: boolean;
 	transportDev?: string;
+	/** The `ip`/`iptables` runner (defaults to a real `execFile` adapter). */
+	commandRunner?: CommandRunner;
 }): void {
 	configured = cfg.enabled;
 	if (cfg.transportDev) transportDev = cfg.transportDev;
+	if (cfg.commandRunner) commandRunner = cfg.commandRunner;
 }
 
 /**
@@ -108,14 +156,42 @@ export async function reconcileEncoderTunnels(
 		for (const uplink of [...vifs.keys()])
 			if (!desired.has(uplink)) await teardownVif(uplink);
 
-		// Build the rest (idempotent: existing vifs are kept as-is).
-		for (const [uplink, d] of desired)
-			if (!vifs.has(uplink))
-				await ensureVif(uplink, d.spec, d.relayId, d.relayIndex);
+		// Build / refresh. Existing vifs are kept, EXCEPT when their relay
+		// endpoint, dial port, or vif address drifted: the relay re-allocates
+		// its per-uplink ports on restart, so a vif left "as-is" would keep
+		// dialing the old (now-dead) port and never reach the relay.
+		for (const [uplink, d] of desired) {
+			const existing = vifs.get(uplink);
+			if (
+				existing &&
+				existing.port === d.spec.udpPort &&
+				existing.endpoint === d.spec.endpoint &&
+				existing.localIp === d.spec.peerAddr
+			)
+				continue;
+			await teardownVif(uplink);
+			await ensureVif(uplink, d.spec, d.relayId, d.relayIndex);
+		}
 	} catch (e) {
 		console.warn(`ctrlink_streamer udpip: reconcile failed: ${String(e)}`);
 	} finally {
 		inFlight = false;
+	}
+}
+
+/**
+ * The source IP the host uses to reach `endpoint` (`ip route get` → `src X`).
+ * The vif's outer-UDP socket MUST bind to a routable transport address (this),
+ * not the private `10.200.x.2` vif IP: if it bound to the vif IP, the relay
+ * would have no route back to it and replies (keepalives + data) would vanish.
+ */
+async function transportSourceIp(endpoint: string): Promise<string | undefined> {
+	try {
+		const { stdout } = await commandRunner("ip", "route", "get", endpoint);
+		const m = stdout.match(/\bsrc (\d+\.\d+\.\d+\.\d+)/);
+		return m?.[1];
+	} catch {
+		return undefined;
 	}
 }
 
@@ -129,25 +205,35 @@ async function ensureVif(
 	// `utn<relayIndex>-<if>` so a second relay exposing the same uplink name
 	// (e.g. `eth0`) can't collide with the first.
 	const name = encoderVifName(relayIndex, uplink);
-	const routeTable = tunnelRouteTable(spec.uplinkIndex);
-	const listenPort = tunnelListenPort(spec.uplinkIndex);
-	// Encoder vif: local /30 `.2`, the relay as the tunnel remote.
-	await setupTunnelVif({
+	const table = vifSourceTable(spec.uplinkIndex);
+	const listenPort = TUNNEL_LISTEN_BASE + spec.uplinkIndex;
+
+	// The vif TUN + datagram socket (dials the relay, keeps the peer alive).
+	// `bindAddress` pins the outer socket to the transport source IP so the
+	// relay can route replies back (see `transportSourceIp`).
+	const vif = await vifFactory({
 		name,
 		localIp: spec.peerAddr,
-		prefix: spec.prefix,
-		mtu: spec.mtu ?? DEFAULT_TUN_MTU,
-		mode: "client",
-		remote: `${spec.endpoint}:${spec.udpPort}`,
+		prefixLength: spec.prefix,
+		relay: { host: spec.endpoint, port: spec.udpPort },
+		bindAddress: await transportSourceIp(spec.endpoint),
+		mtu: spec.mtu ?? 1400,
 	});
-	await ensureTunnelEncoderRouting({
-		tunName: name,
-		localIp: spec.peerAddr,
-		routeTable,
-		rulePriority: 1000 + spec.uplinkIndex,
-		endpointIp: spec.endpoint,
-		endpointDev: transportDev,
-	});
+	await vif.start();
+
+	// Per-vif source route (+ the outer-UDP transport-isolation route).
+	await applyVifSourceRoute(commandRunner, { name, vifIp: spec.peerAddr, table });
+	await commandRunner(
+		"ip",
+		"route",
+		"replace",
+		`${spec.endpoint}/32`,
+		"dev",
+		transportDev,
+		"table",
+		String(table),
+	);
+
 	vifs.set(uplink, {
 		relayId,
 		name,
@@ -155,8 +241,10 @@ async function ensureVif(
 		index: spec.uplinkIndex,
 		localIp: spec.peerAddr,
 		listenPort,
-		routeTable,
-		rulePriority: 1000 + spec.uplinkIndex,
+		table,
+		endpoint: spec.endpoint,
+		port: spec.udpPort,
+		vif,
 	});
 	console.log(
 		`ctrlink_streamer udpip: ${name} up (${spec.peerAddr}) → relay ${spec.endpoint}:${spec.udpPort}`,
@@ -166,15 +254,34 @@ async function ensureVif(
 async function teardownVif(uplink: string): Promise<void> {
 	const v = vifs.get(uplink);
 	if (!v) return;
-	await revokeTunnelEncoderRouting({
-		localIp: v.localIp,
-		routeTable: v.routeTable,
-		tunName: v.name,
-		endpointIp: "",
-		endpointDev: transportDev,
-	});
-	await removeTunnelVif(v.name);
 	vifs.delete(uplink);
+	try {
+		await v.vif.stop();
+	} catch {
+		// best effort: the socket may already be closed.
+	}
+	// Routing is best effort (a half-provisioned vif is normal to tear down).
+	try {
+		await commandRunner(
+			"ip",
+			"route",
+			"del",
+			`${v.endpoint}/32`,
+			"table",
+			String(v.table),
+		);
+	} catch {
+		/* ignore */
+	}
+	try {
+		await removeVifSourceRoute(commandRunner, {
+			name: v.name,
+			vifIp: v.localIp,
+			table: v.table,
+		});
+	} catch {
+		/* ignore */
+	}
 }
 
 async function teardownAll(): Promise<void> {
@@ -208,7 +315,10 @@ export function encoderTunnelStateForTest(): {
 	};
 }
 
-/** Test reset: clear all module state. */
+/** Test reset: clear the reconcile state (vifs / config / in-flight guard).
+ * The injectable seams (`vifFactory` / `commandRunner`) are left alone — the
+ * test's `afterEach` owns clearing them, and a reset that clobbered them would
+ * undo a factory the test injected in `setup`. */
 export function resetEncoderTunnelTestState(): void {
 	vifs.clear();
 	configured = false;

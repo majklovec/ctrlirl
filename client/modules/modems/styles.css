@@ -1,5 +1,10 @@
 /* Modems card: the modem panels (signal / operator / registration / power). */
+/* One modem = one full-width row: status info on the left, the network
+ * setup form on the right half. */
 .mod-modems-card .modem {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.25rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.9rem 1rem;
@@ -7,6 +12,11 @@
     transition:
         border-color var(--t),
         background var(--t);
+}
+@media (max-width: 640px) {
+    .mod-modems-card .modem {
+        grid-template-columns: 1fr;
+    }
 }
 .mod-modems-card .modem:hover {
     border-color: var(--border-strong);
@@ -26,13 +36,12 @@
     padding: 0.35rem 0.6rem;
     font-size: 0.8rem;
 }
-/* Network scan / PLMN / APN row under the action buttons. */
+/* Network scan / PLMN / APN form in the right half of the modem row. */
 .mod-modems-card .modem .net {
     display: flex;
     flex-wrap: wrap;
     align-items: end;
     gap: 0.6rem;
-    margin-top: 0.75rem;
 }
 .mod-modems-card .modem .net label {
     flex: 1 1 8rem;

@@ -24,9 +24,7 @@ import type {
 	NetworkInterfaces,
 	Uplinks,
 } from "../../../../shared/contracts/module_capabilities";
-import {
-	makeMockIfaceRawSocket,
-} from "@ctrlirl/udp-relay";
+import { makeMockTunDevice } from "@ctrlirl/udp-relay";
 import * as mod from "../backend";
 import {
 	knownEncoderIps,
@@ -191,9 +189,24 @@ beforeEach(() => {
 		fakeInterfaces(LO),
 	);
 	provideCapability<Uplinks>("network.uplinks", fakeUplinks);
-	// The transparent bridge needs a raw interface socket (root) in production;
-	// the lifecycle tests inject a mock so they run without CAP_NET_ADMIN.
-	mod.setIfaceSocketFactory(() => makeMockIfaceRawSocket());
+	// The leg opens a real TUN + kernel routes (root) in production; the
+	// lifecycle tests inject a mock TUN / socket + a command runner so they
+	// run without CAP_NET_ADMIN and without touching `ip`/`iptables`. The fake
+	// core has no `run`, so the runner override is what backs the `LegPlan`
+	// ip/iptables calls. An unsafe interface name rejects from the runner
+	// (mirrors the kernel refusing it) — the per-interface failure seam.
+	mod.setCommandRunner(async (_cmd, ...args) => {
+		const bad = args.find((a) => !/^[a-zA-Z0-9_.-]{1,15}$/.test(a));
+		if (bad) throw new Error(`unsafe interfaceName: ${bad}`);
+		return { stdout: "", exitCode: 0 };
+	});
+	mod.setRelayTunFactory((name) =>
+		Promise.resolve(makeMockTunDevice({ name }).device),
+	);
+	mod.setRelaySocketFactory(async () => ({
+		send: () => true,
+		close: () => {},
+	}));
 });
 
 describe("effectiveAnnounceHost (advertise IP)", () => {
@@ -275,7 +288,9 @@ describe("announcePayload (tunnels advertised on the advertise IP)", () => {
 });
 
 afterEach(async () => {
-	mod.setIfaceSocketFactory(undefined);
+	mod.setCommandRunner(null);
+	mod.setRelayTunFactory(undefined);
+	mod.setRelaySocketFactory(undefined);
 	cfg.bind?.(fakeCore({}));
 	await cfg.stop();
 });
@@ -662,6 +677,36 @@ describe("syncRelays interface events (protocol.md §4)", () => {
 		};
 		expect(config.portMap.eth1).toBeDefined();
 	});
+
+	test("a stale persisted port (surviving a restart) is pruned on sync", async () => {
+		provideCapability<NetworkInterfaces>(
+			"network.interfaces",
+			fakeInterfaces([{ name: "eth0", addresses: ["127.0.0.1"] }]),
+		);
+		// `wg-eth0` is a tunnel-netdev leftover from a previous lifetime: still
+		// in the persisted portMap, no live relay, no netdev. It must be freed
+		// on the first sync so it stops inflating the high-water mark.
+		cfg.bind?.(
+			fakeCore({
+				enabled: true,
+				listenPortBase: 45900,
+				portMap: { eth0: 45900, "wg-eth0": 45999 },
+			}),
+		);
+		mod.reseedSeen();
+		await mod.syncRelays();
+		const { config } = (await cfg.dispatch("ctrlink_relay.getConfig", {})) as {
+			config: { portMap: Record<string, number> };
+		};
+		// The live uplink keeps its persistent mapping...
+		expect(config.portMap.eth0).toBe(45900);
+		// ...and the stale tunnel-netdev mapping is gone.
+		expect(config.portMap["wg-eth0"]).toBeUndefined();
+		// With the stale 45999 gone, a new interface takes high-water+1 of the
+		// REMAINING map (45901) — not the inflated 46000 the stale key would
+		// have forced (protocol.md §1).
+		expect(mod.allocatePort("new0")).toBe(45901);
+	});
 });
 
 describe("immediate interface-change push via the encoder WS (protocol.md §4)", () => {
@@ -753,6 +798,93 @@ describe("immediate interface-change push via the encoder WS (protocol.md §4)",
 						(e) => e.type === "interface_up" && e.iface.iface_name === "eth1",
 					),
 			);
+			await cfg.stop?.();
+		} finally {
+			mod.setSysfsNetForTest(null);
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("a flap (netdev kept, IPv4 vanished) is interface_down and reuses the port; a truly removed one is interface_removed", async () => {
+		// Fixture sysfs: wwan0's netdev is PRESENT (operstate file exists) —
+		// a cellular link mid-CGNAT transition keeps its netdev while its IPv4
+		// briefly disappears, which is exactly the churn case that used to
+		// free the port and reindex it on return.
+		const dir = join(tmpdir(), `irtctrl_sysfs_relay.${process.pid}`);
+		rmSync(dir, { recursive: true, force: true });
+		mkdirSync(join(dir, "wwan0"), { recursive: true });
+		const operstate = join(dir, "wwan0", "operstate");
+		writeFileSync(operstate, "up\n");
+		mod.setSysfsNetForTest(dir);
+		try {
+			// Three uplinks so the freed-port probe is unambiguous: with eth0
+			// and eth1 strictly below wwan0 in the map, a NEW interface after
+			// a genuine removal gets exactly wwan0's old port (if the mapping
+			// had been kept, it would get highWater+1 instead).
+			const live: Iface[] = [
+				{ name: "eth0", addresses: ["127.0.0.1"] },
+				{ name: "eth1", addresses: ["127.0.0.2"] },
+				{ name: "wwan0", addresses: ["10.130.153.209"] },
+			];
+			await startModule(live, { enabled: true, listenPortBase: 45810 });
+			const wwanPort = mod.allocatePort("wwan0");
+
+			// The cellular link loses its IPv4 (CGNAT transition): the netdev
+			// is still there, but `network.interfaces` (addressful only) no
+			// longer offers it. That must be a DOWN, not a removal — the port
+			// mapping must survive.
+			live.splice(live.findIndex((i) => i.name === "wwan0"), 1);
+			interfaceHandler?.();
+			await until(() =>
+				mod
+					.lastWsPushEvents()
+					.some(
+						(e) =>
+							(e.type === "interface_down" || e.type === "interface_removed") &&
+							e.iface.iface_name === "wwan0",
+					),
+			);
+			const gone = mod
+				.lastWsPushEvents()
+				.find((e) => e.iface.iface_name === "wwan0");
+			expect(gone?.type).toBe("interface_down");
+			// The mapping is kept: the same port is still reserved for wwan0.
+			expect(mod.allocatePort("wwan0")).toBe(wwanPort);
+
+			// The link returns with a NEW CGNAT address. It must come back on
+			// the SAME port (no reindex) and be reported interface_up.
+			live.push({ name: "wwan0", addresses: ["10.137.88.46"] });
+			interfaceHandler?.();
+			await until(() =>
+				mod
+					.lastWsPushEvents()
+					.some(
+						(e) => e.type === "interface_up" && e.iface.iface_name === "wwan0",
+					),
+			);
+			const up = mod
+				.lastWsPushEvents()
+				.find((e) => e.type === "interface_up" && e.iface.iface_name === "wwan0");
+			expect(up?.iface.udp_port).toBe(wwanPort);
+			expect(mod.allocatePort("wwan0")).toBe(wwanPort);
+
+			// A truly removed interface (netdev gone) IS a removal: the port
+			// is freed, so a new interface now lands on wwan0's old port.
+			rmSync(join(dir, "wwan0"), { recursive: true, force: true });
+			live.splice(live.findIndex((i) => i.name === "wwan0"), 1);
+			interfaceHandler?.();
+			await until(() =>
+				mod
+					.lastWsPushEvents()
+					.some(
+						(e) =>
+							e.type === "interface_removed" && e.iface.iface_name === "wwan0",
+					),
+			);
+			// Freed: a new interface is handed wwan0's old port (high-water is
+			// now eth1's, just below). If the mapping had been kept this
+			// would be wwanPort + 1.
+			expect(mod.allocatePort("tmp-iface")).toBe(wwanPort);
 			await cfg.stop?.();
 		} finally {
 			mod.setSysfsNetForTest(null);

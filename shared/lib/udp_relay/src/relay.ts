@@ -272,10 +272,21 @@ class RelayImpl implements UdpRelay {
     async start(): Promise<void> {
         if (this.listenSocket || this.stopping) return;
 
-        // The relay TUN is a bare L3 pipe (no address of its own): the
-        // backend provisions it (up, routing, conntrack) around start.
+        // The relay TUN is a bare L3 pipe (no address of its own); routing and
+        // conntrack are provisioned by the backend around start. The link is
+        // brought up HERE: `openTun` deletes + reopens the device, landing it
+        // DOWN, and a DOWN TUN drops every decapsulated packet ("device is
+        // down"). Doing this after we own the fd (not in the backend's leg
+        // plan, which runs before this reopen and is undone by it) is the
+        // reliable point.
         const tunFactory: TunFactory = this.options.tunFactory ?? openTun;
         this.tun = await tunFactory(this.tunName, this.options.runCommand);
+        const up = this.options.runCommand;
+        if (up) {
+            const r = await up("ip", "link", "set", "dev", this.tunName, "up");
+            if (r.exitCode !== 0)
+                this.lastError = `link up ${this.tunName} failed: ${r.stdout.trim()}`;
+        }
 
         const socketFactory: RelaySocketFactory =
             this.options.socketFactory ?? bunRelaySocketFactory;

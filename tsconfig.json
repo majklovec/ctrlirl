@@ -10,8 +10,7 @@
         "module": "preserve",
         "paths": {
             "@ui/*": ["./shared/ui/*"],
-            "@ctrlirl/udp-relay": ["./shared/lib/udp_relay/src/index.ts"],
-            "@ctrlirl/udpip": ["./shared/lib/udpip/src/index.ts"]
+            "@ctrlirl/udp-relay": ["./shared/lib/udp_relay/src/index.ts"]
         }
     }
 }

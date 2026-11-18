@@ -26,7 +26,7 @@
  * relay leg tables live at 40 + slot (always < 100).
  */
 
-import { MOBLINK_TUN_NAME_RE } from "../../../moblink_discovery";
+import { CTRLINK_TUN_NAME_RE } from "../../../ctrlink_discovery";
 import type { CommandRunner } from "./types.js";
 
 /** Lower bound of the relay-leg routing tables (must stay < 100). */
@@ -344,7 +344,7 @@ export async function sweepStaleLegTuns(
         const m = /^\d+:\s+([a-zA-Z0-9_.@-]+):/.exec(line);
         if (!m) continue;
         const name = m[1].split("@")[0];
-        if (LEG_TUN_NAME_RE.test(name) || MOBLINK_TUN_NAME_RE.test(name))
+        if (LEG_TUN_NAME_RE.test(name) || CTRLINK_TUN_NAME_RE.test(name))
             names.push(name);
     }
     for (const name of names) {

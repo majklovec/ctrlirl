@@ -15,16 +15,17 @@ import type {
 	CtrlinkTunnelSpec,
 	CtrlinkSharedEndpoint,
 } from "../../../../shared/ctrlink_discovery";
-import {
-	setCmdRunner,
-	setPumpSpawner,
-	setPumpKiller,
-} from "@ctrlirl/udpip";
 import * as mod from "../backend";
 import {
 	encoderTunnelStateForTest,
 	resetEncoderTunnelTestState,
+	setVifCommandRunner,
+	setVifFactory,
 } from "../udpip";
+import type {
+	VirtualInterface,
+	VirtualInterfaceOptions,
+} from "@ctrlirl/udp-relay";
 import {
 	knownRelays,
 	noteMdnsRelay,
@@ -152,15 +153,40 @@ beforeEach(() => {
 	clearCapabilities();
 });
 
-// The tunnel reconcile shells out (`ip`/`iptables`) through the lib's runner
-// seam and spawns a `udpip` child through the pump seams. All are injectable —
-// a no-op runner + stub pump spawner/killer let the reconcile populate the vif
-// map with no live kernel and no real process.
+// The tunnel reconcile shells out (`ip`/`iptables`) through the command-runner
+// seam and opens TUNs through the vif-factory seam. Both are injectable — a
+// no-op runner + a stub vif let it populate the vif map with no live kernel
+// and no real TUN.
 afterEach(() => {
-	setCmdRunner(undefined);
-	setPumpSpawner(undefined);
-	setPumpKiller(undefined);
+	setVifCommandRunner(null);
+	setVifFactory(null);
 });
+
+/** A `VirtualInterface` double: no TUN, no socket — just enough state for the
+ * reconcile to record the vif (name / peer IP) without a live kernel. */
+function fakeVif(opts: VirtualInterfaceOptions): VirtualInterface {
+	let running = false;
+	return {
+		name: opts.name,
+		localIp: opts.localIp,
+		socketAddress: null,
+		start: async () => {
+			running = true;
+		},
+		stop: async () => {
+			running = false;
+		},
+		stats: () => ({
+			txPackets: 0,
+			txBytes: 0,
+			rxPackets: 0,
+			rxBytes: 0,
+			txDropped: 0,
+			rxDropped: 0,
+		}),
+		isRunning: () => running,
+	};
+}
 
 /** Bind a fresh core + fake uplinks + registry, flush leftover state and start
  * the module the way the device process does (it runs always on encoders). */
@@ -170,9 +196,8 @@ async function setup(data: Record<string, unknown> = {}) {
 	const ctrlink = fakeCtrlinkRegistry();
 	provideCapability<Uplinks>("network.uplinks", uplinks);
 	provideCapability<CtrlinkRegistry>("network.ctrlink", ctrlink);
-	setCmdRunner(async () => "");
-	setPumpSpawner(async () => ({ pid: 4242 }));
-	setPumpKiller(async () => {});
+	setVifCommandRunner(async () => ({ stdout: "", exitCode: 0 }));
+	setVifFactory((opts) => Promise.resolve(fakeVif(opts)));
 	up().bind?.(core);
 	await up().stop(); // idempotent: clears vifs/uplinks + the discovery registry
 	await up().start({ config: {}, emit: () => {}, log: () => {}, core });
@@ -415,6 +440,44 @@ describe("ctrlink_streamer", () => {
 		expect(
 			v.runtime.tunnels.some((t) => t.interfaceName === "utn0-eth1"),
 		).toBe(true);
+		await up().stop();
+	});
+
+	test("a re-announced uplink on a new port rebuilds the vif to dial it", async () => {
+		await setup();
+		// Record the relay port each vif dials. The relay re-allocates its
+		// per-uplink ports on restart, so the encoder must track that change.
+		const dialPorts: number[] = [];
+		setVifFactory(async (opts) => {
+			dialPorts.push(opts.relay.port);
+			return fakeVif(opts);
+		});
+		const host = "198.51.100.9";
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [iface("eth0", host, 5222, "up", 0)],
+		});
+		await awaitVifs(1);
+		expect(dialPorts).toEqual([5222]);
+
+		// The relay re-announces the SAME uplink on a new port (restart drift)
+		// → the encoder rebuilds the vif to dial the new port, keeping one vif.
+		const repointed = iface("eth0", host, 5333, "up", 0);
+		if (repointed.tunnel) repointed.tunnel = { ...repointed.tunnel, udpPort: 5333 };
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [repointed],
+		});
+		for (let i = 0; i < 100; i++) {
+			if (dialPorts.includes(5333)) break;
+			await Bun.sleep(5);
+		}
+		expect(dialPorts).toContain(5333);
+		expect(encoderTunnelStateForTest().vifs).toHaveLength(1);
 		await up().stop();
 	});
 

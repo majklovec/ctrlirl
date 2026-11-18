@@ -296,14 +296,22 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 
 	// Group the encoder's live TUNs by the relay they tunnel to, so each relay
 	// group shows its tunnels in the same table as the own interfaces. A TUN's
-	// `relayHost` is the specific relay *interface* it tunnels through (one of
-	// the relay's shared endpoints), not necessarily the relay's canonical
-	// `host` — e.g. a relay on 192.168.1.136 may expose endpoint 192.168.225.12
-	// (wg0) as a second tunnel. Resolve the owning relay by matching the TUN's
-	// endpoint against every relay's host + interface addresses.
+	// `relayHost` is the relay the TUN connects to, named by *whichever form*
+	// the control channel resolved at offer time — the relay's canonical `host`,
+	// its mDNS `hostname`, or one of its shared endpoint addresses (e.g. a
+	// relay on 192.168.1.136 exposing endpoint 192.168.225.12 as a second
+	// tunnel). The registry's `host` can also flip between hostname and IP as
+	// a relay re-advertises, so a stale key would otherwise orphan the tunnel
+	// (grouped under a key no relay owns) and hide it from the UI. Resolve the
+	// owning relay by matching against every relay's host, hostname, and
+	// interface addresses.
 	const relayEndpointHosts = new Map<string, string>(); // endpoint addr → relay host
 	for (const r of relays) {
-		for (const addr of [r.host, ...r.interfaces.map((ep) => ep.address)]) {
+		for (const addr of [
+			r.host,
+			r.hostname,
+			...r.interfaces.map((ep) => ep.address),
+		]) {
 			if (addr && !relayEndpointHosts.has(addr))
 				relayEndpointHosts.set(addr, r.host);
 		}

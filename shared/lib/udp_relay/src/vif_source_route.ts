@@ -24,7 +24,7 @@
  * an injected command runner, mirroring `nat_rules.ts`.
  */
 
-import { MOBLINK_TUN_NAME_RE } from "../../../moblink_discovery";
+import { CTRLINK_TUN_NAME_RE } from "../../../ctrlink_discovery";
 import type { CommandRunner } from "./types.js";
 
 /** Lower bound of the encoder vif source tables (below the leg base of 40). */
@@ -61,7 +61,7 @@ export interface VifSourceRoute {
 type Cmd = [string, ...string[]];
 
 function assertVifSourceRoute(p: VifSourceRoute): void {
-    if (!MOBLINK_TUN_NAME_RE.test(p.name))
+    if (!CTRLINK_TUN_NAME_RE.test(p.name))
         throw new Error(`not an encoder tunnel TUN name: ${p.name}`);
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(p.vifIp))
         throw new Error(`vifIp is not IPv4: ${p.vifIp}`);
