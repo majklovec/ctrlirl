@@ -1,3 +1,10 @@
+# [9.1.0](https://github.com/majklovec/ctrlirl/compare/v9.0.0...v9.1.0) (2026-11-18)
+
+
+### Features
+
+* **ctrlink:** add broadcast discovery capability ([241b668](https://github.com/majklovec/ctrlirl/commit/241b6689aa3fb04217e46f1305918faa26a3c0df))
+
 # [9.0.0](https://github.com/majklovec/ctrlirl/compare/v8.2.1...v9.0.0) (2026-11-18)
 
 
