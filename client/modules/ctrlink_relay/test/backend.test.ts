@@ -26,6 +26,7 @@ import type {
 import {
 	CTRLINK_ANNOUNCE_TTL_MS,
 	type CtrlinkDiscoveredEncoder,
+	type CtrlinkRelayIface,
 } from "../../../../shared/ctrlink_discovery";
 import { ROLES } from "../../../../shared/registry";
 import { rolesWithModule } from "../../../../shared/roles";
@@ -935,6 +936,231 @@ describe("immediate interface-change push via the encoder WS (protocol.md §4)",
 			expect(mod.allocatePort("tmp-iface")).toBe(wwanPort);
 			await cfg.stop?.();
 		} finally {
+			mod.setSysfsNetForTest(null);
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("a true unplug → replug (netdev gone → re-added) re-emits the tunnel offer", async () => {
+		// Regression: plugging out a cellular modem makes its netdev DISAPPEAR
+		// (a true removal — the flap test above keeps the netdev), and plugging
+		// it back re-adds the netdev. The relay re-creates its `rtltun_<if>`
+		// leg; the encoder only rebuilds `rltun<R>_<if>` if the replug event
+		// carries the `tunnel` offer. Confirm it does — from the event alone.
+		const dir = join(tmpdir(), `irtctrl_sysfs_relay.${process.pid}`);
+		rmSync(dir, { recursive: true, force: true });
+		for (const n of ["eth0", "eth1", "wwan2"]) {
+			mkdirSync(join(dir, n), { recursive: true });
+		writeFileSync(join(dir, n, "operstate"), "up\n");
+		}
+		mod.setSysfsNetForTest(dir);
+		try {
+			const live: Iface[] = [
+				{ name: "eth0", addresses: ["127.0.0.1"] },
+				{ name: "eth1", addresses: ["127.0.0.2"] },
+				{ name: "wwan2", addresses: ["10.130.153.209"] },
+			];
+			await startModule(live, { enabled: true, listenPortBase: 45840 });
+
+			// Unplug: the netdev is gone AND it no longer has an address.
+			rmSync(join(dir, "wwan2"), { recursive: true, force: true });
+			live.splice(live.findIndex((i) => i.name === "wwan2"), 1);
+			interfaceHandler?.();
+			await until(() =>
+				mod
+					.lastWsPushEvents()
+					.some(
+						(e) =>
+							e.type === "interface_removed" && e.iface.iface_name === "wwan2",
+					),
+			);
+			expect(
+				mod
+					.lastWsPushEvents()
+					.filter((e) => e.iface.iface_name === "wwan2")
+					.at(-1)?.type,
+			).toBe("interface_removed");
+
+			// Replug: the netdev is back with an address (new CGNAT IP).
+			mkdirSync(join(dir, "wwan2"), { recursive: true });
+			writeFileSync(join(dir, "wwan2", "operstate"), "up\n");
+			live.push({ name: "wwan2", addresses: ["10.137.99.8"] });
+			interfaceHandler?.();
+			// The replug re-announces the uplink (a first-sight at runtime →
+			// `interface_added`, since the removal cleared `seenIfaces`).
+			await until(() =>
+				mod
+					.lastWsPushEvents()
+					.some(
+						(e) =>
+							(e.type === "interface_added" ||
+								e.type === "interface_up") &&
+							e.iface.iface_name === "wwan2",
+					),
+			);
+			const up = mod
+				.lastWsPushEvents()
+				.filter(
+					(e) =>
+						(e.type === "interface_added" || e.type === "interface_up") &&
+						e.iface.iface_name === "wwan2",
+				)
+				.at(-1)!;
+			// The leg is up: the replug event MUST carry the tunnel offer so
+			// the encoder rebuilds `rltun<R>_wwan2` from the event alone.
+			expect(up.iface.state).toBe("up");
+			expect(up.iface.tunnel).toBeDefined();
+			expect(up.iface.tunnel?.virtualInterface).toBe("rtltun-wwan2");
+			expect(up.iface.tunnel?.udpPort).toBe(up.iface.udp_port);
+			await cfg.stop?.();
+		} finally {
+			mod.setSysfsNetForTest(null);
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("a concurrent unplug → replug emits a convergent stream (a stale hello never trails the fresh offer)", async () => {
+		// The true end-to-end replay of the user's failure: `wwan2` is
+		// unplugged and replugged, so the (real) network watcher fires a second
+		// `onNetworkChange` while the first is still draining. Before the fix
+		// those passes were UNSERIALIZED, so they interleaved their
+		// `syncRelays` → `pushIfaceEvents` → `resnapshotStaleChannels`, and a
+		// stale `hello` (captured while the leg was down — no wwan2 tunnel)
+		// reached the encoder AFTER the fresh spec-carrying
+		// `interface_added`, clobbering the rebuilt `rltun0_wwan2` vif.
+		//
+		// This drives the relay through the real concurrent path (network
+		// watcher + a live encoder WS channel) and records the EXACT ordered
+		// relay→encoder stream. The invariant the `networkChangeTail`
+		// serialization guarantees: the stream is CONVERGENT — the leg comes
+		// back with its offer, and no `hello` sent AFTER that fresh offer
+		// lacks it (a stale trailing hello is what used to wipe the vif).
+		const dir = join(tmpdir(), `irtctrl_sysfs_relay.${process.pid}`);
+		rmSync(dir, { recursive: true, force: true });
+		mkdirSync(join(dir, "wwan2"), { recursive: true });
+		const operstate = join(dir, "wwan2", "operstate");
+		writeFileSync(operstate, "up\n");
+		mod.setSysfsNetForTest(dir);
+		const stream: string[] = [];
+		globalThis.WebSocket = class RecordWs {
+			static readonly CONNECTING = 0;
+			static readonly OPEN = 1;
+			static readonly CLOSING = 2;
+			static readonly CLOSED = 3;
+			readyState = RecordWs.OPEN;
+			onopen?: () => void;
+			onmessage?: (ev: unknown) => void;
+			onerror?: () => void;
+			onclose?: (ev: { reason: string }) => void;
+			constructor(_url: string) {
+				this.onopen?.(); // channel live immediately → hello captured
+			}
+			send(data: unknown) {
+				stream.push(String(data));
+			}
+			close() {
+				this.readyState = RecordWs.CLOSED;
+			}
+		} as unknown as typeof WebSocket;
+		const live: Iface[] = [
+			{ name: "eth0", addresses: ["127.0.0.1"] },
+			{ name: "wwan2", addresses: ["10.1.1.1"] },
+		];
+		type Msg = {
+			type: string;
+			iface?: CtrlinkRelayIface;
+			interfaces?: CtrlinkRelayIface[];
+		};
+		const hasWwan2Offer = (m: Msg): boolean =>
+			(m.type === "hello"
+				? m.interfaces?.some((f) => f.iface_name === "wwan2" && f.tunnel)
+				: m.iface?.iface_name === "wwan2" && Boolean(m.iface.tunnel)) ??
+			false;
+		try {
+			await startModule(live, { enabled: true, listenPortBase: 45820 });
+
+			// An encoder dialed in via the relay's outbound WS channel.
+			noteEncoder({
+				encoderId: "enc-e2e",
+				ip: "127.0.0.1",
+				wsPort: 8123,
+				proto: 1,
+				discoveredAt: { udp: Date.now() },
+				lastSeen: Date.now(),
+			});
+			mod.onEncoderAnnounced({
+				encoderId: "enc-e2e",
+				ip: "127.0.0.1",
+				wsPort: 8123,
+				proto: 1,
+				discoveredAt: { udp: Date.now() },
+				lastSeen: Date.now(),
+			});
+			// The encoder's WS channel opens on the next `syncRelays` pass; the
+			// unplug fire below triggers one immediately, so start recording
+			// right away (a waiting `until(hello)` would just ride the 5 s
+			// sweep and add a 3 s timeout to the test).
+			stream.length = 0; // start recording the unplug/replug stream
+
+			// Unplug (netdev gone) → replug (netdev back), fired back-to-back so
+			// the two `onNetworkChange` passes overlap, exactly as the live
+			// monitor does.
+			rmSync(join(dir, "wwan2"), { recursive: true, force: true });
+			live.splice(live.findIndex((i) => i.name === "wwan2"), 1);
+			interfaceHandler?.(); // pass 1: removal
+			mkdirSync(join(dir, "wwan2"), { recursive: true });
+			writeFileSync(operstate, "up\n");
+			live.push({ name: "wwan2", addresses: ["10.1.1.5"] });
+			interfaceHandler?.(); // pass 2: re-add
+
+			// Drain the serialized chain until the stream converges on the
+			// (leg-up) offer.
+			const msgs = () => stream.map((s) => JSON.parse(s) as Msg);
+			await until(() => msgs().some(hasWwan2Offer));
+			// Let it settle so no in-flight pass is still about to append.
+			for (let i = 0; i < 50; ++i) {
+				const n = stream.length;
+				await Bun.sleep(20);
+				if (stream.length === n && msgs().some(hasWwan2Offer))
+					break;
+			}
+
+			const streamMsgs = msgs();
+			// The leg came back WITH its offer (the re-announced uplink).
+			const offerIdx = streamMsgs
+				.map((m, i) => (hasWwan2Offer(m) ? i : -1))
+				.filter((i) => i >= 0)
+				.pop();
+			expect(offerIdx).toBeGreaterThanOrEqual(0);
+			// CONVERGENT: everything sent AFTER the last spec-carrying wwan2
+			// offer must KEEP the offer. Two clobbers would tear the
+			// encoder's vif — a whole-set `hello` that dropped wwan2 (via
+			// `setTunnelOffers`) and a spec-less `interface_down`/`removed`
+			// (via `upsertTunnelOffer` drop). The stale `hello` captured while
+			// the leg was down landed exactly here (index > offerIdx).
+			const isSpeclessWwan2Down = (m: Msg): boolean =>
+				(m.type === "interface_down" || m.type === "interface_removed") &&
+				m.iface?.iface_name === "wwan2" &&
+				m.iface.tunnel === undefined;
+			for (const m of streamMsgs.slice((offerIdx ?? 0) + 1)) {
+				expect(
+					isSpeclessWwan2Down(m),
+					"no spec-less wwan2 down/removed may trail the offer",
+				).toBe(false);
+				if (m.type === "hello")
+					expect(
+						hasWwan2Offer(m),
+						"a trailing hello must keep the wwan2 tunnel offer",
+					).toBe(true);
+			}
+			// The final snapshot (if any) reflects the leg up with its offer.
+			const lastHello = [...streamMsgs]
+				.reverse()
+				.find((m) => m.type === "hello");
+			if (lastHello) expect(hasWwan2Offer(lastHello)).toBe(true);
+			await cfg.stop?.();
+		} finally {
+			globalThis.WebSocket = RealWebSocket;
 			mod.setSysfsNetForTest(null);
 			rmSync(dir, { recursive: true, force: true });
 		}

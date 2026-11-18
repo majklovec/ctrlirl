@@ -493,6 +493,82 @@ describe("ctrlink_streamer", () => {
 		expect(uplinks.list()).toEqual([]);
 	});
 
+	test("an unplug → replug (down → up) cycle rebuilds the vif", async () => {
+		const { uplinks } = await setup();
+		// The relay's tunnel offer for uplink `wwan2` (the spec the fixed relay
+		// now attaches to `interface_up` / `interface_added`). virtualInterface
+		// is `rtltun-wwan2` → vif name `rltun0_wwan2`.
+		const wwan2Spec = (
+			port: number,
+		): CtrlinkTunnelSpec => ({
+			virtualInterface: "rtltun-wwan2",
+			endpoint: "77.77.77.77",
+			udpPort: port,
+			localAddr: "10.200.1.1",
+			peerAddr: "10.200.1.2",
+			prefix: 30,
+			mtu: 1400,
+			uplinkIndex: 0,
+		});
+		const wwan2 = (
+			state: "up" | "down",
+			withTunnel: boolean,
+		): CtrlinkRelayIface => ({
+			iface_name: "wwan2",
+			ip: "77.77.77.77",
+			udp_port: 4002,
+			state,
+			uplink: true,
+			...(withTunnel ? { tunnel: wwan2Spec(4002) } : {}),
+		});
+
+		// Initial hello builds the vif.
+		mod.onRelayWsMessage("relay-1", {
+			type: "hello",
+			relay_id: "relay-1",
+			proto: 1,
+			interfaces: [wwan2("up", true)],
+		});
+		await awaitVifs(1);
+		expect(encoderTunnelStateForTest().vifs[0].name).toBe("rltun0_wwan2");
+
+		// Unplug: the relay tears the leg down (port kept; the down event may
+		// not re-echo the spec — the encoder derives it from the name).
+		mod.onRelayWsMessage("relay-1", {
+			type: "interface_down",
+			iface: wwan2("down", false),
+		});
+		await new Promise<void>((resolve) => {
+			const iv = setInterval(() => {
+				if (encoderTunnelStateForTest().vifs.length === 0) {
+					clearInterval(iv);
+					resolve();
+				}
+			}, 5);
+			setTimeout(() => {
+				clearInterval(iv);
+				resolve();
+			}, 2000);
+		});
+		expect(encoderTunnelStateForTest().vifs).toHaveLength(0);
+		expect(uplinks.list().map((e) => e.id)).not.toContain(
+			"ctrlink:tun:rltun0_wwan2",
+		);
+
+		// Replug: the relay re-creates the leg and emits interface_up WITH the
+		// tunnel offer (backend fix: the uplink spec is attached to the up
+		// event), so the vif is rebuilt from the event alone.
+		mod.onRelayWsMessage("relay-1", {
+			type: "interface_up",
+			iface: wwan2("up", true),
+		});
+		await awaitVifs(1);
+		expect(encoderTunnelStateForTest().vifs[0].name).toBe("rltun0_wwan2");
+		expect(uplinks.list().map((e) => e.id)).toEqual([
+			"ctrlink:tun:rltun0_wwan2",
+		]);
+	});
+
 	test("teardown stops the vifs and unregisters their uplinks", async () => {
 		const { uplinks } = await setup();
 		mod.onRelayWsMessage("relay-1", {

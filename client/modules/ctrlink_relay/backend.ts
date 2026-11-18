@@ -1186,7 +1186,7 @@ async function stopAll(): Promise<void> {
  * `interface_added`) — skipping the sync there is what left the encoders on
  * a dead path until the next reconnect. `enabled` (not relay count) gates it:
  * a disabled module never starts relays from a network event. */
-async function onNetworkChange(): Promise<void> {
+async function runNetworkChange(): Promise<void> {
     if (!config().enabled) return;
     // A segment change can move an encoder on- or off-link from one of our
     // interfaces — reclassify before the events below are fanned out.
@@ -1198,6 +1198,25 @@ async function onNetworkChange(): Promise<void> {
     // A channel that opened before this change carried a stale snapshot —
     // re-send the full `hello` (the only message carrying tunnel offers).
     resnapshotStaleChannels();
+}
+
+/** Serialize network-change passes. A real unplug → replug fires the network
+ * watcher back-to-back; without serialization the two passes interleave their
+ * `syncRelays` / `pushIfaceEvents` / `resnapshotStaleChannels`, so a stale
+ * `hello` (captured while the leg was down — no tunnel offer) can reach the
+ * encoder AFTER the fresh spec-carrying `interface_added`, and the encoder's
+ * whole-set `setTunnelOffers` replace clobbers the rebuilt vif. Chaining each
+ * pass onto a tail promise (like `reconcileTunnelsNow`) guarantees the last
+ * pass — the one reflecting the leg back up — is what the encoder ends on. */
+let networkChangeTail: Promise<void> = Promise.resolve();
+function onNetworkChange(): void {
+    networkChangeTail = networkChangeTail.then(async () => {
+        try {
+            await runNetworkChange();
+        } catch {
+            // Never break the chain — a later event must still converge state.
+        }
+    });
 }
 
 // ----------------------------------------------------------------------
@@ -1773,7 +1792,7 @@ const registration: BackendModule<ModuleCore> = {
         // Make sure the interface monitor is running (it may not be if the
         // network module's slice is disabled on this role).
         await netIfaces.ensureMonitoring();
-        netUnsub = netIfaces.onChanged(() => void onNetworkChange());
+        netUnsub = netIfaces.onChanged(() => onNetworkChange());
         // Plain-UDP↔TUN multi-uplink transport: one `rtltun-<if>` netdev +
         // `udpip` server pump per advertised uplink + per-uplink egress policy
         // route / NAT. First pass is empty (no encoders yet) and grows as they
