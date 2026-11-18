@@ -40,7 +40,7 @@
 .mod-modems-card .modem .net {
     display: flex;
     flex-wrap: wrap;
-    align-items: end;
+    align-items: flex-start;
     gap: 0.6rem;
 }
 .mod-modems-card .modem .net label {
@@ -78,6 +78,15 @@
 /* Band-mode checkbox group: a grid of compact 2G/3G/4G/5G toggles under the
  * field's own caption (the "Bands" label sits on its own row). */
 .mod-modems-card .modem .net .band {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+    gap: 0.25rem 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card-subtle, transparent);
+}
+.mod-modems-card .modem .net .options {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
     gap: 0.25rem 0.5rem;

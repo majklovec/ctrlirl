@@ -3,6 +3,7 @@
     "dev.apn_hint": "APN name (e.g. internet)",
     "dev.apply": "Apply",
     "dev.autoconfig": "Auto-configure APN",
+    "dev.options": "Options",
     "dev.bands": "Bands",
     "dev.imei": "IMEI",
     "dev.modem_fallback": "Modem",

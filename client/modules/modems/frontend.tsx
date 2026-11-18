@@ -210,22 +210,24 @@ function applyNetworkSetup(host: DeviceCard, index: number): void {
 		params.allowedModes = state.allowedModes;
 		params.preferredMode = state.preferredMode || undefined;
 	}
-	void host.act<{ modes?: { allowed: string[]; preferred?: string } }>(
-		`modem:modems.setup:${index}`,
-		"modems.setup",
-		params,
-	).then((res) => {
-		// A modem only accepts the combinations it publishes, so the backend
-		// widens the request to the smallest accepted one — resync the form
-		// checkboxes to what the modem actually has now.
-		if (res?.modes) {
-			state.allowedModes = [...res.modes.allowed];
-			state.preferredMode = (res.modes.preferred ?? "") as string;
-			state.baseAllowedModes = [...res.modes.allowed];
-			state.basePreferredMode = state.preferredMode;
-			m.redraw();
-		}
-	});
+	void host
+		.act<{ modes?: { allowed: string[]; preferred?: string } }>(
+			`modem:modems.setup:${index}`,
+			"modems.setup",
+			params,
+		)
+		.then((res) => {
+			// A modem only accepts the combinations it publishes, so the backend
+			// widens the request to the smallest accepted one — resync the form
+			// checkboxes to what the modem actually has now.
+			if (res?.modes) {
+				state.allowedModes = [...res.modes.allowed];
+				state.preferredMode = (res.modes.preferred ?? "") as string;
+				state.baseAllowedModes = [...res.modes.allowed];
+				state.basePreferredMode = state.preferredMode;
+				m.redraw();
+			}
+		});
 }
 
 /** Whether the form differs from the profile it was loaded from. */
@@ -314,24 +316,31 @@ function netSetupRow(host: DeviceCard, modem: ModemInfo): m.Vnode {
 				}
 			/>
 			<Break />
-			<CheckField
-				label={t("dev.roaming")}
+			<Field
+				label={t("dev.options")}
 				control={
-					<Checkbox
-						target={state}
-						prop="allowRoaming"
-						onChange={() => m.redraw()}
-					/>
-				}
-			/>
-			<CheckField
-				label={t("dev.autoconfig")}
-				control={
-					<Checkbox
-						target={state}
-						prop="autoConfig"
-						onChange={() => m.redraw()}
-					/>
+					<div class="options">
+						<CheckField
+							label={t("dev.autoconfig")}
+							control={
+								<Checkbox
+									target={state}
+									prop="autoConfig"
+									onChange={() => m.redraw()}
+								/>
+							}
+						/>
+						<CheckField
+							label={t("dev.roaming")}
+							control={
+								<Checkbox
+									target={state}
+									prop="allowRoaming"
+									onChange={() => m.redraw()}
+								/>
+							}
+						/>
+					</div>
 				}
 			/>
 			<Break />
@@ -474,7 +483,7 @@ function modemsCard(host: DeviceCard, status: ModemsStatus): m.Vnode {
 	return (
 		<Card title={t("dev.card.modems")} class="mod-modems-card">
 			{status.modems.length ? (
-				<div class="grid">
+				<div class="modems">
 					{status.modems.map((modem) => modemPanel(host, modem))}
 				</div>
 			) : (
