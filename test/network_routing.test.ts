@@ -142,10 +142,13 @@ describe("lease-less uplink gateway", () => {
         expect(leaselessGateway("192.168.8.153", 24)).toBe("192.168.8.1");
     });
 
-    test("has no via-address for a CtrLink TUN (its IP is the first host)", () => {
-        // TUN local IPs are 10.{90+x}.{y}.1 — the first host of their /24.
-        expect(leaselessGateway("10.90.0.1", 24)).toBeNull();
-        expect(leaselessGateway("10.91.3.1", 24)).toBeNull();
+    test("has no via-address for a CtrLink TUN (its /32 is its only on-link address)", () => {
+        // The relay allocates TUN legs as 10.200.<slot+1>.2/32: the only
+        // on-link address is the peer itself, so a `via` would be off-link
+        // and the kernel rejects it ("Nexthop has invalid gateway").
+        expect(leaselessGateway("10.200.1.2", 32)).toBeNull();
+        // /31 subnets have no room for a gateway either.
+        expect(leaselessGateway("192.168.8.2", 31)).toBeNull();
     });
 
     test("returns null for a malformed address", () => {

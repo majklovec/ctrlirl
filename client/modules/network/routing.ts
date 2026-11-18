@@ -227,10 +227,13 @@ function getNetwork(ipAddr: string, prefix: number): string {
 
 /** Last-resort gateway for an interface that publishes no gateway anywhere
  * (no ModemManager bearer, main table, or DHCP lease): the subnet's first
- * host — e.g. 192.168.8.153/24 -> 192.168.8.1. `null` when that first host is
- * the interface's own address (a CtrLink TUN, whose local IP is the first
- * host of its /24): its source table gets a plain `default dev <tun>` route. */
+ * host — e.g. 192.168.8.153/24 -> 192.168.8.1. `null` when the interface has
+ * a /32 (its only on-link address is its own — e.g. a CtrLink TUN, whose
+ * source table gets a plain `default dev <tun>` route) or no other usable
+ * host in the subnet (/31): any `via` there would be off-link and the kernel
+ * rejects it with "Nexthop has invalid gateway". */
 export function leaselessGateway(addr: string, prefix: number): string | null {
+    if (prefix > 30) return null;
     const first = subnetFirstHost(addr, prefix);
     return first && first !== addr ? first : null;
 }
@@ -694,20 +697,29 @@ export async function reconfigure(): Promise<ReconfigureResult> {
                         { iface, ip: addr, prefix, gateway: bearerGateway },
                         idx,
                     ) => {
-                        // Resolve in priority order:
-                        //  1. the ModemManager bearer gateway (cellular / wwan0),
-                        //  2. an existing main-table default for the interface (ethernet),
-                        //  3. the dhclient lease router (RNDIS/NDIS modem-ethernet — a
-                        //     USB LTE modem on usb0 whose gateway is DHCPed, not in main
-                        //     and has no MM bearer),
-                        //  4. the subnet's first host (.1) as a last resort for a
-                        //     lease-less RNDIS uplink (null for a TUN — it has no
-                        //     via-address, `default dev <tun>` is enough).
-                        const gateway =
-                            bearerGateway ??
-                            (await getGateway(iface)) ??
-                            (await dhcpLeaseGateway(iface, addr)) ??
-                            leaselessGateway(addr, prefix);
+                        // CtrLink TUNs (`utn<R>-<if>`) carry their /32 peer
+                        // address on the netdev itself: every frame emitted on
+                        // the TUN reaches the relay leg, so a via-address is
+                        // neither needed nor legal. The kernel rejects an
+                        // off-link `via` with "Nexthop has invalid gateway" —
+                        // e.g. a main-table default parked on the TUN by
+                        // NetworkManager — so skip the whole resolution chain
+                        // and give the source table a plain `default dev
+                        // <tun>` route.
+                        const gateway = isCtrlinkTun(iface)
+                            ? null
+                            : // Resolve in priority order:
+                              //  1. the ModemManager bearer gateway (cellular / wwan0),
+                              //  2. an existing main-table default for the interface (ethernet),
+                              //  3. the dhclient lease router (RNDIS/NDIS modem-ethernet — a
+                              //     USB LTE modem on usb0 whose gateway is DHCPed, not in main
+                              //     and has no MM bearer),
+                              //  4. the subnet's first host (.1) as a last resort for a
+                              //     lease-less RNDIS uplink.
+                              bearerGateway ??
+                              (await getGateway(iface)) ??
+                              (await dhcpLeaseGateway(iface, addr)) ??
+                              leaselessGateway(addr, prefix);
                         return {
                             iface,
                             ip: addr,
