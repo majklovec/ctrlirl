@@ -16,10 +16,10 @@ export interface CtrlinkRelayConfig {
 	nat: boolean;
 	/**
 	 * Enable the plain-UDP↔TUN multi-uplink transport — default **true**. When
-	 * true the relay exposes each eligible uplink as an independent `utn-<if>`
-	 * TUN + `udpip` server pump that the encoder receives as a virtual uplink
-	 * with per-tunnel policy routing + NAT. Restorable (teardown deletes each
-	 * `utn-<if>` netdev + kills its pump).
+	 * true the relay exposes each eligible uplink as an independent
+	 * `rtltun-<if>` TUN + `udpip` server pump that the encoder receives as a
+	 * virtual uplink with per-tunnel policy routing + NAT. Restorable
+	 * (teardown deletes each `rtltun-<if>` netdev + kills its pump).
 	 */
 	tunnel?: boolean;
 	/** Compat alias for `tunnel` (the transport used to be kernel WireGuard).

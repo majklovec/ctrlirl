@@ -50,7 +50,10 @@ export function vifSourceTable(ordinal: number): number {
 
 /** One encoder vif to steer egress for. */
 export interface VifSourceRoute {
-    /** TUN device name (`relay<X>_<iface>`, the vif's egress device). */
+    /**
+     * TUN device name (`rltun<X>_<iface>`, the vif's egress device; `X` is the
+     * relay's stable index on this encoder).
+     */
     name: string;
     /** The vif's local IP (`10.{90+x}.{y}.1`) - the source to pin. */
     vifIp: string;

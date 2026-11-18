@@ -50,7 +50,7 @@ function relaySetup(
     tun: ReturnType<typeof makeMockTunDevice>;
     sock: ReturnType<typeof makeMockSocket>;
 } {
-    const tun = makeMockTunDevice({ name: "rltun0" });
+    const tun = makeMockTunDevice({ name: "rtltun_lo" });
     const sock = makeMockSocket();
     const opts: UdpRelayOptions = {
         interfaceName: "lo",
@@ -120,13 +120,13 @@ describe("relay data path (mocks)", () => {
             calls.push([cmd, ...args].join(" "));
             return Promise.resolve({ stdout: "", exitCode: 0 });
         };
-        const { opts } = relaySetup({ runCommand, tunName: "rltun9" });
+        const { opts } = relaySetup({ runCommand, tunName: "rtltun_eth9" });
         const relay: UdpRelay = await createUdpRelay(opts);
         await relay.start();
         await relay.stop();
         // The link-up is issued by the relay (after it owns the freshly-
         // reopened TUN), not by the backend's leg plan which predates it.
-        expect(calls).toContain("ip link set dev rltun9 up");
+        expect(calls).toContain("ip link set dev rtltun_eth9 up");
     });
 
     test("encoder data frame → TUN gets exact IP payload", async () => {

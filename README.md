@@ -64,8 +64,8 @@ These run on the box, under `client/modules/`.
 | `obs`              | Native obs-websocket v5 connection; forwards events into the device event stream.                                                                    |
 | `broadcaster`      | SRTLA ingress + RTMP publishing via ffmpeg.                                                                                                          |
 | `ssh`              | sshd management and SSH account password handling.                                                                                                   |
-| `ctrlink_relay`    | Creates one WireGuard tunnel per uplink on the relay box (see **Ctrlink** below).                                                                                   |
-| `ctrlink_streamer` | Creates the matching `wg-<if>` virtual interfaces on the encoder, so each relay uplink provides full Internet egress.                                           |
+| `ctrlink_relay`    | Creates one plain-UDP↔TUN leg per uplink on the relay box (leg TUN `rtltun_<if>`, see **Ctrlink** below).                                                    |
+| `ctrlink_streamer` | Creates the matching `rltun<R>_<if>` TUN virtual interfaces on the encoder, so each relay uplink provides full Internet egress.                             |
 
 ### Server modules
 
@@ -91,18 +91,18 @@ Modules communicate **only over the capability bus** — never by direct import.
 
 This is what makes modules replaceable and roles declarative: swapping an implementation is a matter of providing the same capability name under a different module.
 
-## Ctrlink — WireGuard uplink transport
+## Ctrlink — uplink transport
 
 ![Ctrlink](docs/img/ctrlink.svg)
 
-Ctrlink extends the CtrLink box's LAN uplinks to the encoder so the encoder can reach the Internet (or other destinations) through them. It is built on **WireGuard** and consists of two cooperating modules:
+Ctrlink extends the CtrLink box's LAN uplinks to the encoder so the encoder can reach the Internet (or other destinations) through them. It is a **plain-UDP↔TUN** transport and consists of two cooperating modules:
 
--   **`ctrlink_relay`** (on the CtrLink box) — creates one `wg-<uplink>` WireGuard tunnel per uplink, each with its own `/30` point-to-point addressing, an egress policy route and NAT.
--   **`ctrlink_streamer`** (on the encoder) — creates the matching `wg-<if>` virtual interfaces. Each becomes a routable uplink the encoder can use for full Internet egress through that relay uplink.
+-   **`ctrlink_relay`** (on the CtrLink box) — creates one leg TUN `rtltun_<uplink>` per uplink, each paired with a UDP socket, an egress policy route and NAT.
+-   **`ctrlink_streamer`** (on the encoder) — creates the matching `rltun<R>_<if>` TUN virtual interfaces. Each becomes a routable uplink the encoder can use for full Internet egress through that relay uplink.
 
-Because this is L3 (routed, not bridged), each tunnel gets its own `/30` and the encoder routes traffic per uplink, so a vif is a first-class uplink for SRTLA as well. This is useful when the encoder needs a reliable Internet (or site) path through the CtrLink box's uplinks — for example as a cellular fallback.
+Because this is L3 (routed, not bridged), each leg gets its own per-slot addressing and the encoder routes traffic per uplink, so a vif is a first-class uplink for SRTLA as well. This is useful when the encoder needs a reliable Internet (or site) path through the CtrLink box's uplinks — for example as a cellular fallback.
 
-The WireGuard tunnel is negotiated over the same control channel that carries SRTLA discovery, so no additional ports need to be opened between the two boxes beyond what SRTLA already uses.
+The tunnels are negotiated over the same control channel that carries SRTLA discovery, so no additional ports need to be opened between the two boxes beyond what SRTLA already uses.
 
 ## Requirements
 

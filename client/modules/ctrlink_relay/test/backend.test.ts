@@ -683,14 +683,14 @@ describe("syncRelays interface events (protocol.md §4)", () => {
 			"network.interfaces",
 			fakeInterfaces([{ name: "eth0", addresses: ["127.0.0.1"] }]),
 		);
-		// `wg-eth0` is a tunnel-netdev leftover from a previous lifetime: still
-		// in the persisted portMap, no live relay, no netdev. It must be freed
-		// on the first sync so it stops inflating the high-water mark.
+		// `wwan9` is a previous-lifetime uplink that's no longer present:
+		// still in the persisted portMap but no live interface. It must be
+		// freed on the first sync so it stops inflating the high-water mark.
 		cfg.bind?.(
 			fakeCore({
 				enabled: true,
 				listenPortBase: 45900,
-				portMap: { eth0: 45900, "wg-eth0": 45999 },
+				portMap: { eth0: 45900, wwan9: 45999 },
 			}),
 		);
 		mod.reseedSeen();
@@ -700,8 +700,8 @@ describe("syncRelays interface events (protocol.md §4)", () => {
 		};
 		// The live uplink keeps its persistent mapping...
 		expect(config.portMap.eth0).toBe(45900);
-		// ...and the stale tunnel-netdev mapping is gone.
-		expect(config.portMap["wg-eth0"]).toBeUndefined();
+		// ...and the stale mapping is gone.
+		expect(config.portMap.wwan9).toBeUndefined();
 		// With the stale 45999 gone, a new interface takes high-water+1 of the
 		// REMAINING map (45901) — not the inflated 46000 the stale key would
 		// have forced (protocol.md §1).

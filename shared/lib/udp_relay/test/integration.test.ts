@@ -18,7 +18,7 @@ import type { UdpRelayOptions } from "../src/relay";
 const VIF = "192.168.77.13";
 
 function encoderHarness(opts: Omit<UdpRelayOptions, "socketFactory" | "tunFactory">) {
-    const tun = makeMockTunDevice({ name: "rltun0" });
+    const tun = makeMockTunDevice({ name: "rtltun_eth0" });
     const outbound: { buf: Uint8Array; port: number; addr: string }[] = [];
     let inbound:
         | ((b: Uint8Array, a: string, p: number) => void)
@@ -130,7 +130,7 @@ describe("relay full data path (no root)", () => {
         const relay = await createUdpRelay(h.relayOpts);
         await relay.start();
         expect(learned).toEqual(["192.168.77.99"]);
-        expect(relay.vifName()).toBe("rltun0");
+        expect(relay.vifName()).toBe("rtltun_eth0");
         await relay.stop();
     });
 });

@@ -1,6 +1,6 @@
 /*
  * ctrlink_streamer module (encoder side). For every relay-announced uplink
- * carrying a `tunnel` offer, the encoder builds one per-uplink `utn<R>-<if>`
+ * carrying a `tunnel` offer, the encoder builds one per-uplink `rltun<R>_<if>`
  * plain-UDP↔TUN vif (udpip.ts, `R` = the relay's stable index on this
  * encoder), and, with `autoRegisterUplink` on, registers
  * each vif IP as a `network.uplinks` entry via `syncVifUplinks` so
@@ -116,7 +116,8 @@ let uplinks: Uplinks;
 let ctrlinkReg: CtrlinkRegistry;
 /**
  * The relay `tunnel` offers, keyed by relay host. Populated from the WS
- * `hello` + `interface_*` events; drives the encoder's `utn-<if>` vifs. Each
+ * `hello` + `interface_*` events; drives the encoder's `rltun<R>_<if>` vifs.
+ * Each
  * entry carries the relay iface IP (for the on-link filter) + the full
  * `tunnel` spec.
  */
@@ -126,7 +127,7 @@ const tunnelOffers = new Map<
 >();
 /**
  * Sticky 0-based index per relay host, assigned on first sight and never
- * reused. The index names the encoder's vifs `utn<index>-<if>` so two relays
+ * reused. The index names the encoder's vifs `rltun<index>_<if>` so two relays
  * that both expose an `eth0` uplink produce distinct netdev names; and a
  * relay that drops and re-announces keeps its index, so its vifs (plus
  * route tables and uplink ids) survive WS flaps without being rebuilt.
@@ -290,7 +291,7 @@ async function isLocallyOnLink(destIp: string): Promise<boolean> {
 }
 
 /**
- * Reconcile the encoder's tunnel vifs: build a `utn<R>-<if>` per offered
+ * Reconcile the encoder's tunnel vifs: build a `rltun<R>_<if>` per offered
  * uplink (skipping on-link ones) and register each vif IP as an SRTLA uplink.
  * Coalesced + best-effort: a failure never blocks the TUN reconcile.
  */
@@ -304,7 +305,7 @@ async function doSyncEncoderTunnels(): Promise<void> {
 	const offers: EncoderTunnelOffer[] = [];
 	for (const [host, list] of tunnelOffers) {
 		// First sight of a relay host → assign (and pin) its index. The index
-		// names the encoder's vifs `utn<index>-<if>` so two relays that both
+		// names the encoder's vifs `rltun<index>_<if>` so two relays that both
 		// expose an `eth0` uplink produce distinct netdev names rather than
 		// clashing on one name.
 		let idx = relayIndexes.get(host);
@@ -619,9 +620,9 @@ function upsertTunnelOffer(
 	removed: boolean,
 ): void {
 	const list = [...(tunnelOffers.get(host) ?? [])];
-	// The vif name is `utn-<ifname>`; a down/removed event may not re-echo the
-	// spec, so derive it from the iface name when absent.
-	const vi = iface.tunnel?.virtualInterface ?? `utn-${iface.iface_name}`;
+	// The relay's leg TUN name is `rtltun-<ifname>`; a down/removed event may
+	// not re-echo the spec, so derive it from the iface name when absent.
+	const vi = iface.tunnel?.virtualInterface ?? `rtltun-${iface.iface_name}`;
 	const idx = list.findIndex((e) => e.spec.virtualInterface === vi);
 	if (removed) {
 		// The relay dropped this uplink (down / removed) → tear the vif down.

@@ -1,7 +1,7 @@
 /*
  * Ctrlink relay module: the per-interface relay slots that track this
  * machine's LAN interfaces for the Ctrlink transport. The data plane is the
- * plain-UDP↔TUN transport: the relay builds a `utn-<if>` TUN netdev + a
+ * plain-UDP↔TUN transport: the relay builds a `rtltun-<if>` TUN netdev + a
  * `udpip` server pump per advertised uplink and the encoder receives each as
  * a virtual uplink with per-tunnel policy routing + NAT. The slots keep the
  * port mapping, discovery and WS roles the encoder needs.
@@ -10,7 +10,7 @@
  * the machine's eligible network interfaces (via the `network.interfaces`
  * capability, filtered by the `interfaceAllow` / `interfaceIgnore` config),
  * and for each one keeps a relay slot for that interface's IP. It owns no TUN
- * beyond the `utn-<if>` netdevs and no config file beyond
+ * beyond the `rtltun-<if>` netdevs and no config file beyond
  * `ctx.state.ctrlink`: the relay IDs live in `ctx.state.ctrlink.relayIds` and
  * the runtime status is written to `runtimeStatusFile` on every state change.
  *
@@ -304,13 +304,11 @@ function nameEligible(
 ): boolean {
 	// LAN bridges are infrastructure, never shareable endpoints — a bridge
 	// on the home-LAN subnet would advertise a duplicate of the pass-through
-	// NIC it extends. Same for the tunnel `utn-*` netdevs (and the legacy
-	// `wg-*` ones): they are the transport itself, and treating one as an
-	// uplink makes the reconcile build `utn-utn-*` (a second tunnel for the
-	// tunnel), colliding listen ports and cascading the per-index
-	// addressing.
-	if (/^br-/.test(name) || /^utn-/.test(name) || /^wg-/.test(name))
-		return false;
+	// NIC it extends. Same for the relay leg TUN netdevs `rtltun_*`: they are
+	// the transport itself, and treating one as an uplink makes the reconcile
+	// build `rtltun_rtltun_*` (a second tunnel for the tunnel), colliding
+	// listen ports and cascading the per-index addressing.
+	if (/^br-/.test(name) || /^rtltun_/.test(name)) return false;
 	return allow.length > 0
 		? allow.some((re) => re.test(name))
 		: !ignore.some((re) => re.test(name));
@@ -608,7 +606,7 @@ function configureRelayTunnelsNow(): void {
 /** Serialize tunnel reconciles on a tail promise so passes cannot overlap: an
  * unserialized pass whose `refreshDirectIfaces` ran before the encoder was
  * known would compute the uplink set from an empty `directIfaces` and rebuild
- * a `utn-<dedlink>` tunnel-over-the-tunnel after a correct pass removed it.
+ * a `rtltun-<dedlink>` tunnel-over-the-tunnel after a correct pass removed it.
  * Chaining them guarantees the final state always reflects the newest
  * `directIfaces`. */
 let tunnelReconcileTail: Promise<void> = Promise.resolve();
@@ -619,7 +617,7 @@ function reconcileTunnelsNow(): void {
 			// ordering point.
 			await refreshDirectIfaces();
 			// No encoder known → tear down all tunnel devices (nothing to
-			// tunnel to, and leftovers like utn-<dedlink> are useless).
+			// tunnel to, and leftovers like rtltun-<dedlink> are useless).
 			if (knownEncoders().length === 0) {
 				await reconcileRelayTunnelsNow([]);
 				return;
@@ -944,11 +942,11 @@ export async function syncRelays(rollbackOnFailure = false): Promise<{
 	const ignore = cfg.interfaceIgnore.map((r) => new RegExp(r, "i"));
 	// The persisted `portMap` is the source of truth for "ever offered", not the
 	// runtime `relays`/`downIfaces` maps. A mapping can survive a process
-	// restart with no live relay — e.g. a legacy `wg-*` tunnel-netdev from
-	// before tunnel netdevs stopped being offered. Such a key would otherwise
-	// never be visited here, so `freePort` never runs and it stays in the state
-	// file forever, inflating `allocatePort`'s high-water mark. Fold the
-	// persisted keys in so stale ones are pruned on the next sync.
+	// restart with no live relay — e.g. an interface that was removed or
+	// renamed since it was last offered. Such a key would otherwise never be
+	// visited here, so `freePort` never runs and it stays in the state file
+	// forever, inflating `allocatePort`'s high-water mark. Fold the persisted
+	// keys in so stale ones are pruned on the next sync.
 	for (const name of new Set([
 		...relays.keys(),
 		...downIfaces.keys(),
@@ -1328,7 +1326,7 @@ function startEncoderChannel(e: CtrlinkDiscoveredEncoder): void {
 		// channel. `e` is a channel-start snapshot — stamp NOW.
 		noteEncoder({ ...e, lastSeen: Date.now() });
 		// No tunnel key exchange: the relay pins this encoder as a single
-		// peer (first datagram source wins) on each `utn-<if>` pump.
+		// peer (first datagram source wins) on each `rtltun-<if>` pump.
 		void ev;
 	};
 	const fail = (why: string): void => {
@@ -1503,7 +1501,7 @@ export function onEncoderAnnounced(e: CtrlinkDiscoveredEncoder): void {
 		await refreshDirectIfaces();
 		// The encoder is now known → the transport link is classified.
 		// Recompute the tunnel uplink set NOW (excluding the transport link)
-		// so we never build a `utn-<dedlink>` tunnel-over-the-tunnel; this
+		// so we never build a `rtltun-<dedlink>` tunnel-over-the-tunnel; this
 		// also refreshes `lastUplinks` for the next reconcile.
 		reconcileTunnelsNow();
 		if (!isNew) return;
@@ -1716,7 +1714,7 @@ const registration: BackendModule<ModuleCore> = {
 		// network module's slice is disabled on this role).
 		await netIfaces.ensureMonitoring();
 		netUnsub = netIfaces.onChanged(() => void onNetworkChange());
-		// Plain-UDP↔TUN multi-uplink transport: one `utn-<if>` netdev +
+		// Plain-UDP↔TUN multi-uplink transport: one `rtltun-<if>` netdev +
 		// `udpip` server pump per advertised uplink + per-uplink egress policy
 		// route / NAT. First pass is empty (no encoders yet) and grows as they
 		// announce.

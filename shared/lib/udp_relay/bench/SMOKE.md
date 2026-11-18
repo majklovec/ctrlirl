@@ -24,7 +24,7 @@ vif (e.g. mobile leg, slot 1):
 ```sh
 # Egress pin (should show `via 172.21.254.48 dev enx76ae…`, table 41):
 ip route show table 41
-ip rule show | grep rltun1
+ip rule show | grep rtltun_eno1
 # Learned vif (appears after the first encoder frame), e.g. 10.90.1.1:
 ip route show | grep '10.90.1.1'
 sudo iptables -t nat -S POSTROUTING | grep MASQUERADE | grep 10.90.1.1
@@ -36,7 +36,7 @@ sudo iptables -t nat -S POSTROUTING | grep MASQUERADE | grep 10.90.1.1
 check — it must pick the leg table:
 
 ```sh
-ip route get iif rltun1 from 10.90.1.1 to 144.91.123.190
+ip route get iif rtltun_eno1 from 10.90.1.1 to 144.91.123.190
 # expected: via 172.21.254.48 dev enx76ae… table 41
 ```
 
@@ -55,7 +55,7 @@ Inject a `VPS → vif` IPv4 reply so it routes back into the TUN, and confirm th
 relay frames it and hands it to the encoder's UDP endpoint:
 
 ```sh
-# reply route must be present:  10.90.1.1 dev rltun1
+# reply route must be present:  10.90.1.1 dev rtltun_eno1
 ip route show 10.90.1.1
 ```
 
@@ -80,7 +80,7 @@ CONFIG_FILE=/tmp/config.json bun run dev:client   # unprivileged
 
 `stopRelay`/`stopAll` remove the vif plan (if learned) then the base. Re-running
 the provision is a no-op (every `add`/`insert` is preceded by a best-effort
-`del`). A crash leaves stale `rltun*` (or legacy `relay*_<iface>`) TUNs, removed on next startup by
+`del`). A crash leaves stale `rtltun_*` (or legacy `rltun<N>` / `relay*_<iface>`) TUNs, removed on next startup by
 `sweepStaleLegTuns`.
 
 ## Acceptance checklist

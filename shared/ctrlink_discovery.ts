@@ -43,19 +43,16 @@ export const CTRLINK_BROADCAST_ADDR = "255.255.255.255";
 
 /**
  * Name pattern of an ENCODER-side CtrLink tunnel interface. The
- * `ctrlink_streamer` raises a per-uplink `utn<R>-<iface>` TUN netdev (e.g.
- * `utn0-eth0`) where `R` is the relay's stable 0-based index on this encoder —
+ * `ctrlink_streamer` raises a per-uplink `rltun<R>_<iface>` TUN netdev (e.g.
+ * `rltun0_eth0`) where `R` is the relay's stable 0-based index on this encoder —
  * so two relays that both expose an `eth0` uplink never produce clashing netdev
- * names. The legacy `utn-<iface>` (no index) form is still recognised.
- * Historically these were WireGuard netdevs (`wg-eth0`) and before that TUNs
- * (`relay0_wg0`, 15-char limit). Any interface listing that means "the device's
- * real interfaces" (the network card's "Own interfaces" group, relay
- * eligibility) must exclude the tunnels — they are paths to a relay's shared
- * uplink, not the machine's own links. This is the single source of truth shared
- * by the `network` backend (`listNetworkInterfaces`) and the network card.
+ * names. Any interface listing that means "the device's real interfaces" (the
+ * network card's "Own interfaces" group, relay eligibility) must exclude the
+ * tunnels — they are paths to a relay's shared uplink, not the machine's own
+ * links. This is the single source of truth shared by the `network` backend
+ * (`listNetworkInterfaces`) and the network card.
  */
-export const CTRLINK_TUN_NAME_RE =
-	/^(?:relay\d+_|wg-|utn\d*-)[a-z0-9_.-]+$/u;
+export const CTRLINK_TUN_NAME_RE = /^rltun\d+_[a-z0-9_.-]+$/u;
 
 /** True when `name` is an encoder-side CtrLink tunnel TUN (see the RE above). */
 export const isCtrlinkTun = (name: string): boolean =>
@@ -204,7 +201,7 @@ export const CTRLINK_RELAY_WS_PROTOCOL = 1;
 
 /**
  * The plain-UDP↔TUN tunnel spec for ONE relay uplink, carried to the encoder
- * so it can build the matching `utn-<if>` virtual interface. Present on
+ * so it can build the matching `rltun<R>_<if>` virtual interface. Present on
  * `CtrlinkRelayIface.tunnel` when the relay is offering its uplinks as UDP IP
  * tunnels; absent on direct-uplink interfaces.
  *
@@ -214,7 +211,9 @@ export const CTRLINK_RELAY_WS_PROTOCOL = 1;
  * (first datagram source wins) on its side.
  */
 export interface CtrlinkTunnelSpec {
-	/** The virtual interface name the encoder must create (e.g. `utn-eth0`). */
+	/** The relay's leg TUN name this tunnel exits through (e.g. `rtltun-eth0`).
+	 * The encoder derives its matching netdev name from this (see
+	 * `encoderVifName`). */
 	virtualInterface: string;
 	/** The relay's outer endpoint on the dedicated relay↔encoder link
 	 * (e.g. `192.168.10.100`) the encoder sends tunnel UDP to. */
@@ -247,8 +246,8 @@ export interface CtrlinkRelayIface {
 	uplink: true;
 	/**
 	 * Plain-UDP↔TUN tunnel offer for this uplink. When present the encoder
-	 * builds a `utn-<if>` virtual interface from it. Absent for direct-uplink
-	 * interfaces / legacy relays.
+	 * builds a `rltun<R>_<if>` virtual interface from it. Absent for
+	 * direct-uplink interfaces / legacy relays.
 	 */
 	tunnel?: CtrlinkTunnelSpec;
 }

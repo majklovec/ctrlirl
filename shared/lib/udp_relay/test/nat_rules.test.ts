@@ -18,9 +18,9 @@ import type { CommandRunner } from "../src/types";
 import type { LegPlan } from "../src/nat_rules";
 
 // The base leg plan is vif-independent; the vif is applied separately.
-// Leg TUNs are `rltun<N>` (relay-side) - the `relay<X>_<iface>` names are
-// the ENCODER-side tunnels (MOBLINK_TUN_NAME_RE) and never appear here.
-const plan: LegPlan = { slot: 0, tun: "rltun0", uplinkIface: "eno1" };
+// Leg TUNs are `rtltun_<iface>` (relay-side) - the `rltun<R>_<iface>` names
+// are the ENCODER-side tunnels (CTRLINK_TUN_NAME_RE) and never appear here.
+const plan: LegPlan = { slot: 0, tun: "rtltun_eno1", uplinkIface: "eno1" };
 const VIF = "192.168.77.13";
 
 function recordingRunner(
@@ -36,19 +36,19 @@ function recordingRunner(
 }
 
 describe("relayTunName", () => {
-    test("is the relay-side leg name rltun<N> (distinct from encoder tunnels)", () => {
-        expect(relayTunName(0)).toBe("rltun0");
-        expect(relayTunName(1)).toBe("rltun1");
-        // The legacy `relay<X>_<iface>` shape is the encoder-side tunnel
-        // namespace - the leg name must never collide with it.
-        expect(relayTunName(0).startsWith("relay")).toBe(false);
+    test("is the relay-side leg name rtltun_<iface> (named after the uplink)", () => {
+        expect(relayTunName("eth0")).toBe("rtltun_eth0");
+        expect(relayTunName("wwan2")).toBe("rtltun_wwan2");
+        // The `rltun<R>_<iface>` encoder-side namespace must never collide
+        // with the relay leg name.
+        expect(relayTunName("eth0").startsWith("rltun")).toBe(false);
     });
     test("matches the leg TUN pattern", () => {
-        for (let s = 0; s < 20; s++)
-            expect(LEG_TUN_NAME_RE.test(relayTunName(s))).toBe(true);
+        for (const ifc of ["eth0", "eno1", "wwan2", "wlan0"])
+            expect(LEG_TUN_NAME_RE.test(relayTunName(ifc))).toBe(true);
     });
-    test("rejects bad slots", () => {
-        expect(() => relayTunName(-1)).toThrow();
+    test("rejects bad ifaces", () => {
+        expect(() => relayTunName("")).toThrow();
     });
 });
 
@@ -65,9 +65,9 @@ describe("planLegBaseCommands (vif-independent)", () => {
     const cmds = () => planLegBaseCommands(plan).map((c) => c.join(" "));
     test("egress table + iif rule + FORWARD, no vif/NAT", () => {
         expect(cmds()).toContain("ip route add default dev eno1 table 40");
-        expect(cmds()).toContain("ip rule add iif rltun0 table 40");
-        expect(cmds()).toContain("iptables -I FORWARD 1 -i rltun0 -j ACCEPT");
-        expect(cmds()).toContain("iptables -I FORWARD 2 -o rltun0 -j ACCEPT");
+        expect(cmds()).toContain("ip rule add iif rtltun_eno1 table 40");
+        expect(cmds()).toContain("iptables -I FORWARD 1 -i rtltun_eno1 -j ACCEPT");
+        expect(cmds()).toContain("iptables -I FORWARD 2 -o rtltun_eno1 -j ACCEPT");
         // The base never references a vif or MASQUERADE.
         expect(cmds().some((c) => c.includes("192.168.77.13"))).toBe(false);
         expect(cmds().some((c) => c.includes("MASQUERADE"))).toBe(false);
@@ -91,7 +91,7 @@ describe("planLegBaseCommands (vif-independent)", () => {
 describe("planVifCommands (learned encoder vif)", () => {
     test("reply route + MASQUERADE keyed on the vif", () => {
         const c = planVifCommands(plan, VIF).map((x) => x.join(" "));
-        expect(c).toContain("ip route add 192.168.77.13/32 dev rltun0");
+        expect(c).toContain("ip route add 192.168.77.13/32 dev rtltun_eno1");
         expect(c).toContain(
             "iptables -t nat -I POSTROUTING 1 -s 192.168.77.13/32 -o eno1 -j MASQUERADE",
         );
@@ -107,7 +107,7 @@ describe("planVifCommands (learned encoder vif)", () => {
             x.join(" "),
         );
         expect(c.some((x) => x.includes("MASQUERADE"))).toBe(false);
-        expect(c).toContain("ip route add 192.168.77.13/32 dev rltun0");
+        expect(c).toContain("ip route add 192.168.77.13/32 dev rtltun_eno1");
     });
 });
 
@@ -115,13 +115,13 @@ describe("planLegCommands (base + vif, when known up front)", () => {
     test("full ordering: routes→rules→FORWARD→vif route→NAT", () => {
         const cmds = planLegCommands(plan, VIF).map((c) => c.join(" "));
         expect(cmds).toContain("ip route add default dev eno1 table 40");
-        expect(cmds).toContain("ip rule add iif rltun0 table 40");
-        expect(cmds).toContain("ip route add 192.168.77.13/32 dev rltun0");
+        expect(cmds).toContain("ip rule add iif rtltun_eno1 table 40");
+        expect(cmds).toContain("ip route add 192.168.77.13/32 dev rtltun_eno1");
         expect(cmds).toContain(
             "iptables -t nat -I POSTROUTING 1 -s 192.168.77.13/32 -o eno1 -j MASQUERADE",
         );
-        expect(cmds).toContain("iptables -I FORWARD 1 -i rltun0 -j ACCEPT");
-        expect(cmds).toContain("iptables -I FORWARD 2 -o rltun0 -j ACCEPT");
+        expect(cmds).toContain("iptables -I FORWARD 1 -i rtltun_eno1 -j ACCEPT");
+        expect(cmds).toContain("iptables -I FORWARD 2 -o rtltun_eno1 -j ACCEPT");
         // FORWARD comes before the vif-specific NAT (base first).
         const i = (s: string) => cmds.findIndex((c) => c.includes(s));
         expect(i("FORWARD 1 -i")).toBeLessThan(i("route add 192.168.77.13/32"));
@@ -137,7 +137,7 @@ describe("planLegCommands (base + vif, when known up front)", () => {
         expect(base).toContain("ip route del default table 40");
         expect(base.some((c) => c.includes("192.168.77.13"))).toBe(false);
         const vif = planVifRemoval(plan, VIF).map((c) => c.join(" "));
-        expect(vif).toContain("ip route del 192.168.77.13/32 dev rltun0");
+        expect(vif).toContain("ip route del 192.168.77.13/32 dev rtltun_eno1");
         expect(vif).toContain(
             "iptables -t nat -D POSTROUTING -s 192.168.77.13/32 -o eno1 -j MASQUERADE",
         );
@@ -146,7 +146,7 @@ describe("planLegCommands (base + vif, when known up front)", () => {
         const vif = planVifRemoval({ ...plan, nat: false }, VIF).map((c) =>
             c.join(" "),
         );
-        expect(vif).toContain("ip route del 192.168.77.13/32 dev rltun0");
+        expect(vif).toContain("ip route del 192.168.77.13/32 dev rtltun_eno1");
         expect(vif.some((c) => c.includes("MASQUERADE"))).toBe(false);
     });
 });
@@ -169,7 +169,7 @@ describe("applyLegPlan / applyVifPlan", () => {
     test("applyVifPlan issues the vif part", async () => {
         const { run, calls } = recordingRunner();
         await applyVifPlan(run, { ...plan, nat: true }, VIF);
-        expect(calls).toContain("ip route add 192.168.77.13/32 dev rltun0");
+        expect(calls).toContain("ip route add 192.168.77.13/32 dev rtltun_eno1");
         expect(calls).toContain(
             "iptables -t nat -I POSTROUTING 1 -s 192.168.77.13/32 -o eno1 -j MASQUERADE",
         );
@@ -185,7 +185,7 @@ describe("applyLegPlan / applyVifPlan", () => {
 });
 
 describe("sweepStaleLegTuns", () => {
-    test("deletes leg TUNs (rltun*) + legacy leg TUNs (relay*_<iface>)", async () => {
+    test("deletes current (rtltun_*) leg TUNs only", async () => {
         const { run, calls } = recordingRunner();
         // monkeypatch: the runner returns a fake `ip -o link show` once.
         const orig: CommandRunner = run;
@@ -195,27 +195,18 @@ describe("sweepStaleLegTuns", () => {
                     stdout:
                         "1: lo: <LOOPBACK,UP> mtu 65536\n" +
                         "2: eno1: <BROADCAST,UP> mtu 1500\n" +
-                        "3: rltun0: <_TUN,UP> mtu 1500\n" +
-                        "4: rltun1: <TUN,UP> mtu 1500\n" +
-                        "5: relay0_wg0: <TUN,UP> mtu 1500\n" +
-                        "6: relay1_enxb6db3: <TUN,UP> mtu 1500\n" +
-                        "7: wg0: <POINTOPOINT,UP> mtu 1420\n",
+                        "3: rtltun_eno1: <_TUN,UP> mtu 1500\n" +
+                        "4: rtltun_wwan2: <TUN,UP> mtu 1500\n" +
+                        "5: wg0: <POINTOPOINT,UP> mtu 1420\n",
                     exitCode: 0,
                 };
             }
             return orig(cmd, ...args);
         };
         const removed = await sweepStaleLegTuns(fake);
-        expect(removed.sort()).toEqual([
-            "relay0_wg0",
-            "relay1_enxb6db3",
-            "rltun0",
-            "rltun1",
-        ]);
-        expect(calls).toContain("ip link del rltun0");
-        expect(calls).toContain("ip link del rltun1");
-        expect(calls).toContain("ip link del relay0_wg0");
-        expect(calls).toContain("ip link del relay1_enxb6db3");
-        expect(calls.some((c) => c.includes("eno1"))).toBe(false);
+        expect(removed.sort()).toEqual(["rtltun_eno1", "rtltun_wwan2"]);
+        expect(calls).toContain("ip link del rtltun_eno1");
+        expect(calls).toContain("ip link del rtltun_wwan2");
+        expect(calls.some((c) => c.includes("eno1 "))).toBe(false);
     });
 });

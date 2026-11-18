@@ -96,7 +96,7 @@ async function measureForwardPps(): Promise<{
     cpuPct: number;
     heapKbPer10k: number;
 }> {
-    const tun = makeMockTunDevice({ name: "rltun0" });
+    const tun = makeMockTunDevice({ name: "rtltun_eth0" });
     const relay = await buildRelay(tun);
 
     const encoder = await Bun.udpSocket({
@@ -143,7 +143,7 @@ async function measureForwardPps(): Promise<{
 async function measurePerPacketLatency(
     samples = 4_000,
 ): Promise<{ p50: number; p99: number }> {
-    const tun = makeMockTunDevice({ name: "rltun0" });
+    const tun = makeMockTunDevice({ name: "rtltun_eth0" });
     const relay = await buildRelay(tun);
     const encoder = await Bun.udpSocket({
         hostname: DIAL_HOST,

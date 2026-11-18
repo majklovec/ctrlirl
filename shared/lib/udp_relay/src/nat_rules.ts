@@ -35,19 +35,21 @@ export const LEG_TABLE_BASE = 40;
 export const LEG_TABLE_MAX = 99;
 
 /**
- * Relay-side leg TUN name: `rltun<slot>` (`rltun0`, `rltun1`, ...). Deliberately
- * distinct from the encoder-side tunnel TUNs (`relay<X>_<iface>`,
- * `MOBLINK_TUN_NAME_RE`): `relay*` devices exist ONLY on encoders (the vifs
- * srtla sends through), while `rltun*` devices exist ONLY on relay boxes.
- * Matching `MOBLINK_TUN_NAME_RE` used to blur the two - a relay box showed
- * `relay*` interfaces while the encoder had none, which is wrong.
+ * Relay-side leg TUN name: `rtltun_<iface>` (`rtltun_eth0`, `rtltun_wwan2`,
+ * ...). Named after the uplink interface the leg exits through, so the leg TUN
+ * maps 1:1 to the physical uplink. Deliberately distinct from the
+ * encoder-side tunnel TUNs (`rltun<R>_<iface>`, `CTRLINK_TUN_NAME_RE`):
+ * `rltun*` devices exist ONLY on encoders (the vifs srtla sends through),
+ * while `rtltun_*` devices exist ONLY on relay boxes. Matching the encoder
+ * pattern used to blur the two - a relay box showed encoder-style interfaces
+ * while the encoder had none, which is wrong.
  */
-export const LEG_TUN_NAME_RE = /^rltun\d+$/u;
+export const LEG_TUN_NAME_RE = /^rtltun_[a-z0-9_.-]+$/u;
 
-export function relayTunName(slot: number): string {
-    if (!Number.isInteger(slot) || slot < 0)
-        throw new Error(`slot must be a non-negative integer (${slot})`);
-    const name = `rltun${slot}`;
+export function relayTunName(iface: string): string {
+    if (typeof iface !== "string" || iface.length === 0)
+        throw new Error(`iface must be a non-empty string (${String(iface)})`);
+    const name = `rtltun_${iface}`;
     if (!LEG_TUN_NAME_RE.test(name))
         throw new Error(
             `relay TUN name does not match the leg pattern: ${name}`,
@@ -325,14 +327,13 @@ export async function removeVifPlan(
 }
 
 /**
- * Startup sweep: delete TUN devices on this host that match the MobLink
- * leg patterns from a previous (crashed) run. Returns the names removed.
+ * Startup sweep: delete TUN devices on this host that match the CtrLink
+ * leg pattern from a previous (crashed) run. Returns the names removed.
  *
- * Matches both the current `rltun<N>` leg TUNs and the LEGACY
- * `relay<slot>_<iface>` leg names (before the relay/encoder naming split):
- * a relay host never runs encoder-side MobLink tunnels, so a TUN matching
- * either pattern here is stale - including crash leftovers from older
- * versions that provisioned `relay*` TUNs on the relay.
+ * Matches the relay leg TUNs `rtltun_<iface>`. `CTRLINK_TUN_NAME_RE` is
+ * checked too so encoder-side `rltun<R>_<iface>` TUNs are swept if one were
+ * ever left on a relay host - a relay host never runs encoder-side tunnels,
+ * so any TUN matching here is stale.
  */
 export async function sweepStaleLegTuns(
     runCommand: CommandRunner,

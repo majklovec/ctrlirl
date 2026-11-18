@@ -58,7 +58,8 @@ const VIRTUAL_PREFIXES = [
     "zt",
     "tailscale",
     "utun",
-    "utn",
+    "rtltun",
+    "rltun",
     "dummy",
     "bond",
 ];
@@ -135,7 +136,7 @@ export async function detectInterfaces(modemList?: Modem[]): Promise<Iface[]> {
     const entries: Iface[] = [];
     for (const line of addrs.split("\n")) {
         const [, iface, , cidr] = line.split(/\s+/);
-        // CtrLink tunnel TUNs (`utn<R>-<iface>`) are real uplink paths (a
+        // CtrLink tunnel TUNs (`rltun<R>_<iface>`) are real uplink paths (a
         // tunnel to a relay's shared uplink) and ARE bondable — every other
         // synthetic interface stays excluded by `isVirtual`.
         if (!iface || !cidr || (isVirtual(iface) && !isCtrlinkTun(iface)))
@@ -738,7 +739,7 @@ export async function reconfigure(): Promise<ReconfigureResult> {
                         { iface, ip: addr, prefix, gateway: bearerGateway },
                         idx,
                     ) => {
-                        // CtrLink TUNs (`utn<R>-<if>`) carry their /32 peer
+                        // CtrLink TUNs (`rltun<R>_<if>`) carry their /32 peer
                         // address on the netdev itself: every frame emitted on
                         // the TUN reaches the relay leg, so a via-address is
                         // neither needed nor legal. The kernel rejects an
@@ -852,7 +853,7 @@ export async function fireUplinksChanged(): Promise<void> {
 // Programmatic uplinks (the `add`/`remove`/`list` capability methods)
 // ----------------------------------------------------------------------
 type UplinkExtra = { source: string; label?: string };
-/** Programmatic uplinks keyed by stable id (e.g. `ctrlink:ctrlink0`). */
+/** Programmatic uplinks keyed by stable id (e.g. `ctrlink:tun:rltun0_eth0`). */
 const extraUplinks = new Map<string, UplinkExtra>();
 
 /** The uplinks file line set = detected bond IPs + programmatic extras.
@@ -979,7 +980,7 @@ function carrierState(name: string): "up" | "down" {
 
 /** List the machine's own IPv4 interfaces. Filtered:
  * - loopback (never carries stream traffic)
- * - CtrLink tunnel TUNs (`relay${slot}_${iface}`, e.g. `relay0_wg0`) —
+ * - CtrLink tunnel TUNs (`rltun<R>_<iface>`, e.g. `rltun0_eth0`) —
  *   tunnels to a CtrLink box's shared uplinks, not own interfaces: selecting one
  *   would loop traffic back through the CtrLink box (see `isCtrlinkTun`). */
 export function listNetworkInterfaces(): NetworkInterfaceInfo[] {

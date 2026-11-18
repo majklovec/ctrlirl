@@ -1,6 +1,6 @@
 /*
  * Encoder-side plain-UDP↔TUN multi-uplink vifs. For each relay-announced
- * uplink carrying a `tunnel` spec, the encoder builds ONE `utn<R>-<if>` TUN
+ * uplink carrying a `tunnel` spec, the encoder builds ONE `rltun<R>_<if>` TUN
  * (`R` = the relay's stable 0-based index on this encoder, so two relays
  * exposing the same uplink name can't clash) backed by `createVirtualInterface`
  * (TUN + a UDP datagram socket that dials the relay and forwards IP packets),
@@ -36,7 +36,7 @@ import type { CtrlinkTunnelSpec } from "../../../shared/ctrlink_discovery";
 export interface EncoderTunnelOffer {
 	relayId: string;
 	/** The relay's stable 0-based index on this encoder — names the vif
-	 * `utn<index>-<if>` so two relays exposing the same uplink name can't clash. */
+	 * `rltun<index>_<if>` so two relays exposing the same uplink name can't clash. */
 	relayIndex: number;
 	spec: CtrlinkTunnelSpec;
 }
@@ -56,9 +56,9 @@ interface EncoderVif {
 	vif: VirtualInterface;
 }
 
-/** The `utn<relayIndex>-<uplink>` netdev name for one (relay, uplink) pair. */
+/** The `rltun<relayIndex>_<uplink>` netdev name for one (relay, uplink) pair. */
 export function encoderVifName(relayIndex: number, uplink: string): string {
-	return `utn${relayIndex}-${uplink}`;
+	return `rltun${relayIndex}_${uplink}`;
 }
 
 const vifs = new Map<string, EncoderVif>();
@@ -118,7 +118,7 @@ export function configureEncoderTunnels(cfg: {
 }
 
 /**
- * Reconcile the encoder's `utn<R>-<if>` vifs toward the offered set.
+ * Reconcile the encoder's `rltun<R>_<if>` vifs toward the offered set.
  * `ownIfaces` is the encoder's own interface-name set (the on-link filter).
  */
 export async function reconcileEncoderTunnels(
@@ -134,9 +134,9 @@ export async function reconcileEncoderTunnels(
 	try {
 		// Desired: one offer per uplink, skipping any that collide with an
 		// interface the encoder already owns (on-link filter). The uplink is
-		// derived from the relay's `utn-<if>` spec name; the ENCODER's own
-		// netdev is renamed `utn<relayIndex>-<if>` (below) so two relays that
-		// both expose `eth0` never produce a clashing name.
+		// derived from the relay's `rtltun-<if>` spec name; the ENCODER's own
+		// netdev is renamed `rltun<relayIndex>_<if>` (below) so two relays
+		// that both expose `eth0` never produce a clashing name.
 		const desired = new Map<
 			string,
 			{
@@ -146,7 +146,7 @@ export async function reconcileEncoderTunnels(
 			}
 		>();
 		for (const { spec, relayId, relayIndex } of offers) {
-			const uplink = spec.virtualInterface.replace(/^utn-/, "");
+			const uplink = spec.virtualInterface.replace(/^rtltun-/, "");
 			if (ownIfaces.has(uplink)) continue; // on-link: don't tunnel it
 			if (!desired.has(uplink))
 				desired.set(uplink, { spec, relayId, relayIndex });
@@ -201,8 +201,8 @@ async function ensureVif(
 	relayId: string,
 	relayIndex: number,
 ): Promise<void> {
-	// The relay's spec name is `utn-<if>`; the encoder's netdev is renamed to
-	// `utn<relayIndex>-<if>` so a second relay exposing the same uplink name
+	// The relay's spec name is `rtltun-<if>`; the encoder's netdev is named
+	// `rltun<relayIndex>_<if>` so a second relay exposing the same uplink name
 	// (e.g. `eth0`) can't collide with the first.
 	const name = encoderVifName(relayIndex, uplink);
 	const table = vifSourceTable(spec.uplinkIndex);

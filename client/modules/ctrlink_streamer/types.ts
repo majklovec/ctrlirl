@@ -19,7 +19,8 @@ export interface CtrlinkStreamerConfig {
 	autoRegisterUplink: boolean;
 	/**
 	 * Build plain-UDP↔TUN virtual uplinks from the relay's `tunnel` offers —
-	 * default **true**. When true each offered uplink becomes a `utn<R>-<if>`
+	 * default **true**. When true each offered uplink becomes a
+	 * `rltun<R>_<if>`
 	 * vif (`R` = the relay's stable index on this encoder, so two relays with
 	 * the same uplink name can't clash) with a per-vif routing table
 	 * (SRTLA-ready). Toggled by the

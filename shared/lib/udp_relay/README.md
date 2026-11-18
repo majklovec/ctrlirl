@@ -94,7 +94,7 @@ const relay = await createUdpRelay({
     interfaceName,                    // uplink this leg exits through (e.g. "eno1")
     listenPort,                       // the encoder dials this
     vifIp,                            // the leg's /32 (the TUN address)
-    tunName?,                         // default "rltun0"
+    tunName?,                         // default "rtltun_eth0" (rtltun_<iface>)
     listenAddress?,                   // default "0.0.0.0" (NIC-agnostic)
     onStats?,
     statsIntervalMs?,

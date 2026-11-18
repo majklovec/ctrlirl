@@ -104,9 +104,10 @@ export interface UdpRelayOptions {
     /** The virtual-interface /32 this leg bridges (the TUN address). */
     vifIp: string;
     /** Name of the TUN device backing this leg (the backend provisions it).
-     * Default `"rltun0"` - relay-side leg TUNs are `rltun<slot>` (`relay*`
-     * names belong to the encoder-side tunnels). Must be ≤15 chars and match
-     * the TUN-name matcher so the network module hides it from uplinks. */
+     * Default `"rtltun_eth0"` - relay-side leg TUNs are `rtltun_<iface>`
+     * (`rltun<R>_*` names belong to the encoder-side tunnels). Must be ≤15
+     * chars and match the TUN-name matcher so the network module hides it
+     * from uplinks. */
     tunName?: string;
     /**
      * Local address to bind the listener to. Default `"0.0.0.0"` - every
@@ -264,7 +265,7 @@ class RelayImpl implements UdpRelay {
         this.interfaceAddress = options.interfaceAddress ?? listenAddress;
         this.listenAddress = listenAddress;
         this.listenPort = options.listenPort;
-        this.tunName = options.tunName ?? "rltun0";
+        this.tunName = options.tunName ?? "rtltun_eth0";
         this.counters = newRelayStats();
         this.counters.startedAt = Date.now();
     }

@@ -13,7 +13,7 @@ import {
 import type { CommandRunner } from "../src/types";
 
 const vif: VifSourceRoute = {
-    name: "relay0_enx76ae2",
+    name: "rltun0_enx76ae2",
     vifIp: "10.90.0.1",
     table: vifSourceTable(0),
 };
@@ -55,7 +55,7 @@ describe("planVifSourceRoute", () => {
             "ip rule del from 10.90.0.1",
             `ip rule add from 10.90.0.1 lookup ${vif.table} priority ${VIF_SOURCE_RULE_PRIORITY}`,
             `ip route del default table ${vif.table}`,
-            `ip route add default dev relay0_enx76ae2 table ${vif.table}`,
+            `ip route add default dev rltun0_enx76ae2 table ${vif.table}`,
         ]);
     });
     test("rejects non-encoder TUN names", () => {
@@ -71,7 +71,11 @@ describe("planVifSourceRoute", () => {
     test("rejects non-IPv4 vif addresses", () => {
         expect(
             () =>
-                planVifSourceRoute({ name: "relay0_eth0", vifIp: "nope", table: 20 }),
+                planVifSourceRoute({
+                    name: "rltun0_eth0",
+                    vifIp: "nope",
+                    table: 20,
+                }),
         ).toThrow();
     });
 });

@@ -120,7 +120,7 @@ async function announce(r: CtrlinkDiscoveredRelay): Promise<void> {
  * `CtrlinkRelayIface` (the announce payload carries no tunnel spec). */
 function tunnelSpec(index: number, host: string): CtrlinkTunnelSpec {
 	return {
-		virtualInterface: `utn-eth${index}`,
+		virtualInterface: `rtltun-eth${index}`,
 		endpoint: host,
 		udpPort: 5222 + index,
 		localAddr: `10.200.${index + 1}.1`,
@@ -132,7 +132,7 @@ function tunnelSpec(index: number, host: string): CtrlinkTunnelSpec {
 }
 
 // Build a relay `CtrlinkRelayIface`. `index` (when given) attaches the tunnel
-// offer so the encoder builds a `utn-<if>` vif for this uplink (the tunnel
+// offer so the encoder builds a `rtltun-<if>` vif for this uplink (the tunnel
 // offer arrives only over the WS control channel, never the UDP announce).
 const iface = (
 	name: string,
@@ -227,7 +227,7 @@ async function awaitVifs(n: number): Promise<boolean> {
 }
 
 describe("ctrlink_streamer", () => {
-	test("a WS offer for an uplink builds a utn-<if> vif and registers its uplink", async () => {
+	test("a WS offer for an uplink builds a rtltun-<if> vif and registers its uplink", async () => {
 		const { uplinks } = await setup();
 		// Tunnel offers arrive over the relay WS control channel (protocol §3)
 		// — a UDP announce alone carries no tunnel spec and builds nothing.
@@ -242,7 +242,7 @@ describe("ctrlink_streamer", () => {
 			{
 				relayId: "relay-1",
 				uplink: "eth0",
-				name: "utn0-eth0",
+				name: "rltun0_eth0",
 				localIp: "10.200.1.2",
 				listenPort: 51820,
 			},
@@ -250,27 +250,27 @@ describe("ctrlink_streamer", () => {
 		const v = await view();
 		expect(v.runtime.running).toBe(true);
 		expect(v.runtime.tunnels[0]).toMatchObject({
-			interfaceName: "utn0-eth0",
+			interfaceName: "rltun0_eth0",
 			interfaceAddress: "10.200.1.2",
 			relayHost: "relay-1",
 			uplinkRegistered: true,
 		});
 		expect(uplinks.added).toEqual([
 			{
-				id: "ctrlink:tun:utn0-eth0",
+				id: "ctrlink:tun:rltun0_eth0",
 				source: "10.200.1.2",
-				label: "Ctrlink (utn0-eth0)",
+				label: "Ctrlink (rltun0_eth0)",
 			},
 		]);
 		// The learned relay is mirrored to the network card registry.
 		await up().stop();
-		expect(uplinks.removed).toContain("ctrlink:tun:utn0-eth0");
+		expect(uplinks.removed).toContain("ctrlink:tun:rltun0_eth0");
 		expect(uplinks.list()).toEqual([]);
 	});
 
 	test("two relays get distinct vif names; a clashing uplink name is deduped", async () => {
 		const { uplinks } = await setup();
-		// Relay 0 offers eth0 → `utn0-eth0`.
+		// Relay 0 offers eth0 → `rltun0_eth0`.
 		mod.onRelayWsMessage("relay-1", {
 			type: "hello",
 			relay_id: "relay-1",
@@ -281,9 +281,9 @@ describe("ctrlink_streamer", () => {
 		expect(encoderTunnelStateForTest().vifs).toHaveLength(1);
 		expect(
 			encoderTunnelStateForTest().vifs[0].name,
-		).toBe("utn0-eth0");
+		).toBe("rltun0_eth0");
 
-		// Relay 1 (index 1) offers eth1 → `utn1-eth1`.
+		// Relay 1 (index 1) offers eth1 → `rltun1_eth1`.
 		mod.onRelayWsMessage("relay-2", {
 			type: "hello",
 			relay_id: "relay-2",
@@ -294,12 +294,12 @@ describe("ctrlink_streamer", () => {
 		const names = encoderTunnelStateForTest().vifs
 			.map((v) => v.name)
 			.sort();
-		expect(names).toEqual(["utn0-eth0", "utn1-eth1"]);
+		expect(names).toEqual(["rltun0_eth0", "rltun1_eth1"]);
 		// The relay-1 vif is unchanged (its index is pinned at 0).
 		expect(
 			encoderTunnelStateForTest().vifs.find((v) => v.relayId === "relay-2")
 				?.name,
-		).toBe("utn1-eth1");
+		).toBe("rltun1_eth1");
 
 		// Relay 1 ALSO offers an `eth0` uplink. That uplink name is already
 		// taken by relay 0's vif, so it is deduped away (no second device, no
@@ -317,7 +317,7 @@ describe("ctrlink_streamer", () => {
 		expect(encoderTunnelStateForTest().vifs).toHaveLength(2);
 		expect(
 			encoderTunnelStateForTest().vifs.map((v) => v.name).sort(),
-		).toEqual(["utn0-eth0", "utn1-eth1"]);
+		).toEqual(["rltun0_eth0", "rltun1_eth1"]);
 		await up().stop();
 	});
 
@@ -363,7 +363,7 @@ describe("ctrlink_streamer", () => {
 			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
 		await awaitVifs(1);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 		expect(encoderTunnelStateForTest().vifs).toHaveLength(1);
 		await up().stop();
 	});
@@ -383,7 +383,7 @@ describe("ctrlink_streamer", () => {
 		});
 		await awaitVifs(2);
 		const { vifs } = encoderTunnelStateForTest();
-		expect(vifs.map((v) => v.name).sort()).toEqual(["utn0-eth0", "utn0-eth1"]);
+		expect(vifs.map((v) => v.name).sort()).toEqual(["rltun0_eth0", "rltun0_eth1"]);
 		expect(vifs.map((v) => v.localIp).sort()).toEqual([
 			"10.200.1.2",
 			"10.200.2.2",
@@ -395,7 +395,7 @@ describe("ctrlink_streamer", () => {
 				.list()
 				.map((e) => e.id)
 				.sort(),
-		).toEqual(["ctrlink:tun:utn0-eth0", "ctrlink:tun:utn0-eth1"]);
+		).toEqual(["ctrlink:tun:rltun0_eth0", "ctrlink:tun:rltun0_eth1"]);
 		await up().stop();
 	});
 
@@ -416,10 +416,10 @@ describe("ctrlink_streamer", () => {
 			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
 		await awaitVifs(1);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 
 		// The relay sends a newer hello that now also offers eth1 → the
-		// encoder re-reconciles and builds a second vif (utn0-eth1) alongside.
+		// encoder re-reconciles and builds a second vif (rltun0_eth1) alongside.
 		mod.onRelayWsMessage("relay-1", {
 			type: "hello",
 			relay_id: "relay-1",
@@ -436,9 +436,9 @@ describe("ctrlink_streamer", () => {
 				.list()
 				.map((e) => e.id)
 				.sort(),
-		).toEqual(["ctrlink:tun:utn0-eth0", "ctrlink:tun:utn0-eth1"]);
+		).toEqual(["ctrlink:tun:rltun0_eth0", "ctrlink:tun:rltun0_eth1"]);
 		expect(
-			v.runtime.tunnels.some((t) => t.interfaceName === "utn0-eth1"),
+			v.runtime.tunnels.some((t) => t.interfaceName === "rltun0_eth1"),
 		).toBe(true);
 		await up().stop();
 	});
@@ -502,11 +502,11 @@ describe("ctrlink_streamer", () => {
 			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
 		await awaitVifs(1);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 		expect(encoderTunnelStateForTest().vifs).toHaveLength(1);
 		await up().stop();
 		expect(uplinks.list()).toEqual([]);
-		expect(uplinks.removed).toContain("ctrlink:tun:utn0-eth0");
+		expect(uplinks.removed).toContain("ctrlink:tun:rltun0_eth0");
 		expect(encoderTunnelStateForTest().vifs).toHaveLength(0);
 	});
 
@@ -547,7 +547,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 	test("a hello snapshot registers the relay and builds its WG vifs", async () => {
 		const { uplinks } = await setup();
 		// The hello carries a tunnel offer per uplink → the encoder builds a
-		// `utn-<if>` vif per uplink that isn't already on-link (protocol §3).
+		// `rtltun-<if>` vif per uplink that isn't already on-link (protocol §3).
 		mod.onRelayWsMessage("wan-relay", {
 			type: "hello",
 			relay_id: "wan-relay",
@@ -557,19 +557,19 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 		await awaitVifs(1);
 		const v = await view();
 		expect(v.discoveredRelays.map((r) => r.host)).toContain("wan-relay");
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 		expect(encoderTunnelStateForTest().vifs).toEqual([
 			{
 				relayId: "wan-relay",
 				uplink: "eth0",
-				name: "utn0-eth0",
+				name: "rltun0_eth0",
 				localIp: "10.200.1.2",
 				listenPort: 51820,
 			},
 		]);
 		// The vif's status dials the offering relay (its WS host id).
 		expect(v.runtime.tunnels[0]).toMatchObject({
-			interfaceName: "utn0-eth0",
+			interfaceName: "rltun0_eth0",
 			interfaceAddress: "10.200.1.2",
 			relayHost: "wan-relay",
 		});
@@ -649,7 +649,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
 		await awaitVifs(1);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 		expect(encoderTunnelStateForTest().vifs).toHaveLength(1);
 
 		// The uplink goes down → its vif is torn down (the offer is dropped).
@@ -673,7 +673,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			}),
 		]);
 
-		// A fresh hello re-offering eth0 rebuilds the SAME vif slot (utn0-eth0).
+		// A fresh hello re-offering eth0 rebuilds the SAME vif slot (rltun0_eth0).
 		mod.onRelayWsMessage("wan-relay", {
 			type: "hello",
 			relay_id: "wan-relay",
@@ -681,12 +681,12 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
 		await awaitVifs(1);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 		expect(encoderTunnelStateForTest().vifs).toEqual([
 			{
 				relayId: "wan-relay",
 				uplink: "eth0",
-				name: "utn0-eth0",
+				name: "rltun0_eth0",
 				localIp: "10.200.1.2",
 				listenPort: 51820,
 			},
@@ -703,7 +703,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			interfaces: [iface("eth0", "198.51.100.9", 4000, "up", 0)],
 		});
 		await awaitVifs(1);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 
 		// The relay adds a NEW uplink (eth1) carrying its own tunnel spec → a
 		// second vif is built alongside.
@@ -713,8 +713,8 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 		});
 		await awaitVifs(2);
 		expect(uplinks.list().map((e) => e.id).sort()).toEqual([
-			"ctrlink:tun:utn0-eth0",
-			"ctrlink:tun:utn0-eth1",
+			"ctrlink:tun:rltun0_eth0",
+			"ctrlink:tun:rltun0_eth1",
 		]);
 		expect(
 			(await view()).runtime.tunnels.map((t) => t.interfaceAddress),
@@ -727,7 +727,7 @@ describe("relay WS control channel (protocol.md §3–§5)", () => {
 			iface: iface("eth1", "198.51.100.9", 4001, "down"),
 		});
 		await awaitVifs(1);
-		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:utn0-eth0"]);
+		expect(uplinks.list().map((e) => e.id)).toEqual(["ctrlink:tun:rltun0_eth0"]);
 		expect(
 			(await view()).discoveredRelays
 				.find((r) => r.host === "wan-relay")

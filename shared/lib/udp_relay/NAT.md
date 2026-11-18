@@ -14,10 +14,11 @@ steered back through the leg TUN. Doing this in the kernel (routing + conntrack)
 means the user-space forward path is just **one UDP callback → one TUN write**.
 There is no raw socket, no `SO_BINDTODEVICE`, no user-space SNAT/dNAT map.
 
-**TUN naming split:** the relay box's leg TUNs are `rltun<slot>` (`rltun0`,
-`rltun1`, ...); the `relay<X>_<iface>` names (`MOBLINK_TUN_NAME_RE`) exist
+**TUN naming split:** the relay box's leg TUNs are `rtltun_<iface>`
+(`rtltun_eth0`, `rtltun_wwan2`, ...) - named after the physical uplink the
+leg exits through; the `rltun<R>_<iface>` names (`CTRLINK_TUN_NAME_RE`) exist
 ONLY on encoders - those are the virtual interfaces `srtla_send` sends
-through. The names must not mix: `isMoblinkTun()` excludes both from the
+through. The names must not mix: `isCtrlinkTun()` excludes both from the
 "own interfaces" listings (the relay must never pick its own leg TUNs up as
 new uplinks).
 
@@ -50,7 +51,7 @@ module claims `>= 100`).
 
 ## Rule sets
 
-Notation: `slot=1` (table `41`), `tun=rltun1`, `uplink=enx76ae207e3de7`,
+Notation: `slot=1` (table `41`), `tun=rtltun_eno1`, `uplink=eno1`,
 `gw=172.21.254.48`, `vif=10.90.1.1` (learned).
 
 ### 1. Base plan (vif-independent)
@@ -60,15 +61,15 @@ Notation: `slot=1` (table `41`), `tun=rltun1`, `uplink=enx76ae207e3de7`,
 ```bash
 # Egress pin: packets arriving on the TUN exit the uplink (via its gateway).
 ip route    del default table 41                 # best-effort (idempotent)
-ip route add default via 172.21.254.48 dev enx76ae207e3de7 table 41
+ip route add default via 172.21.254.48 dev eno1 table 41
 # Pin egress to that table for packets arriving on this TUN.
 ip rule     del lookup 41                          # best-effort
-ip rule     add iif rltun1 table 41
+ip rule     add iif rtltun_eno1 table 41
 # FORWARD accepts (host default policy is DROP under Docker).
-iptables -D  FORWARD -i rltun1 -j ACCEPT  # best-effort
-iptables -I  FORWARD 1 -i rltun1 -j ACCEPT
-iptables -D  FORWARD -o rltun1 -j ACCEPT  # best-effort
-iptables -I  FORWARD 2 -o rltun1 -j ACCEPT
+iptables -D  FORWARD -i rtltun_eno1 -j ACCEPT  # best-effort
+iptables -I  FORWARD 1 -i rtltun_eno1 -j ACCEPT
+iptables -D  FORWARD -o rtltun_eno1 -j ACCEPT  # best-effort
+iptables -I  FORWARD 2 -o rtltun_eno1 -j ACCEPT
 ```
 
 > **The gateway is required.** `default via <gw> dev <uplink>` — not
@@ -83,8 +84,8 @@ iptables -I  FORWARD 2 -o rltun1 -j ACCEPT
 ```bash
 nft add table ip forward
 nft add chain ip forward { type filter hook forward priority 0; policy accept; }
-nft add rule  ip forward iifname "rltun1" accept
-nft add rule  ip forward oifname "rltun1" accept
+nft add rule  ip forward iifname "rtltun_eno1" accept
+nft add rule  ip forward oifname "rtltun_eno1" accept
 ```
 
 ### 2. Vif plan (applied on learn, keyed on the learned vif)
@@ -93,11 +94,11 @@ nft add rule  ip forward oifname "rltun1" accept
 
 ```bash
 # Reply routing: the vif /32 is local to the leg TUN (main table).
-ip route del 10.90.1.1/32 dev rltun1      # best-effort
-ip route add 10.90.1.1/32 dev rltun1
+ip route del 10.90.1.1/32 dev rtltun_eno1      # best-effort
+ip route add 10.90.1.1/32 dev rtltun_eno1
 # Conntrack NAT: masquerade the encoder vif to the uplink's source.
-iptables -t nat -D POSTROUTING -s 10.90.1.1/32 -o enx76ae207e3de7 -j MASQUERADE  # best-effort
-iptables -t nat -I POSTROUTING 1 -s 10.90.1.1/32 -o enx76ae207e3de7 -j MASQUERADE
+iptables -t nat -D POSTROUTING -s 10.90.1.1/32 -o eno1 -j MASQUERADE  # best-effort
+iptables -t nat -I POSTROUTING 1 -s 10.90.1.1/32 -o eno1 -j MASQUERADE
 ```
 
 **nftables equivalent** (masquerade in the nat table):
@@ -105,7 +106,7 @@ iptables -t nat -I POSTROUTING 1 -s 10.90.1.1/32 -o enx76ae207e3de7 -j MASQUERAD
 ```bash
 nft add table ip nat
 nft add chain ip nat postrouting { type nat hook postrouting priority 100; policy accept; }
-nft add rule ip nat postrouting ip saddr 10.90.1.1 oifname "enx76ae207e3de7" masquerade
+nft add rule ip nat postrouting ip saddr 10.90.1.1 oifname "eno1" masquerade
 ```
 
 (Replies need no DNAT: conntrack de-NATs the postrouting masquerade on the way
@@ -119,10 +120,10 @@ the main table which device to use.)
 -   **Base** (`planLegRemoval` → `removeLegPlan`): `ip rule del lookup <T>` +
     `ip route del default table <T>` + the two `-D FORWARD` deletes.
 -   **Stale TUNs** (`sweepStaleLegTuns`): on startup, `ip link del` any TUN
-    matching the leg patterns (`rltun\d+`, plus the legacy `relay\d+_<iface>`
-    names from older versions) left by a crashed run. A relay host never runs
-    encoder-side tunnels (`relay*`), so a TUN matching either pattern here is
-    stale.
+    matching the leg patterns (`rtltun_<iface>`, plus the legacy `rltun<N>` and
+    `relay\d+_<iface>` names from older versions) left by a crashed run. A
+    relay host never runs encoder-side tunnels (`rltun<R>_<iface>`), so a TUN
+    matching any of these patterns here is stale.
 
 All `add`/`insert` steps are preceded by a best-effort `del` so the plans are
 idempotent; real `add` failures throw (the `del` failures are ignored).

@@ -4,14 +4,14 @@
  * The actual forwarding leg per uplink (a `createUdpRelay` TUN + UDP socket +
  * kernel routing/NAT) is owned by the backend's per-interface relay lifecycle
  * (`startRelay` / `stopRelay`). This module owns the STABLE per-uplink slot
- * (`10.200.<slot+1>.x` addressing, the leg TUN name `rltun<slot>`) and builds
+ * (`10.200.<slot+1>.x` addressing, the leg TUN name `rtltun_<if>`) and builds
  * the `CtrlinkTunnelSpec` offer the relay attaches to its announce so the
  * encoder knows exactly which vif to build (endpoint / port / peer IP / MTU).
  *
  * There is exactly ONE leg per uplink (subsuming the old raw-tap bridge leg
- * and the old separate `utn-<if>` Go-pump tunnel). Slots are assigned
- * monotonically and never reindex on removal — the same philosophy as the
- * persistable listen-port allocator.
+ * and the old separate TUN leg). Slots are assigned monotonically and never
+ * reindex on removal — the same philosophy as the persistable listen-port
+ * allocator.
  */
 import { relayTunName } from "@ctrlirl/udp-relay";
 import type { CtrlinkTunnelSpec } from "../../../shared/ctrlink_discovery";
@@ -63,9 +63,25 @@ function slotFor(uplink: string): number {
 	return slot;
 }
 
-/** The leg TUN name for an uplink (subsuming the old `utn-<if>` netdev). */
+/** Linux if_namemax cap for the derived TUN name (mirrors udp-relay's
+ * `InterfaceRe`: `[a-zA-Z0-9_.-]`). */
+const UPLINK_IFACE_RE = /^[a-zA-Z0-9_.-]+$/;
+/** Kernel ifname limit - the `rtltun_<if>` name must fit in it, so a long
+ * MAC-style ifname (`enx76ae207e3de7`) that would overflow is rejected here
+ * rather than failing deep in `ip tuntap`. */
+const TUN_NAME_MAX = 15;
+
+/** The leg TUN name for an uplink.
+ * Named after the uplink interface: `rtltun_eth0`, `rtltun_wwan2`, ... */
 export function legTunFor(uplink: string): string {
-	return relayTunName(slotFor(uplink));
+	if (!UPLINK_IFACE_RE.test(uplink))
+		throw new Error(`unsafe interfaceName: ${uplink}`);
+	const tun = relayTunName(uplink);
+	if (tun.length > TUN_NAME_MAX)
+		throw new Error(
+			`interfaceName ${uplink} would make a TUN name over ${TUN_NAME_MAX} chars: ${tun}`,
+		);
+	return tun;
 }
 
 /** The stable slot ordinal for `uplink` (used to build the leg's `LegPlan`). */
@@ -123,7 +139,7 @@ export function relayTunnelSpecFor(
 	if (!configured || !upUplinks.has(uplink)) return undefined;
 	const slot = slotFor(uplink);
 	return {
-		virtualInterface: `utn-${uplink}`,
+		virtualInterface: `rtltun-${uplink}`,
 		endpoint: currentTransportOuterIp(),
 		udpPort: port,
 		localAddr: relayVifIp(uplink),
@@ -150,7 +166,7 @@ export function relayTunnelStateForTest(): {
 			const slot = slotFor(u);
 			return {
 				uplink: u,
-				name: relayTunName(slot),
+				name: relayTunName(u),
 				localIp: relayVifIp(u),
 				index: slot,
 				listenPort: 51820 + slot,
