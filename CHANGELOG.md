@@ -1,3 +1,13 @@
+## [9.1.1](https://github.com/majklovec/ctrlirl/compare/v9.1.0...v9.1.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **client:** bundle module install trees ([551bb65](https://github.com/majklovec/ctrlirl/commit/551bb65c2b3861259512fca37f0cbe27e7663e17))
+* **ctrlink_relay:** add tunnel to iface events ([5ab6813](https://github.com/majklovec/ctrlirl/commit/5ab681364cf24930d9f6e45ed06ef8ae26f5ebfa))
+* **ctrlink:** serialize relay network-change passes so a replug's tunnel offer survives ([8387e2d](https://github.com/majklovec/ctrlirl/commit/8387e2d99183ec943aba9cec65a02b486b2fc093)), closes [#6](https://github.com/majklovec/ctrlirl/issues/6)
+* **pipeline/rpi4:** update h264 test patterns ([9659dce](https://github.com/majklovec/ctrlirl/commit/9659dced8e99a70c24fa6a67c194dad05caba297))
+
 # [9.1.0](https://github.com/majklovec/ctrlirl/compare/v9.0.0...v9.1.0) (2026-11-18)
 
 
