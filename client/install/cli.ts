@@ -29,7 +29,7 @@ import {
     isBoardId,
 } from "../../shared/install/board";
 import type { InstallPlan } from "../../shared/install/types";
-import { appPath, MODULE_ROOTS } from "../../shared/paths";
+import { installModuleRoot } from "../../shared/paths";
 import { defaultRole, ROLES } from "../../shared/registry";
 import { autoInstallRole } from "./auto_install";
 import { renderDryRun } from "./dryrun";
@@ -151,7 +151,11 @@ export async function installCli(): Promise<CliOutcome> {
     const role = roleDef(roleId);
     const cfg = await loadCfg();
     const providers = realProviderBundle();
-    const moduleRoot = appPath(MODULE_ROOTS[0]);
+    // The install specs/hooks are on-disk sidecar trees, so anchor on the
+    // physical base (real dir of the compiled binary / repo root in dev) — not
+    // the virtual $bunfs `import.meta.url` — exactly where scripts/package_
+    // client.ts ships them.
+    const moduleRoot = installModuleRoot();
     const board = await resolveBoard();
     const installOpts = {
         providers,

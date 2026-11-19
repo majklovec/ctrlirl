@@ -10,10 +10,38 @@
  *   shared/   dependency-free helpers, contracts and the UI design system
  *             (components, CSS, static assets) both sides and all modules use
  */
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isCompiledBinary } from "./util";
 
 /** Absolute `file:` URL of the application root (the directory holding package.json). */
 export const APP_ROOT = new URL("../", import.meta.url);
+
+/**
+ * The physical directory that holds the application's on-disk files.
+ *
+ * In an unbundled (dev / script) run `import.meta.url` is a real path, so the
+ * base is the repo root (the parent of `shared/`). In a compiled single-file
+ * binary, `import.meta.url` lives in Bun's virtual `/$bunfs` mount, which
+ * cannot read real sidecar files — so the base is the executable's own
+ * directory (from `process.execPath`). The deploy bundle (scripts/package_
+ * client.ts) ships each module's `install/` tree under that directory, which
+ * is what the declarative installer reads.
+ */
+export const APP_BASE = isCompiledBinary()
+    ? dirname(process.execPath)
+    : fileURLToPath(APP_ROOT);
+
+/** A path under the physical application base (see `APP_BASE`). */
+export const appBasePath = (relative: string): string => join(APP_BASE, relative);
+
+/**
+ * The directory whose children are the device modules, resolvable on disk for
+ * the declarative installer. Unlike `appPath` (anchored on `import.meta.url`),
+ * this points at the directory that actually contains the bundled
+ * `client/modules/<id>/install/` trees in a compiled binary.
+ */
+export const installModuleRoot = (): string => appBasePath("client/modules");
 
 /**
  * Directories whose immediate children are modules (`<root>/<id>/backend.ts`).

@@ -46,7 +46,7 @@ import {
 	requireBoolean,
 	requireString,
 } from "../../shared/params";
-import { appPath, MODULE_ROOTS } from "../../shared/paths";
+import { installModuleRoot } from "../../shared/paths";
 import { registeredRoleIds, roleDefinitions } from "../../shared/registry";
 import { errorMessage, textOf } from "../../shared/util";
 import { DEFAULT_COLOR, type Role } from "../../shared/validate";
@@ -148,7 +148,7 @@ async function runRoleInstall(role: Role): Promise<{
 	const res = await autoInstallRole(role, {
 		providers: realProviderBundle(),
 		cfg,
-		moduleRoot: appPath(MODULE_ROOTS[0]),
+		moduleRoot: installModuleRoot(),
 		// Stream each step's lines the moment it finishes — a live log,
 		// not a dump at the end of the module.
 		onStep: (_module, _step, lines) =>

@@ -7,7 +7,12 @@ Never ever change networking on test server!!
 
 This is how to update ctrlirtl on relay and encoder:
 
-bun run build:client && scp ./dist/client-arm pi@192.168.10.104:/home/pi && scp ./dist/client-arm user@192.168.1.211:/home/user
+bun run build:bundle && scp -r ./dist/bundles/client-arm/app pi@192.168.10.104:/home/pi && scp -r ./dist/bundles/client-arm/app user@192.168.1.211:/home/user
+
+NOTE: ship the `app/` bundle, not the bare binary — the installer reads each
+module's `install/` tree from `<binaryDir>/client/modules/<id>/install/` at
+runtime, so a bare `dist/client-arm` never installs deps like srtla_send.
+Deployed layout: /home/pi/app/client-arm + /home/pi/app/client/modules/<id>/install/
 
 run:
 This is how to update ctrlirtl on relay and encoder:

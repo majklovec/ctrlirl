@@ -4,7 +4,7 @@
  * apply module-dependency ordering. Pure aside from reading the spec files —
  * no host mutation, so it's safe under dry-run and in tests.
  */
-import { appPath, MODULE_ROOTS } from "../../shared/paths";
+import { installModuleRoot } from "../../shared/paths";
 import { loadInstallSpec } from "../../shared/install/load";
 import { detectBoardId, type BoardId } from "../../shared/install/board";
 import type {
@@ -38,7 +38,7 @@ export async function buildPlan(
         ...roleDef.requires.modules,
         ...(roleDef.requires.optionalModules ?? []),
     ];
-    const deviceRoot = opts.moduleRoot ?? appPath(MODULE_ROOTS[0]);
+    const deviceRoot = opts.moduleRoot ?? installModuleRoot();
     for (const id of moduleIds) {
         const moduleDir = `${deviceRoot}/${id}`;
         const spec = await loadInstallSpec(moduleDir, roleDef.id, cfg, board);
