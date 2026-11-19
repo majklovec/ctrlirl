@@ -19,6 +19,7 @@
     "prebuild:server": "bun scripts/gen_pages.ts && bun scripts/gen_control_server_assets.ts",
     "build:server": "bun build --compile --minify --sourcemap --format=esm --bytecode ./server/main.ts --outfile dist/server",
     "package:client": "bun scripts/package_client.ts",
+    "package:ceracoder": "bash scripts/package_ceracoder.sh",
     "build:bundle": "bun run build:client && bun run package:client"
   },
   "devDependencies": {
