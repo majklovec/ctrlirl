@@ -1,3 +1,10 @@
+# [9.2.0](https://github.com/majklovec/ctrlirl/compare/v9.1.2...v9.2.0) (2026-11-20)
+
+
+### Features
+
+* **network:** add sparkline trend cells ([cac06a2](https://github.com/majklovec/ctrlirl/commit/cac06a21d0de5ae67a150d14c953385f1ee7c6e3))
+
 ## [9.1.2](https://github.com/majklovec/ctrlirl/compare/v9.1.1...v9.1.2) (2026-11-20)
 
 
