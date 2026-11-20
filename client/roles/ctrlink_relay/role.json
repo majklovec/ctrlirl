@@ -7,14 +7,9 @@
   "requires": {
     "modules": ["network", "modems", "speedtest", "systeminfo"],
     "optionalModules": ["ctrlink_relay", "obs"],
-    "capabilities": ["modems.source", "network.interfaces", "network.uplinks"]
+    "capabilities": ["modems.source", "network.interfaces"]
   },
   "provides": {
-    "capabilities": [
-      "modems.source",
-      "network.ctrlink",
-      "network.interfaces",
-      "network.uplinks"
-    ]
+    "capabilities": ["modems.source", "network.ctrlink", "network.interfaces"]
   }
 }

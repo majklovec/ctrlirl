@@ -10,12 +10,18 @@
       "encoder",
       "ctrlink_streamer",
       "network",
+      "srtla",
       "modems",
       "ssh",
       "speedtest",
       "systeminfo"
     ],
-    "capabilities": ["network.uplinks", "network.ctrlink", "modems.source"]
+    "capabilities": [
+      "network.uplinks",
+      "network.ctrlink",
+      "network.interfaces",
+      "modems.source"
+    ]
   },
   "provides": {
     "capabilities": ["network.uplinks", "network.interfaces", "network.ctrlink", "modems.source"]

@@ -33,7 +33,7 @@ A role is a directory under `client/roles/<role>/` with a `role.json` that lists
 
 | Role              | What it does                                             | Key modules                           | Capabilities it provides / consumes                                  |
 | ----------------- | -------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- |
-| `encoder` (default) | Runs belacoder/ceracoder and its local `srtla_send`    | `encoder`, `network`, `modems`, `obs` | provides `stream.encoder`; consumes `network.uplinks`, `modems.source` |
+| `encoder` (default) | Runs belacoder/ceracoder and its local `srtla_send`    | `encoder`, `network`, `srtla`, `modems`, `obs` | provides `stream.encoder`; consumes `network.uplinks`, `modems.source` |
 | `obs`             | Connects to OBS Studio and exposes a scene switcher      | `obs`                                 | provides `obs.events`                                                |
 | `broadcaster`     | SRTLA ingress + RTMP output via ffmpeg                   | `broadcaster`                         | provides `broadcast.outputs`                                         |
 | `ctrlink_relay`   | Extends the relay's LAN uplinks to the encoder over WireGuard     | `ctrlink_relay`                       | provides `ctrlink.lan` (per-uplink WireGuard tunnels)                |
@@ -59,7 +59,8 @@ These run on the box, under `client/modules/`.
 | Module             | Description                                                                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `encoder`          | Starts and supervises the encoder process (`belacoder`/`ceracoder`) and its local `srtla_send`. Pipeline discovery, automatic restart, live bitrate. |
-| `network`          | Interface discovery, SRTLA bonding (policy routing, `ip monitor`). Provides `network.uplinks`.                                                       |
+| `network`          | Interface discovery, bond selection and the live `ip monitor`. Provides `network.interfaces` (detection + the bond + reconcile hooks).                 |
+| `srtla`            | The SRTLA leg's source routing (per-uplink `ip rule`/`ip route` tables), the `srtla_send` uplinks file and the default-route failover. Encoder-only. Provides `network.uplinks`. |
 | `modems`           | ModemManager (`mmcli`) integration — modem state, enable/disable/reset/connect actions. Provides `modems.source`.                                    |
 | `obs`              | Native obs-websocket v5 connection; forwards events into the device event stream.                                                                    |
 | `broadcaster`      | SRTLA ingress + RTMP publishing via ffmpeg.                                                                                                          |

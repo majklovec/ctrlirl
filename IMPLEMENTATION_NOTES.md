@@ -161,9 +161,9 @@ committed — scp it to `/usr/local/bin/udpip` on both hosts).
   0-based index on that encoder, so two relays exposing the same uplink
   name can't clash. /30 `10.200.<1+i>.0`, MTU
   1400, ports from base 51820, per-tunnel tables **201+** (deliberately
-  above the `network` module's 100+ source-routing tables — the monitor
+  above the `srtla` module's 100+ source-routing tables — the monitor
   must never flush 201+; see the `TUNNEL_TABLE_BASE` cap in
-  `client/modules/network/routing.ts`).
+  `client/modules/srtla/routing.ts`).
 - Relay per-tunnel egress installs `default via <gw> dev <uplink>` in the
   tunnel table. A bare `default dev <uplink>` (scope link) is NOT enough:
   the kernel re-validates the FIB on the output leg and a scope-link

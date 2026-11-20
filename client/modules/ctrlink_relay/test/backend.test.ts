@@ -106,12 +106,17 @@ let interfaceHandler: (() => void) | undefined;
 function fakeInterfaces(ifaces: Iface[]): NetworkInterfaces {
 	return {
 		list: () => ifaces.map((i) => ({ ...i })),
+		detect: async () => [],
+		selected: (all) => all,
+		migrateSelection: async () => {},
 		onChanged: (h: () => void) => {
 			interfaceHandler = h;
 			return () => {
 				if (interfaceHandler === h) interfaceHandler = undefined;
 			};
 		},
+		onReconcile: () => () => {},
+		onSelfGeneratedEvent: () => () => {},
 		ensureMonitoring: async () => {},
 	};
 }

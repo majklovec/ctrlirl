@@ -1,0 +1,3 @@
+{
+    "log.srtla_reconfigure_failed": "Falha na reconfiguração SRTLA inicial: {{error}}"
+}

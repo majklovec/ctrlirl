@@ -59,14 +59,55 @@ export interface ModemSource {
 	modemIface(modem: Modem): Promise<string | null>;
 }
 
+/** IPv4 interface usable for bonding (enriched with modem details when bonded to one). */
+export interface Iface {
+	iface: string;
+	ip: string;
+	prefix: number;
+	cidr: string;
+	speed?: number;
+	modemIndex?: number;
+	modemPath?: string;
+	signalQuality?: number;
+	operatorName?: string;
+	accessTech?: string;
+	registered?: boolean;
+	connectionState?: string;
+	/** Carrier IPv4 gateway (modems only). Cellular gateways are not in the
+	 * main routing table, so the reconfigure plan uses this to build a
+	 * working per-uplink default route. */
+	gateway?: string;
+}
+
 /** The `network.interfaces` capability (network module): enumerate the
- * machine's IPv4 interfaces and observe changes, so per-interface consumers
- * (ctrlink-relay) keep their per-interface state in sync with the OS. */
+ * machine's IPv4 interfaces, the bond selection they form, and observe
+ * changes, so per-interface consumers (ctrlink-relay) keep their
+ * per-interface state in sync with the OS and the srtla module can apply
+ * the source routing + uplinks file the bond implies. */
 export interface NetworkInterfaces {
 	/** Every non-loopback interface with at least one IPv4 address. */
 	list(): Array<{ name: string; addresses: string[] }>;
+	/** Detect the IPv4 interfaces (modem-enriched); pass `modemList` when the
+	 * caller already listed the modems (the IP-only paths do not need the
+	 * ModemManager lookups). */
+	detect(modemList?: Modem[]): Promise<Iface[]>;
+	/** The interfaces in the current bond selection, in selection order. */
+	selected(all: Iface[]): Iface[];
+	/** Convert a legacy *include* selection to the exclusion form (no-op when
+	 * already migrated or fresh). */
+	migrateSelection(all: Iface[]): Promise<void>;
 	/** Register an interface-set change handler; returns the unsubscribe. */
 	onChanged(handler: () => void): () => void;
+	/** Register a debounced-reconcile handler: it runs on every relevant
+	 * netlink event (and a manual reconfigure), before the interface-change
+	 * handlers fire; returns the unsubscribe. */
+	onReconcile(handler: () => Promise<unknown>): () => void;
+	/** Register a "this netlink route event is self-generated" classifier
+	 * (the srtla module classifies its own source-routing tables); returns
+	 * the unsubscribe. */
+	onSelfGeneratedEvent(
+		check: (line: string) => Promise<boolean>,
+	): () => void;
 	/**
 	 * Start the live interface monitor if it is not already running (e.g. when
 	 * the network module's slice is disabled on this role); no-op otherwise.
@@ -126,7 +167,7 @@ export interface UplinkEntry {
 	label?: string;
 }
 
-/** The `network.uplinks` capability (network module): the bond source-IP
+/** The `network.uplinks` capability (srtla module): the bond source-IP
  * file the bonding consumer (encoder) points `srtla_send` at, plus
  * change notification so it can reload when the bond changes.
  *

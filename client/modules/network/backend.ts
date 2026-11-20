@@ -1,14 +1,15 @@
 /*
- * Network module: the interface routing layer the `encoder` role uses —
- * interface detection, the SRT bond selection, the source-routing
- * tables (`ip rule`/`ip route`), the srtla_send uplinks file and the live
- * netlink monitor that keeps it in sync with the machine's interfaces.
+ * Network module: the interface routing layer — interface detection, the
+ * bond selection (exclusion model) and the live netlink monitor that keeps
+ * consumers in sync with the machine's interfaces.
  *
- * The SRTLA leg owner (the encoder) doesn't touch any of that directly:
- * it pulls the `network.uplinks` capability and points its `srtla_send` at
- * `uplinks.file()`, reloading (SIGHUP, restart fallback) on `uplinks.onChanged`.
- * The uplinks-changed handlers are registered by the consuming modules, so
- * one network module serves the role without knowing which one is running.
+ * The SRTLA leg (per-source routing tables, the srtla_send uplinks file, the
+ * default-route failover) is the `srtla` module's job — it runs only on the
+ * encoder; a relay-side box needs none of it. The srtla module (and the
+ * per-interface ctrlink-relay consumer) pull the `network.interfaces`
+ * capability: detection, the bond selection, the debounced reconciles (which
+ * the srtla module answers by re-applying its tables + uplinks file) and the
+ * interface-change hook.
  */
 
 import { requireCapability } from "../../../shared/capabilities";
@@ -18,9 +19,7 @@ import type {
 } from "../../../shared/contracts/backend_module";
 import type {
 	CtrlinkDiscoveredRelay,
-	UplinkEntry,
 } from "../../../shared/contracts/module_capabilities";
-import { t } from "../../../shared/i18n";
 import {
 	ApiError,
 	optionalStringList,
@@ -29,27 +28,21 @@ import {
 import type { ModuleCore } from "../../backend/module_core";
 import log from "./log";
 import {
-	addProgrammaticUplink,
 	bindRouting,
 	defaultRouteDetails,
 	detectInterfaces,
-	ensureUplinksFile,
 	isMonitorRunning,
 	listNetworkInterfaces,
-	listProgrammaticUplinks,
+	manualReconcile,
 	migrateSelection,
 	onInterfaceChange,
-	onUplinksChanged,
-	reconfigure,
-	removeProgrammaticUplink,
+	onReconcile,
+	onSelfGeneratedEvent,
 	resolveSelection,
 	selection,
 	setSelection,
-	startDefaultRouteFailover,
 	startInterfaceMonitor,
-	stopDefaultRouteFailover,
 	stopInterfaceMonitor,
-	UPLINKS_FILE,
 } from "./routing";
 import type { Iface, Modem, ModemConfig, ModemSource } from "./types";
 
@@ -76,14 +69,14 @@ async function modemStatus(): Promise<{
 }
 
 /**
- * Apply a bond selection: persist it, then rewrite the routing tables and the
- * uplinks file. `reconfigure` notifies the SRTLA leg owners (the encoder) so
- * they reload `srtla_send` when the file content changed.
+ * Apply a bond selection: persist it, then reconcile the consumers (the
+ * srtla module re-applies its routing tables + uplinks file over the
+ * `network.interfaces.onReconcile` hook).
  */
 async function applySelection(next: ModemConfig) {
 	await setSelection(next);
-	const result = await reconfigure();
-	if (!result.ok) throw new ApiError(result.error ?? "reconfigure failed", 500);
+	const result = await manualReconcile();
+	if (!result.ok) throw new ApiError(result.error ?? "reconcile failed", 500);
 	return { selection: selection(), ...result };
 }
 
@@ -129,9 +122,9 @@ async function toggleModem(p: Params) {
 	const excluded = new Set(selection().excluded ?? []);
 	if (excluded.has(name)) excluded.delete(name); // was out of the bond -> in
 	else excluded.add(name); // was in the bond -> out
-	// An excluded CtrLink TUN needs no special care: the uplinks file leaves
-	// out a programmatic uplink (ctrlink_streamer registers one per TUN)
-	// whose source sits on an excluded interface.
+	// An excluded CtrLink TUN needs no special care: the srtla uplinks file
+	// leaves out a programmatic uplink (ctrlink_streamer registers one per
+	// TUN) whose source sits on an excluded interface.
 	return applySelection({ excluded: [...excluded] });
 }
 
@@ -169,33 +162,12 @@ const registration: BackendModule<ModuleCore> = {
 	},
 	async start(ctx) {
 		core = ctx.core;
-		// Watch before the initial reconfigure: an interface that comes up
-		// while it runs (boot: DHCP, modems dialing) would otherwise be
-		// missed and the uplinks file would stay behind the selection.
+		// Watch before the srtla module's initial reconcile: an interface that
+		// comes up while it runs (boot: DHCP, modems dialing) would otherwise
+		// be missed and the bond's consumers would stay stale.
 		startInterfaceMonitor();
-		const result = await reconfigure();
-		if (!result.ok) {
-			// Non-fatal: a device that boots while no uplink is up (cable
-			// unplugged, modem not dialed yet, ...) must keep running — the
-			// interface monitor re-runs reconfigure() on the first interface
-			// event and heals the bond, and `ensureUplinksFile` re-syncs the
-			// uplinks file with the selection on first use.
-			console.warn(
-				"Initial reconfigure failed (will retry when an interface comes up):",
-				result.error,
-			);
-			core.logEvent(
-				"warn",
-				"Interfaces",
-				t("log.reconfigure_failed", { error: result.error }),
-			);
-		} else {
-			console.log(`Initial uplinks: ${result.ips.join(", ")}`);
-		}
-		startDefaultRouteFailover();
 	},
 	async stop() {
-		stopDefaultRouteFailover();
 		await stopInterfaceMonitor();
 	},
 	async dispatch(method, p) {
@@ -203,7 +175,7 @@ const registration: BackendModule<ModuleCore> = {
 			case "interfaces.list":
 				return { interfaces: await detectInterfaces() };
 			case "reconfigure":
-				return reconfigure();
+				return manualReconcile();
 			case "modems.select":
 				return selectModems(p);
 			case "modems.toggle":
@@ -222,27 +194,22 @@ const registration: BackendModule<ModuleCore> = {
 			registeredRelays: [...ctrlinkRelays.values()],
 			defaultRouteInterface: defaultRoute?.iface ?? null,
 			defaultRouteSourceIp: defaultRoute?.ip ?? null,
-			uplinksFile: UPLINKS_FILE,
 			monitor: { running: isMonitorRunning() },
 		};
 	},
 	dashboardWidgets: [{ type: "network", defaultSize: { w: 4, h: 5 } }],
 	services: {
 		capabilities: {
-			"network.uplinks": {
-				file: () => UPLINKS_FILE,
-				ensure: ensureUplinksFile,
-				onChanged: onUplinksChanged,
-				add: (entry: UplinkEntry) =>
-					addProgrammaticUplink(entry.id, entry.source, entry.label),
-				remove: (id: string) => removeProgrammaticUplink(id),
-				list: listProgrammaticUplinks,
-			},
 			"network.interfaces": {
 				list: listNetworkInterfaces,
+				detect: (modemList?: Modem[]) => detectInterfaces(modemList),
+				selected: (all: Iface[]) => resolveSelection(all),
+				migrateSelection,
 				onChanged: onInterfaceChange,
+				onReconcile,
+				onSelfGeneratedEvent,
 				ensureMonitoring: async () => {
-					startInterfaceMonitor();
+					if (!isMonitorRunning()) startInterfaceMonitor();
 				},
 			},
 			"network.ctrlink": {

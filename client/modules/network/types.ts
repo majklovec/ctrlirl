@@ -1,30 +1,22 @@
-/* Types for the network module's interface-routing domain: bondable
- * interfaces, the bond selection, the uplinks file and the reconfigure
- * result. The cross-module capability contracts (modems.source,
+/* Types for the network module's interface domain: the bond selection.
+ * The cross-module capability contracts (modems.source, network.interfaces,
  * network.uplinks) live in shared/ — re-exported so module-internal
  * imports can stay on `./types`. */
 
-export type { Modem, ModemSource, Uplinks } from "../../../shared/contracts/module_capabilities";
-
-/** IPv4 interface usable for bonding (enriched with modem details when bonded to one). */
-export interface Iface {
-    iface: string;
-    ip: string;
-    prefix: number;
-    cidr: string;
-    speed?: number;
-    modemIndex?: number;
-    modemPath?: string;
-    signalQuality?: number;
-    operatorName?: string;
-    accessTech?: string;
-    registered?: boolean;
-    connectionState?: string;
-    /** Carrier IPv4 gateway (modems only). Cellular gateways are not in the
-     * main routing table, so the reconfigure plan uses this to build a
-     * working per-uplink default route. */
-    gateway?: string;
-}
+import type {
+    Iface,
+    Modem,
+    ModemSource,
+    NetworkInterfaces,
+    Uplinks,
+} from "../../../shared/contracts/module_capabilities";
+export type {
+    Iface,
+    Modem,
+    ModemSource,
+    NetworkInterfaces,
+    Uplinks,
+};
 
 /** The persisted bond selection. Exclusion model: every interface is bonded
  * by default; `excluded` names the interfaces the user opted OUT of. A
@@ -42,16 +34,6 @@ export interface ModemConfig {
     modems?: string[];
     /** @deprecated Legacy include list (by IP); migrated to `excluded`. */
     ips?: string[];
-}
-
-/** The result of a routing + uplinks-file reconfigure. */
-export interface ReconfigureResult {
-    ok: boolean;
-    selected: Iface[];
-    uplinksFile: string;
-    ips: string[];
-    changed: boolean;
-    error?: string;
 }
 
 /**
@@ -90,7 +72,6 @@ export interface NetworkStatus {
 	 * interface list renders these as a grouped section per relay after the
 	 * device's own interfaces (encoder role only). */
 	registeredRelays?: import("../../../shared/contracts/module_capabilities").CtrlinkDiscoveredRelay[];
-	uplinksFile?: string;
 	defaultRouteInterface?: string | null;
 	defaultRouteSourceIp?: string | null;
 	monitor?: { running: boolean };

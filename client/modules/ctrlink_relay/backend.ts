@@ -53,7 +53,6 @@ import type {
 } from "../../../shared/contracts/backend_module";
 import type {
     NetworkInterfaces,
-    Uplinks,
 } from "../../../shared/contracts/module_capabilities";
 import {
     CTRLINK_ANNOUNCE_INTERVAL_MS,
@@ -1719,7 +1718,7 @@ const registration: BackendModule<ModuleCore> = {
     kind: "device",
     id: "ctrlink_relay",
     title: "Ctrlink Relay",
-    /** Depends on the network module for the interface list + uplinks file. */
+    /** Depends on the network module for the interface list + monitor. */
     dependencies: ["network"],
     methods: [
         "ctrlink_relay.start",
@@ -1744,9 +1743,6 @@ const registration: BackendModule<ModuleCore> = {
     bind(c) {
         core = c;
         netIfaces = requireCapability<NetworkInterfaces>("network.interfaces");
-        // Bind-time validation only: the relay needs the network uplinks
-        // capability to exist (TUN IPs surface through it) but never calls it.
-        requireCapability<Uplinks>("network.uplinks");
     },
     /**
      * `modules.configure`: persist the settings-page fields to the module slice.
@@ -1970,7 +1966,7 @@ const registration: BackendModule<ModuleCore> = {
                 throw new ApiError(`unknown method ${method}`, 404);
         }
     },
-    services: { consumes: ["network.interfaces", "network.uplinks"] },
+    services: { consumes: ["network.interfaces"] },
 };
 
 export default registration;

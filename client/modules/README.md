@@ -28,6 +28,7 @@ cases.
 │       ├── ctrlink_relay/      # per-interface UDP relays (relay-box side)
 │       ├── ctrlink_streamer/   # TUN virtual interface (encoder side)
 │       ├── network/
+│       ├── srtla/              # SRTLA source routing + uplinks file (encoder side)
 │       ├── obs/
 │       ├── broadcaster/
 │       └── ssh/
@@ -291,8 +292,8 @@ frontend pages must stay free of module feature branches.
 
 | name                | provider | consumers       | shape                                                                      |
 | ------------------- | -------- | --------------- | -------------------------------------------------------------------------- |
-| `network.interfaces`| network  | ctrlink_relay   | `{ list(), onChanged(), ensureMonitoring() }`                              |
-| `network.uplinks`   | network  | encoder, ctrlink_relay, ctrlink_streamer | `{ file(), ensure(), onChanged(), add(), remove(), list() }` |
+| `network.interfaces`| network  | srtla, ctrlink_relay   | `{ list(), detect(), selected(), migrateSelection(), onChanged(), onReconcile(), onSelfGeneratedEvent(), ensureMonitoring() }` |
+| `network.uplinks`   | srtla    | encoder, ctrlink_streamer | `{ file(), ensure(), onChanged(), add(), remove(), list() }` |
 
 Capabilities are looked up by name; providers and consumers remain isolated
 and depend only on the runtime methods they use.
@@ -341,8 +342,8 @@ live role run me?" — so no module file names a role (pinned by
 
 `resolveOrder` (in `shared/registry.ts`) topologically sorts modules by their
 `dependencies` (cycle-safe; ids visited alphabetically). Today: `network`
-depends on `modems`, and `encoder`, `ctrlink_relay` and `ctrlink_streamer` all
-depend on `network`. `startModules` / `stopModules` (reverse) /
+depends on `modems`, and `encoder`, `ctrlink_relay`, `ctrlink_streamer` and
+`srtla` all depend on `network`. `startModules` / `stopModules` (reverse) /
 `moduleStatuses` / autostart all iterate that order.
 
 ## Adding a module

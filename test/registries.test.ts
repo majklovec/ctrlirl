@@ -39,6 +39,7 @@ const DEVICE_ORDER = [
     "encoder",
     "obs",
     "speedtest",
+    "srtla",
     "ssh",
     "systeminfo",
 ];
@@ -377,13 +378,20 @@ describe("role presets from the registrations", () => {
             "modems",
             "network",
             "speedtest",
+            "srtla",
             "ssh",
             "systeminfo",
         ]);
-        // The relay box keeps its modem uplinks dialled (the CtrLink relay
-        // itself is opt-in).
-        // speedtest serves every role (no `roles` field) → enabled everywhere.
-        expect(on("ctrlink_relay")).toEqual(["modems", "speedtest", "systeminfo"]);
+        // The relay box runs the network module (iface bonding + detection)
+        // and keeps its modem uplinks dialled (the CtrLink relay itself is
+        // opt-in). speedtest serves every role (no `roles` field) → enabled
+        // everywhere.
+        expect(on("ctrlink_relay")).toEqual([
+            "modems",
+            "network",
+            "speedtest",
+            "systeminfo",
+        ]);
         expect(on("obs")).toEqual(["obs", "speedtest", "systeminfo"]);
     });
 
