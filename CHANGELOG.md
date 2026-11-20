@@ -1,3 +1,10 @@
+## [9.1.2](https://github.com/majklovec/ctrlirl/compare/v9.1.1...v9.1.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **network:** sync uplinks file with bond ([6d388df](https://github.com/majklovec/ctrlirl/commit/6d388dfa3adc9d36db1dca42dba6ebb9ebb36cb4))
+
 ## [9.1.1](https://github.com/majklovec/ctrlirl/compare/v9.1.0...v9.1.1) (2026-11-19)
 
 
