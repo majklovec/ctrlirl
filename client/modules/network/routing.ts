@@ -10,7 +10,7 @@
 
 import { resolve4 } from "node:dns/promises";
 import { readFileSync } from "node:fs";
-import { exists, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,21 +69,29 @@ const TABLE_BASE = 100;
  * per-interface rules (it installs them near 32760–32765, which take the
  * source first and would bypass our tables entirely). */
 const SOURCE_RULE_PRIORITY = 100;
-let routingQueue: Promise<void> = Promise.resolve();
 
-async function withRoutingLock<T>(operation: () => Promise<T>): Promise<T> {
-    const previous = routingQueue;
-    let release!: () => void;
-    routingQueue = new Promise<void>((resolve) => {
-        release = resolve;
-    });
-    await previous;
-    try {
-        return await operation();
-    } finally {
-        release();
-    }
+/** A FIFO lock: the returned runner executes its operations one at a time. */
+function serialLock(): <T>(operation: () => Promise<T>) => Promise<T> {
+    let queue: Promise<void> = Promise.resolve();
+    return async (operation) => {
+        const previous = queue;
+        let release!: () => void;
+        queue = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        await previous;
+        try {
+            return await operation();
+        } finally {
+            release();
+        }
+    };
 }
+
+const withRoutingLock = serialLock();
+/** Serializes uplinks-file writes. Taken inside the routing lock by
+ * `reconfigure`, never the other way round. */
+const withUplinksLock = serialLock();
 
 const isVirtual = (iface: string): boolean =>
     VIRTUAL_PREFIXES.some((p) => iface.startsWith(p));
@@ -92,8 +100,18 @@ const isVirtual = (iface: string): boolean =>
 const ip = (args: string[], ignoreError = false): Promise<string> =>
     core.run("ip", args, ignoreError);
 
+let ipQueryForTest: ((args: string[]) => Promise<string>) | null = null;
+
+/** Test seam: answer the read-only `ip` queries from a fixture (null restores the real `ip`). */
+export function setIpQueryForTest(
+    fn: ((args: string[]) => Promise<string>) | null,
+): void {
+    ipQueryForTest = fn;
+}
+
 /** Read-only `ip` query that always runs (interface detection works under --dry-run too). */
 async function query(args: string[]): Promise<string> {
+    if (ipQueryForTest) return ipQueryForTest(args);
     try {
         return (await $`ip ${args}`.quiet().text()).trim();
     } catch (err: unknown) {
@@ -676,7 +694,62 @@ export function stopDefaultRouteFailover(): void {
 // ----------------------------------------------------------------------
 // Reconfigure (routing + uplinks file)
 // ----------------------------------------------------------------------
-let lastUplinksContent: string | null = null;
+/** What a --dry-run would have written (it writes nothing, so the file cannot tell). */
+let dryRunUplinks: string | null = null;
+
+/**
+ * Bring the uplinks file in line with the bond: the selected interfaces' IPs
+ * plus the programmatic extras. The content is always derived from the live
+ * selection and compared against the file on disk — never against a cached
+ * copy or the file's previous lines — so a stale file (previous run, wiped
+ * /tmp, external edit) is repaired by whichever path runs first.
+ *
+ * `known` reuses a detection the caller already did (`reconfigure`, so the
+ * file matches the routing tables it just applied); otherwise the interfaces
+ * are detected here.
+ */
+async function syncUplinksFile(known?: {
+    all: Iface[];
+    selected: Iface[];
+}): Promise<{ ips: string[]; lines: string[]; changed: boolean }> {
+    return withUplinksLock(async () => {
+        // The IP list needs no modem details: skip the ModemManager lookups.
+        const all = known?.all ?? (await detectInterfaces([]));
+        const selected = known?.selected ?? resolveSelection(all);
+        const ips = selected.map((i) => i.ip);
+        const lines = uplinksLines(
+            ips,
+            all.filter((i) => !selected.includes(i)).map((i) => i.ip),
+        );
+        const content = lines.map((line) => `${line}\n`).join("");
+        const onDisk = await Bun.file(UPLINKS_FILE)
+            .text()
+            .catch(() => null);
+        const previous = core.config.DRY_RUN
+            ? (dryRunUplinks ?? onDisk)
+            : onDisk;
+        const changed = previous !== content;
+        if (!changed) return { ips, lines, changed };
+        if (core.config.DRY_RUN) {
+            dryRunUplinks = content;
+            return { ips, lines, changed };
+        }
+        await core.writeFileAtomic(UPLINKS_FILE, content);
+        console.log(
+            lines.length
+                ? `Uplinks file updated: ${lines.join(", ")}`
+                : "Uplinks file cleared (no interfaces selected)",
+        );
+        return { ips, lines, changed };
+    });
+}
+
+/** Sync the uplinks file and tell the SRTLA leg owners when it changed. */
+async function syncUplinksAndNotify(): Promise<string[]> {
+    const { lines, changed } = await syncUplinksFile();
+    if (changed) await fireUplinksChanged();
+    return lines;
+}
 
 const failure = (error: string): ReconfigureResult => ({
     ok: false,
@@ -687,140 +760,111 @@ const failure = (error: string): ReconfigureResult => ({
     error,
 });
 
-export async function reconfigure(): Promise<ReconfigureResult> {
-    return withRoutingLock(async () => {
-        try {
-            const all = await detectInterfaces();
-            // Convert a legacy include selection to the exclusion form once,
-            // so a newly-appearing interface is bonded by default.
-            await migrateSelection(all);
-            const selected = resolveSelection(all);
-
-            // No interfaces selected: flush managed routing tables and write
-            // an uplinks file containing only programmatic extras (if any).
-            if (selected.length === 0) {
-                await applyRouting([]);
-                const lines = uplinksLines([]);
-                const content = lines.length
-                    ? `${lines.join("\n")}\n`
-                    : "";
-                const previous =
-                    lastUplinksContent ??
-                    (await Bun.file(UPLINKS_FILE)
-                        .text()
-                        .catch(() => null));
-                const changed = previous !== content;
-                if (changed && !core.config.DRY_RUN) {
-                    if (content) {
-                        await core.writeFileAtomic(UPLINKS_FILE, content);
-                    } else {
-                        await Bun.file(UPLINKS_FILE)
-                            .write("")
-                            .catch(() => {});
-                    }
-                    lastUplinksContent = content;
-                    console.log(
-                        `Uplinks file cleared (no interfaces selected)`,
-                    );
-                }
-                core.notifyStateChange();
+/** One source-routing table per selected interface, in selection order. */
+function routePlan(selected: Iface[]): Promise<RoutePlanEntry[]> {
+    return Promise.all(
+        selected.map(
+            async (
+                { iface, ip: addr, prefix, gateway: bearerGateway },
+                idx,
+            ) => {
+                // CtrLink TUNs (`rltun<R>_<if>`) carry their /32 peer
+                // address on the netdev itself: every frame emitted on
+                // the TUN reaches the relay leg, so a via-address is
+                // neither needed nor legal. The kernel rejects an
+                // off-link `via` with "Nexthop has invalid gateway" —
+                // e.g. a main-table default parked on the TUN by
+                // NetworkManager — so skip the whole resolution chain
+                // and give the source table a plain `default dev
+                // <tun>` route.
+                const gateway = isCtrlinkTun(iface)
+                    ? null
+                    : // Resolve in priority order:
+                      //  1. the ModemManager bearer gateway (cellular / wwan0),
+                      //  2. an existing main-table default for the interface (ethernet),
+                      //  3. the dhclient lease router (RNDIS/NDIS modem-ethernet — a
+                      //     USB LTE modem on usb0 whose gateway is DHCPed, not in main
+                      //     and has no MM bearer),
+                      //  4. the subnet's first host (.1) as a last resort for a
+                      //     lease-less RNDIS uplink.
+                      bearerGateway ??
+                      (await getGateway(iface)) ??
+                      (await dhcpLeaseGateway(iface, addr)) ??
+                      leaselessGateway(addr, prefix);
                 return {
-                    ok: true,
-                    selected: [],
-                    uplinksFile: UPLINKS_FILE,
-                    ips: [],
-                    changed,
+                    iface,
+                    ip: addr,
+                    prefix,
+                    gateway,
+                    table: TABLE_BASE + idx,
                 };
-            }
-
-            const plan = await Promise.all(
-                selected.map(
-                    async (
-                        { iface, ip: addr, prefix, gateway: bearerGateway },
-                        idx,
-                    ) => {
-                        // CtrLink TUNs (`rltun<R>_<if>`) carry their /32 peer
-                        // address on the netdev itself: every frame emitted on
-                        // the TUN reaches the relay leg, so a via-address is
-                        // neither needed nor legal. The kernel rejects an
-                        // off-link `via` with "Nexthop has invalid gateway" —
-                        // e.g. a main-table default parked on the TUN by
-                        // NetworkManager — so skip the whole resolution chain
-                        // and give the source table a plain `default dev
-                        // <tun>` route.
-                        const gateway = isCtrlinkTun(iface)
-                            ? null
-                            : // Resolve in priority order:
-                              //  1. the ModemManager bearer gateway (cellular / wwan0),
-                              //  2. an existing main-table default for the interface (ethernet),
-                              //  3. the dhclient lease router (RNDIS/NDIS modem-ethernet — a
-                              //     USB LTE modem on usb0 whose gateway is DHCPed, not in main
-                              //     and has no MM bearer),
-                              //  4. the subnet's first host (.1) as a last resort for a
-                              //     lease-less RNDIS uplink.
-                              bearerGateway ??
-                              (await getGateway(iface)) ??
-                              (await dhcpLeaseGateway(iface, addr)) ??
-                              leaselessGateway(addr, prefix);
-                        return {
-                            iface,
-                            ip: addr,
-                            prefix,
-                            gateway,
-                            table: TABLE_BASE + idx,
-                        };
-                    },
-                ),
-            );
-            // Only touch routing when needed: rewriting tables emits netlink
-            // events that would otherwise re-trigger the monitor forever.
-            await applyRouting(plan);
-
-            const ips = selected.map((i) => i.ip);
-            const lines = uplinksLines(ips);
-            const content = `${lines.join("\n")}\n`;
-            const previous =
-                lastUplinksContent ??
-                (await Bun.file(UPLINKS_FILE)
-                    .text()
-                    .catch(() => null));
-            const changed = previous !== content;
-            if (changed && !core.config.DRY_RUN) {
-                await core.writeFileAtomic(UPLINKS_FILE, content);
-                lastUplinksContent = content;
-                console.log(`Uplinks file updated: ${lines.join(", ")}`);
-            }
-
-            // Interfaces / modem details may have changed even if the uplinks did not
-            core.notifyStateChange();
-            return {
-                ok: true,
-                selected,
-                uplinksFile: UPLINKS_FILE,
-                ips,
-                changed,
-            };
-        } catch (err: unknown) {
-            return failure(errorMessage(err));
-        }
-    });
+            },
+        ),
+    );
 }
 
-/** Create the uplinks file when it is missing (e.g. a wiped /tmp); a no-op otherwise. */
-export async function ensureUplinksFile(): Promise<void> {
-    if (core.config.DRY_RUN || (await exists(UPLINKS_FILE))) return;
+async function reconfigureLocked(): Promise<ReconfigureResult> {
+    let selected: Iface[] = [];
+    let ips: string[] = [];
+    let changed = false;
     try {
-        const selected = resolveSelection(await detectInterfaces());
-        const ips = selected.map((i) => i.ip);
-        const lines = uplinksLines(ips);
-        if (lines.length === 0)
-            throw new Error("No interfaces selected for bonding.");
-        const content = `${lines.join("\n")}\n`;
-        await core.writeFileAtomic(UPLINKS_FILE, content);
-        lastUplinksContent = content;
-        console.log(`Uplinks file created: ${lines.join(", ")}`);
+        const all = await detectInterfaces();
+        // Convert a legacy include selection to the exclusion form once,
+        // so a newly-appearing interface is bonded by default.
+        await migrateSelection(all);
+        selected = resolveSelection(all);
+
+        // Only touch routing when needed: rewriting tables emits netlink
+        // events that would otherwise re-trigger the monitor forever. An
+        // empty selection flushes the managed tables.
+        let routingError: unknown;
+        try {
+            await applyRouting(await routePlan(selected));
+        } catch (err: unknown) {
+            routingError = err;
+        }
+        // The file follows the selection even when the routing failed (an
+        // interface flapping mid-apply at boot, ...): otherwise it would
+        // keep whatever a previous run left behind.
+        ({ ips, changed } = await syncUplinksFile({ all, selected }));
+
+        // Interfaces / modem details may have changed even if the uplinks did not
+        core.notifyStateChange();
+        if (routingError !== undefined) throw routingError;
+        return {
+            ok: true,
+            selected,
+            uplinksFile: UPLINKS_FILE,
+            ips,
+            changed,
+        };
     } catch (err: unknown) {
-        console.warn(`Could not create ${UPLINKS_FILE}: ${errorMessage(err)}`);
+        return { ...failure(errorMessage(err)), selected, ips, changed };
+    }
+}
+
+/**
+ * Re-apply the source routing and the uplinks file from the live interfaces
+ * and the bond selection. The uplinks-changed handlers run (after the routing
+ * is in place) whenever the file content changed, whoever the caller is.
+ */
+export async function reconfigure(): Promise<ReconfigureResult> {
+    const result = await withRoutingLock(reconfigureLocked);
+    if (result.changed) await fireUplinksChanged();
+    return result;
+}
+
+/**
+ * Make sure the uplinks file exists and matches the bond selection before a
+ * consumer reads it (a wiped /tmp, a file left by a previous run, ...).
+ */
+export async function ensureUplinksFile(): Promise<void> {
+    try {
+        const lines = await syncUplinksAndNotify();
+        if (lines.length === 0)
+            console.warn("No interfaces selected for bonding.");
+    } catch (err: unknown) {
+        console.warn(`Could not sync ${UPLINKS_FILE}: ${errorMessage(err)}`);
     }
 }
 
@@ -844,9 +888,17 @@ export function onUplinksChanged(handler: UplinksChangedHandler): () => void {
     return () => uplinksChangedHandlers.delete(handler);
 }
 
-/** Run every registered handler (the monitor after a changed file, a manual reconfigure). */
-export async function fireUplinksChanged(): Promise<void> {
-    await Promise.all([...uplinksChangedHandlers].map((handler) => handler()));
+/** Run every registered handler; called whenever the uplinks file content changed. */
+async function fireUplinksChanged(): Promise<void> {
+    await Promise.all(
+        [...uplinksChangedHandlers].map((handler) =>
+            handler().catch((err: unknown) =>
+                console.warn(
+                    `Uplinks-changed handler failed: ${errorMessage(err)}`,
+                ),
+            ),
+        ),
+    );
 }
 
 // ----------------------------------------------------------------------
@@ -856,56 +908,27 @@ type UplinkExtra = { source: string; label?: string };
 /** Programmatic uplinks keyed by stable id (e.g. `ctrlink:tun:rltun0_eth0`). */
 const extraUplinks = new Map<string, UplinkExtra>();
 
-/** The uplinks file line set = detected bond IPs + programmatic extras.
+/** The uplinks file line set = selected bond IPs + programmatic extras.
  * The file carries the extras' *source* IPs (srtla_send dials them), never
- * their ids; a source that is also a bonded IP is written once. Exported as a
- * test seam. */
-export function uplinksLines(ips: string[]): string[] {
+ * their ids; a source that is also a bonded IP is written once. An extra
+ * whose source sits on an interface the user took out of the bond
+ * (`unselectedIps`) is left out: the selection wins over a registration
+ * (e.g. an excluded CtrLink TUN the streamer re-registers on every start).
+ * Exported as a test seam. */
+export function uplinksLines(
+    ips: string[],
+    unselectedIps: string[] = [],
+): string[] {
     const merged = [
         ...ips,
-        ...[...extraUplinks.values()].map((e) => e.source),
+        ...[...extraUplinks.values()]
+            .map((e) => e.source)
+            .filter((source) => !unselectedIps.includes(source)),
     ];
     return merged.filter((ip, i, all) => all.indexOf(ip) === i);
 }
 
-/**
- * Write the uplinks file from the given bond IPs plus any programmatic
- * extras. Throws when the merged set is empty (nothing for consumers).
- * `ensureUplinksFile` catches and only warns.
- */
-async function writeUplinksFile(ips: string[]): Promise<void> {
-    const lines = uplinksLines(ips);
-    if (lines.length === 0) throw new Error("No uplinks to write.");
-    const content = `${lines.join("\n")}\n`;
-    await core.writeFileAtomic(UPLINKS_FILE, content);
-    lastUplinksContent = content;
-    console.log(`Uplinks file updated: ${lines.join(", ")}`);
-}
-
-/** Rewrite the file keeping the current bond lines (minus extras) + new extras. */
-async function rewriteUplinksWithExtras(): Promise<void> {
-    if (core.config.DRY_RUN) return;
-    const extras = [...extraUplinks.values()].map((e) => e.source);
-    const previous =
-        lastUplinksContent ??
-        (await Bun.file(UPLINKS_FILE)
-            .text()
-            .catch(() => null));
-    // Every legitimate line is a source IPv4 — anything else (e.g. stale
-    // uplink ids an older build wrote) is dropped, not carried forward.
-    const previousLines = (previous ?? "")
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => /^\d+\.\d+\.\d+\.\d+$/.test(l));
-    const bondIps = previousLines.filter((l) => !extras.includes(l));
-    // Dedupe the bond list while preserving order.
-    const deduped: string[] = [];
-    for (const ip of bondIps) if (!deduped.includes(ip)) deduped.push(ip);
-    if (deduped.length === 0 && extraUplinks.size === 0) return;
-    await writeUplinksFile(deduped);
-}
-
-/** Add (or replace, by id) a programmatic uplink and re-fire `onChanged`. */
+/** Add (or replace, by id) a programmatic uplink; `onChanged` fires when the file changed. */
 export async function addProgrammaticUplink(
     id: string,
     source: string,
@@ -915,15 +938,13 @@ export async function addProgrammaticUplink(
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(source))
         throw new Error(`uplink source ${JSON.stringify(source)} is not IPv4`);
     extraUplinks.set(id, { source, label });
-    await rewriteUplinksWithExtras();
-    await fireUplinksChanged();
+    await syncUplinksAndNotify();
 }
 
 /** Remove a programmatic uplink by id; no-op when the id is unknown. */
 export async function removeProgrammaticUplink(id: string): Promise<void> {
     if (!extraUplinks.delete(id)) return;
-    await rewriteUplinksWithExtras();
-    await fireUplinksChanged();
+    await syncUplinksAndNotify();
 }
 
 /** The currently registered programmatic uplinks (stable order by insertion). */
@@ -1050,11 +1071,11 @@ async function runReconcile(reason: string): Promise<void> {
             return;
         }
         if (result.changed) {
-            // `Uplinks file updated: ...` (from reconfigure) carries the IPs.
+            // `Uplinks file updated: ...` (from reconfigure) carries the IPs;
+            // reconfigure already ran the uplinks-changed handlers.
             console.log(
-                `[monitor] ${reason}: uplinks changed — reloading srtla_send`,
+                `[monitor] ${reason}: uplinks changed — srtla_send reloaded`,
             );
-            await fireUplinksChanged();
         } else if (process.env.NETWORK_VERBOSE) {
             // No-ops are routine (any route event fires a reconcile); log them
             // only when explicitly debugging the monitor.
@@ -1169,7 +1190,12 @@ export function startInterfaceMonitor(): void {
         console.warn(
             `[monitor] ip monitor exited (code ${code}); restarting in 2s`,
         );
-        setTimeout(() => monitorWanted && startInterfaceMonitor(), 2000);
+        setTimeout(() => {
+            if (!monitorWanted) return;
+            startInterfaceMonitor();
+            // Events during the gap were lost: catch up.
+            scheduleReconcile("monitor restarted");
+        }, 2000);
     });
 }
 

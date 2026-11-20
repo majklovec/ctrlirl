@@ -34,7 +34,6 @@ import {
 	defaultRouteDetails,
 	detectInterfaces,
 	ensureUplinksFile,
-	fireUplinksChanged,
 	isMonitorRunning,
 	listNetworkInterfaces,
 	listProgrammaticUplinks,
@@ -77,18 +76,14 @@ async function modemStatus(): Promise<{
 }
 
 /**
- * Apply a bond selection: persist it, rewrite the routing tables and the
- * uplinks file, then notify the SRTLA leg owners so they reload `srtla_send`
- * when the file content changed.
+ * Apply a bond selection: persist it, then rewrite the routing tables and the
+ * uplinks file. `reconfigure` notifies the SRTLA leg owners (the encoder) so
+ * they reload `srtla_send` when the file content changed.
  */
 async function applySelection(next: ModemConfig) {
 	await setSelection(next);
 	const result = await reconfigure();
 	if (!result.ok) throw new ApiError(result.error ?? "reconfigure failed", 500);
-	// A manual bond change rewrites the uplinks file: tell the SRTLA leg
-	// owners (the encoder) to reload `srtla_send` so it uses the actualized
-	// srtla_ips — the monitor only fires this for events it observes itself.
-	if (result.changed) await fireUplinksChanged();
 	return { selection: selection(), ...result };
 }
 
@@ -134,15 +129,9 @@ async function toggleModem(p: Params) {
 	const excluded = new Set(selection().excluded ?? []);
 	if (excluded.has(name)) excluded.delete(name); // was out of the bond -> in
 	else excluded.add(name); // was in the bond -> out
-	// A CtrLink TUN leaving the bond drops its auto-registered programmatic
-	// uplink (ctrlink_streamer, id `ctrlink:tun:<tun>`) too — otherwise
-	// srtla_send would keep using the path the user just excluded.
-	const uplinkId = `ctrlink:tun:${name}`;
-	if (
-		excluded.has(name) &&
-		listProgrammaticUplinks().some((e) => e.id === uplinkId)
-	)
-		await removeProgrammaticUplink(uplinkId);
+	// An excluded CtrLink TUN needs no special care: the uplinks file leaves
+	// out a programmatic uplink (ctrlink_streamer registers one per TUN)
+	// whose source sits on an excluded interface.
 	return applySelection({ excluded: [...excluded] });
 }
 
@@ -180,14 +169,17 @@ const registration: BackendModule<ModuleCore> = {
 	},
 	async start(ctx) {
 		core = ctx.core;
+		// Watch before the initial reconfigure: an interface that comes up
+		// while it runs (boot: DHCP, modems dialing) would otherwise be
+		// missed and the uplinks file would stay behind the selection.
+		startInterfaceMonitor();
 		const result = await reconfigure();
 		if (!result.ok) {
 			// Non-fatal: a device that boots while no uplink is up (cable
 			// unplugged, modem not dialed yet, ...) must keep running — the
 			// interface monitor re-runs reconfigure() on the first interface
-			// event and heals the bond, and the uplinks file is created by
-			// `ensureUplinksFile` on first use (it is a no-op while the file
-			// is missing and selection is empty).
+			// event and heals the bond, and `ensureUplinksFile` re-syncs the
+			// uplinks file with the selection on first use.
 			console.warn(
 				"Initial reconfigure failed (will retry when an interface comes up):",
 				result.error,
@@ -200,7 +192,6 @@ const registration: BackendModule<ModuleCore> = {
 		} else {
 			console.log(`Initial uplinks: ${result.ips.join(", ")}`);
 		}
-		startInterfaceMonitor();
 		startDefaultRouteFailover();
 	},
 	async stop() {

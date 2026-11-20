@@ -132,12 +132,14 @@ export interface UplinkEntry {
  *
  * `add`/`remove`/`list` expose programmatic uplinks: an entry is merged into
  * the uplinks file alongside the detected bond IPs (deduplicated, extras
- * last) and `onChanged` handlers fire when the file changes. `source` must
- * be a valid IPv4 literal — `add` rejects anything else. */
+ * last) and `onChanged` handlers fire when the file changes. The bond
+ * selection wins: an entry whose `source` sits on an interface excluded from
+ * the bond stays out of the file. `source` must be a valid IPv4 literal —
+ * `add` rejects anything else. */
 export interface Uplinks {
 	/** The uplinks file path the consumers point their `srtla_send` at. */
 	file(): string;
-	/** Create the uplinks file when it is missing; a no-op otherwise. */
+	/** Bring the uplinks file in line with the bond selection (creating it when missing). */
 	ensure(): Promise<void>;
 	/** Register an uplinks-changed handler; returns the unsubscribe. */
 	onChanged(handler: () => Promise<void>): () => void;
