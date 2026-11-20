@@ -8,6 +8,7 @@
 @import "../../server/shell/project_select.css";
 @import "../ui/components/language_select.css";
 @import "../ui/components/linechart.css";
+@import "../ui/components/sparkline.css";
 @import "./layout.css";
 @import "../../server/shell/profile.css";
 @import "../ui/components/badge.css";

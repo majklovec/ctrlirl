@@ -38,6 +38,7 @@ export {
 	Select,
 } from "./form";
 export { type ChartSample, type ChartSeries, LineChart } from "./linechart";
+export { Sparkline } from "./sparkline";
 export { Modal } from "./modal";
 export { Footer, Page, TitleWithBack } from "./page";
 export { RowActions, Table, type TableColumn } from "./table";

@@ -40,9 +40,6 @@
     .mod-network td {
         padding: 0.35rem 0.4rem;
     }
-    .mod-network td meter.share {
-        display: none;
-    }
     .mod-network th.is-iface,
     .mod-network td.is-iface {
         white-space: normal;
@@ -72,9 +69,21 @@ tr.default-route td {
 .no-stats .link-col {
     display: none;
 }
-td meter.share {
-    width: 50px;
-    margin-right: 0.35rem;
+
+/* Trend cells: a compact sparkline of the metric's recent samples (the small
+ * graph) above the current value. Shared by the bitrate, RTT, in-flight and
+ * signal columns. Text aligns with the cell (right for the .num columns), the
+ * svg fills its .spark box (see sparkline.css) and is sized here. */
+.spark-cell {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    line-height: 1.1;
+}
+.spark-cell .spark {
+    width: 64px;
+    height: 18px;
 }
 
 /* Group-header rows ("Own interfaces", one per relay) inside the single

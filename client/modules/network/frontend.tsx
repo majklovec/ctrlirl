@@ -4,7 +4,7 @@
  * encoder; the link columns sit muted until/unless stats arrive).
  */
 import "./styles.css";
-import { Badge, Card, type Child, IconButton } from "@ui/components/";
+import { Badge, Card, IconButton, Sparkline, type Child } from "@ui/components/";
 import { Icon } from "@ui/components/icons";
 import { card, type DeviceCard } from "@ui/device/store";
 import { t } from "@ui/i18n";
@@ -52,20 +52,68 @@ function statsFrame(
 	return frame;
 }
 
-/** Signal-quality meter with its percentage. */
-function signal(quality?: number): Child {
-	if (quality === undefined) return "—";
+const SERIES_WINDOW = 60;
+/** One sparkline sample: ms timestamp + the measured value. */
+interface SeriesSample {
+	t: number;
+	v: number;
+}
+/** The sparkline fields tracked per interface: the live SRTLA link metrics
+ * (keyed by the link source IP) plus the interface signal quality (keyed by
+ * interface name, as it comes from the OS status, not the SRTLA push). */
+type SeriesKey = "bitrate" | "rtt" | "inflight" | "signal";
+/** Per-connection trend history: series key → interface key → samples. */
+const seriesHistory = new WeakMap<
+	DeviceCard,
+	Map<SeriesKey, Map<string, SeriesSample[]>>
+>();
+
+/** The recorded trend for one (series, interface) on one connection. */
+const seriesOf = (host: DeviceCard, key: SeriesKey, ip: string): SeriesSample[] =>
+	seriesHistory.get(host)?.get(key)?.get(ip) ?? [];
+
+/** Append one sample, trimming each series to the sparkline window. */
+function pushSample(host: DeviceCard, key: SeriesKey, ip: string, v: number): void {
+	let bySeries = seriesHistory.get(host);
+	if (!bySeries) {
+		bySeries = new Map();
+		seriesHistory.set(host, bySeries);
+	}
+	let byIface = bySeries.get(key);
+	if (!byIface) {
+		byIface = new Map();
+		bySeries.set(key, byIface);
+	}
+	let samples = byIface.get(ip);
+	if (!samples) {
+		samples = [];
+		byIface.set(ip, samples);
+	}
+	samples.push({ t: Date.now(), v });
+	if (samples.length > SERIES_WINDOW) samples.shift();
+}
+
+/** Signal-quality meter, its percentage, and a sparkline of recent readings
+ * (cellular/modem interfaces only — wired ones have no signal quality). */
+function signal(host: DeviceCard, iface: string, quality?: number): m.Vnode {
+	if (quality === undefined) return <span class="muted">—</span>;
 	return (
-		<span>
-			<meter
-				min={0}
-				max={100}
-				low={30}
-				high={60}
-				optimum={100}
-				value={quality}
+		<span class="spark-cell" title={t("dev.signal_title")}>
+			<Sparkline
+				points={seriesOf(host, "signal", iface)}
+				title={t("dev.signal_title")}
 			/>
-			{` ${quality}%`}
+			<span>
+				<meter
+					min={0}
+					max={100}
+					low={30}
+					high={60}
+					optimum={100}
+					value={quality}
+				/>
+				{` ${quality}%`}
+			</span>
 		</span>
 	);
 }
@@ -89,7 +137,11 @@ function linkState(l: SrtlaLinkStats): m.Vnode {
 	);
 }
 
-function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
+function linkCells(
+	host: DeviceCard,
+	l: SrtlaLinkStats | undefined,
+	total: number,
+): m.Vnode[] {
 	const cell = (child: Child, cls = "", title?: string): m.Vnode => (
 		<td class={`link-col ${cls}`.trim()} title={title}>
 			{child}
@@ -100,27 +152,44 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
 	return [
 		cell(linkState(l), "", l.label ?? ""),
 		cell(
-			<span>
-				<meter
-					class="share"
-					min={0}
-					max={1}
-					value={share}
-					title={t("dev.link_share_title", {
-						percentage: Math.round(share * 100),
-						rtt: Math.round(l.rtt_min_ms),
-					})}
+			<span
+				class="spark-cell"
+				title={t("dev.link_share_title", {
+					percentage: Math.round(share * 100),
+					rtt: Math.round(l.rtt_min_ms),
+				})}
+			>
+				<Sparkline
+					points={seriesOf(host, "bitrate", l.ip)}
+					title={t("dev.link_bitrate_title")}
 				/>
 				{formatBitrate(l.bitrate_bytes_per_sec)}
 			</span>,
 			"num",
 		),
 		cell(
-			l.connected ? `${Math.round(l.rtt_ms)} ms` : "—",
+			<span
+				class="spark-cell"
+				title={t("dev.link_min_rtt", { rtt: Math.round(l.rtt_min_ms) })}
+			>
+				<Sparkline
+					points={seriesOf(host, "rtt", l.ip)}
+					title={t("dev.link_rtt_title")}
+				/>
+				{l.connected ? `${Math.round(l.rtt_ms)} ms` : "—"}
+			</span>,
 			"num is-rtt",
-			t("dev.link_min_rtt", { rtt: Math.round(l.rtt_min_ms) }),
 		),
-		cell(`${l.in_flight} / ${l.window}`, "num is-inflight"),
+		cell(
+			<span class="spark-cell" title={t("dev.th.in_flight_title")}>
+				<Sparkline
+					points={seriesOf(host, "inflight", l.ip)}
+					title={t("dev.th.in_flight_title")}
+				/>
+				{`${l.in_flight} / ${l.window}`}
+			</span>,
+			"num is-inflight",
+		),
 		cell(l.nak_count, "num is-naks"),
 		cell(`${((l.cc_loss_permille ?? 0) / 10).toFixed(1)}%`, "num is-loss"),
 		cell(
@@ -201,7 +270,7 @@ function tunnelRow(
 			</td>
 			<td class="is-signal">—</td>
 			<td class="is-network">—</td>
-			{linkCells(links.get(tun.interfaceAddress), total)}
+			{linkCells(host, links.get(tun.interfaceAddress), total)}
 		</tr>
 	);
 }
@@ -285,9 +354,9 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 					) : null}
 					{sub ? <span class="iface-sub muted">{sub}</span> : null}
 				</td>
-				<td class="is-signal">{signal(i.signalQuality)}</td>
+				<td class="is-signal">{signal(host, i.iface, i.signalQuality)}</td>
 				<td class="is-network">{network || "—"}</td>
-				{linkCells(links.get(i.ip), total)}
+				{linkCells(host, links.get(i.ip), total)}
 			</tr>
 		);
 	});
@@ -443,6 +512,30 @@ const networkModule: FrontendModule = {
 	title: "Network",
 	order: 15,
 	log,
+	handleEvent(event, data, host) {
+		if (!host) return;
+		// Live SRTLA link metrics → per-link (by source IP) sparklines.
+		if (event === "stream.stats") {
+			const frame = data as
+				| { stats?: { links?: SrtlaLinkStats[] } | null }
+				| undefined;
+			const links = frame?.stats?.links;
+			if (!Array.isArray(links)) return;
+			for (const l of links) {
+				pushSample(host, "bitrate", l.ip, l.bitrate_bytes_per_sec || 0);
+				pushSample(host, "rtt", l.ip, l.rtt_ms || 0);
+				pushSample(host, "inflight", l.ip, l.in_flight || 0);
+			}
+			return;
+		}
+		// Interface signal quality → per-interface (by name) sparkline.
+		if (event === "status") {
+			const status = data as unknown as NetworkStatus;
+			for (const i of status.interfaces ?? [])
+				if (i.signalQuality !== undefined)
+					pushSample(host, "signal", i.iface, i.signalQuality);
+		}
+	},
 	available: (status) => roleServes(status.role, "network"),
 	dashboardWidgets: networkDashboardWidgets,
 	defaultSize: { w: 4, h: 5 },
