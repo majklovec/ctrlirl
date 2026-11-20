@@ -2,7 +2,6 @@
     "act.network.reconfigure": "モデム再設定",
     "dev.default_route": "デフォルトルート",
     "dev.iface_modem": "モデム #{{index}}",
-    "dev.include_in_bond": "ボンドに含める",
     "dev.link_bitrate_title": "インターフェースのビットレート（時間経過）",
     "dev.link_rtt_title": "往復時間（時間経過）",
     "dev.signal_title": "信号品質（時間経過）",
@@ -14,7 +13,6 @@
     "dev.link_timed_out": "タイムアウト",
     "dev.link_up": "稼働中",
     "dev.link_weak": "弱い",
-    "dev.monitor_watching": "監視中",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "最終受信",
     "dev.net_self_announce": "自己広告",
@@ -23,7 +21,6 @@
     "dev.no_interfaces": "インターフェースが検出されていません",
     "dev.own_interfaces": "Own interfaces",
     "dev.stale": "古い、{{time}}",
-    "dev.th.bond": "ボンド",
     "dev.th.in_flight": "送信中",
     "dev.th.in_flight_title": "SRTLA にキューされた SRTLA データバッファ数",
     "dev.th.interface": "インターフェース",
@@ -35,5 +32,6 @@
     "log.reconfigure_failed": "初期再設定に失敗しました: {{error}}",
     "mlog.done.bond_toggled": "{{iface}} をボンドで切り替えました",
     "mlog.done.bond_updated": "ボンド選択を更新しました",
-    "mlog.done.reconfigured": "再設定済み"
+    "dev.th.bond": "ボンド",
+    "dev.include_in_bond": "ボンドに含める"
 }

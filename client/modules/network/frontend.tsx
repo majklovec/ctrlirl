@@ -1,11 +1,11 @@
-/* Network card: interface detection, bond selection per interface, and the
- * live srtla_send link stats matched to interfaces by source IP (shown on
- * the role that pushes the SRTLA leg's stats — `stream.stats` on the
- * encoder; the link columns sit muted until/unless stats arrive).
+/* Network card: interface detection, the SRTLA bond-selection column (only
+ * while the srtla module is active on the device — the bond feeds its source
+ * routing), and the live SRTLA link stats matched to interfaces by source IP
+ * (shown on the role that pushes the SRTLA leg's stats — `stream.stats` on
+ * the encoder; the link columns sit muted until/unless stats arrive).
  */
 import "./styles.css";
-import { Badge, Card, IconButton, Sparkline, type Child } from "@ui/components/";
-import { Icon } from "@ui/components/icons";
+import { Badge, Card, Sparkline, type Child } from "@ui/components/";
 import { card, type DeviceCard } from "@ui/device/store";
 import { t } from "@ui/i18n";
 import { formatBitrate, formatSpeed, since } from "@ui/util";
@@ -204,7 +204,7 @@ function linkCells(
 	];
 }
 
-function linkHeader(): m.Vnode {
+function linkHeader(showBond: boolean): m.Vnode {
 	const th = (text: string, title?: string, cls?: string) => (
 		<th class={`link-col ${cls ?? ""}`.trim()} title={title}>
 			{text}
@@ -213,7 +213,7 @@ function linkHeader(): m.Vnode {
 	return (
 		<thead>
 			<tr>
-				<th>{t("dev.th.bond")}</th>
+				{showBond ? <th>{t("dev.th.bond")}</th> : null}
 				<th class="is-iface">{t("dev.th.interface")}</th>
 				<th class="is-signal">{t("dev.signal")}</th>
 				<th class="is-network">{t("dev.th.network")}</th>
@@ -231,15 +231,16 @@ function linkHeader(): m.Vnode {
 
 /**
  * One CtrLink TUN (an encoder tunnel to a shared relay interface) as a row in
- * the same 11-column design as the device's own interfaces. Like the own
- * interfaces it is bondable (`modems.toggle` by TUN name — the TUN is a
- * regular interface to the routing layer); the SRTLA link columns resolve
- * from the tunnel IP (the TUN IP is registered as an uplink, so `links`
- * holds its stats).
+ * the same design as the device's own interfaces. Like the own interfaces it
+ * is bondable (`modems.toggle` by TUN name — the TUN is a regular interface to
+ * the routing layer) while the srtla module wants the bond; the SRTLA link
+ * columns resolve from the tunnel IP (the TUN IP is registered as an uplink,
+ * so `links` holds its stats).
  */
 function tunnelRow(
 	host: DeviceCard,
 	selected: Set<string>,
+	showBond: boolean,
 	tun: CtrlinkStreamerTunnelStatus,
 	links: Map<string, SrtlaLinkStats>,
 	total: number,
@@ -247,19 +248,21 @@ function tunnelRow(
 	const busyKey = `iface:${tun.interfaceName}`;
 	return (
 		<tr key={`mstun:${tun.interfaceName}:${tun.interfaceAddress}`}>
-			<td>
-				<input
-					type="checkbox"
-					checked={selected.has(tun.interfaceName)}
-					disabled={host.busy.has(busyKey)}
-					title={t("dev.include_in_bond")}
-					onchange={() =>
-						void host.act(busyKey, "modems.toggle", {
-							iface: tun.interfaceName,
-						})
-					}
-				/>
-			</td>
+			{showBond ? (
+				<td>
+					<input
+						type="checkbox"
+						checked={selected.has(tun.interfaceName)}
+						disabled={host.busy.has(busyKey)}
+						title={t("dev.include_in_bond")}
+						onchange={() =>
+							void host.act(busyKey, "modems.toggle", {
+								iface: tun.interfaceName,
+							})
+						}
+					/>
+				</td>
+			) : null}
 			<td class="is-iface">
 				{tun.interfaceName}
 				<span class="iface-sub muted">
@@ -279,7 +282,14 @@ function tunnelRow(
  * permanently on encoders (no start/stop controls): the TUN rows reflect its
  * live state and reconcile automatically as relays announce. */
 function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
-	const selected = new Set((status.selected ?? []).map((i: Iface) => i.iface));
+	// The bond column serves the srtla module's source routing — its only
+	// consumer. Show it only while srtla is enabled on this device (no srtla
+	// slice at all on roles without the module, e.g. the relay).
+	const showBond = host.st.status?.modules?.["srtla"]?.enabled === true;
+	const selected = new Set(
+		showBond ? (status.selected ?? []).map((i: Iface) => i.iface) : [],
+	);
+	const BOND_COLUMNS = showBond ? 1 : 0;
 	const frame = statsFrame(host);
 	const live = frame?.data.stats ?? null;
 	const stale = !!live && frame?.at && Date.now() - frame.at > STATS_STALE_MS;
@@ -325,25 +335,27 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 			<tr
 				key={`${i.iface}:${i.ip}`}
 				class={[
-					selected.has(i.iface) ? "selected" : "",
+					showBond && selected.has(i.iface) ? "selected" : "",
 					isDefaultRoute ? "default-route" : "",
 				]
 					.filter(Boolean)
 					.join(" ")}
 			>
-				<td>
-					<input
-						type="checkbox"
-						checked={selected.has(i.iface)}
-						disabled={host.busy.has(busyKey)}
-						title={t("dev.include_in_bond")}
-						onchange={() =>
-							void host.act(busyKey, "modems.toggle", {
-								iface: i.iface,
-							})
-						}
-					/>
-				</td>
+				{showBond ? (
+					<td>
+						<input
+							type="checkbox"
+							checked={selected.has(i.iface)}
+							disabled={host.busy.has(busyKey)}
+							title={t("dev.include_in_bond")}
+							onchange={() =>
+								void host.act(busyKey, "modems.toggle", {
+									iface: i.iface,
+								})
+							}
+						/>
+					</td>
+				) : null}
 				<td class="is-iface">
 					{i.iface}
 					{isDefaultRoute ? (
@@ -399,7 +411,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 	// Mithril's fragment rule happy (one keyed-fragment child).
 	const groupHeader = (key: string, label: m.Children): m.Vnode => (
 		<tr class="iface-group-header" key={key}>
-			<th colspan={4 + LINK_COLUMNS}>{label}</th>
+			<th colspan={3 + BOND_COLUMNS + LINK_COLUMNS}>{label}</th>
 		</tr>
 	);
 	// The encoder's own self-announce freshness (how recently it told the
@@ -421,7 +433,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 			? rows
 			: [
 					<tr key="own:empty">
-						<td colspan={4 + LINK_COLUMNS} class="muted">
+						<td colspan={3 + BOND_COLUMNS + LINK_COLUMNS} class="muted">
 							{t("dev.no_interfaces")}
 						</td>
 					</tr>,
@@ -450,10 +462,15 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 					</>,
 				),
 				...(relTuns.length
-					? relTuns.map((tun) => tunnelRow(host, selected, tun, links, total))
+					? relTuns.map((tun) =>
+							tunnelRow(host, selected, showBond, tun, links, total),
+						)
 					: [
 							<tr key={`grpnone:${r.host}`}>
-								<td colspan={4 + LINK_COLUMNS} class="muted">
+								<td
+									colspan={3 + BOND_COLUMNS + LINK_COLUMNS}
+									class="muted"
+								>
 									{t("dev.mstun_none")}
 								</td>
 							</tr>,
@@ -465,12 +482,7 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 	return (
 		<Card
 			title={t("dev.card.interfaces")}
-			headActions={[
-				status.monitor?.running ? (
-					<Badge text={t("dev.monitor_watching")} kind="on" />
-				) : (
-					<Badge text={t("ui.off")} kind="warn" />
-				),
+			headActions={
 				stale && (
 					<Badge
 						text={t("dev.stale", {
@@ -478,17 +490,11 @@ function interfacesCard(host: DeviceCard, status: NetworkStatus): m.Vnode {
 						})}
 						kind="warn"
 					/>
-				),
-				<IconButton
-					label={t("ui.reconfigure")}
-					icon={<Icon name="sync" class="role-icon" />}
-					disabled={host.busy.has("reconfigure")}
-					onclick={() => void host.act("reconfigure", "reconfigure")}
-				/>,
-			]}
+				)
+			}
 		>
 			<table class={live ? "" : "no-stats"}>
-				{linkHeader()}
+				{linkHeader(showBond)}
 				<tbody>{tbodyRows}</tbody>
 			</table>
 		</Card>

@@ -2,7 +2,6 @@
     "act.network.reconfigure": "Prekonfigurovať modemy",
     "dev.default_route": "Predvolená trasa",
     "dev.iface_modem": "modem #{{index}}",
-    "dev.include_in_bond": "Zahrnúť do bondu",
     "dev.link_bitrate_title": "Bitrate rozhrania v čase",
     "dev.link_rtt_title": "Čas odzvyku v čase",
     "dev.signal_title": "Kvalita signálu v čase",
@@ -14,7 +13,6 @@
     "dev.link_timed_out": "čas vypršal",
     "dev.link_up": "aktívne",
     "dev.link_weak": "slabé",
-    "dev.monitor_watching": "sleduje",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "Naposledy počuté",
     "dev.net_self_announce": "Vlastné ohlasovanie",
@@ -23,7 +21,6 @@
     "dev.no_interfaces": "Neboli zistené žiadne rozhrania",
     "dev.own_interfaces": "Own interfaces",
     "dev.stale": "zastarané, {{time}}",
-    "dev.th.bond": "Bond",
     "dev.th.in_flight": "Vo fronte",
     "dev.th.in_flight_title": "Počet dátových bufferov SRTLA vo fronte pre SRTLA",
     "dev.th.interface": "Rozhranie",
@@ -35,5 +32,6 @@
     "log.reconfigure_failed": "Počiatočná rekonfigurácia zlyhala: {{error}}",
     "mlog.done.bond_toggled": "{{iface}} prepnuté v bonde",
     "mlog.done.bond_updated": "Výber bondu aktualizovaný",
-    "mlog.done.reconfigured": "Prekonfigurované"
+    "dev.th.bond": "Bond",
+    "dev.include_in_bond": "Zahrnúť do bondu"
 }

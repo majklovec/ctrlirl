@@ -143,16 +143,8 @@ const registration: BackendModule<ModuleCore> = {
 	id: "network",
 	title: "Network",
 	dependencies: ["modems"],
-	methods: ["interfaces.list", "reconfigure", "modems.select", "modems.toggle"],
+	methods: ["interfaces.list", "modems.select", "modems.toggle"],
 	events: [],
-	dashboardActions: [
-		{
-			id: "reconfigure",
-			label: "act.network.reconfigure",
-			icon: "↻",
-			method: "reconfigure",
-		},
-	],
 	log,
 	bind(c) {
 		core = c;
@@ -174,8 +166,6 @@ const registration: BackendModule<ModuleCore> = {
 		switch (method) {
 			case "interfaces.list":
 				return { interfaces: await detectInterfaces() };
-			case "reconfigure":
-				return manualReconcile();
 			case "modems.select":
 				return selectModems(p);
 			case "modems.toggle":

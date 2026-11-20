@@ -2,7 +2,6 @@
     "act.network.reconfigure": "Riconfigura modem",
     "dev.default_route": "Percorso predefinito",
     "dev.iface_modem": "modem #{{index}}",
-    "dev.include_in_bond": "Includi nel bond",
     "dev.link_bitrate_title": "Bitrate dell'interfaccia nel tempo",
     "dev.link_rtt_title": "Tempo di andata e ritorno nel tempo",
     "dev.signal_title": "Qualità del segnale nel tempo",
@@ -14,7 +13,6 @@
     "dev.link_timed_out": "timeout",
     "dev.link_up": "attivo",
     "dev.link_weak": "debole",
-    "dev.monitor_watching": "monitoraggio",
     "dev.mstun_none": "No active tunnels",
     "dev.net_last_seen": "Ultima volta sentito",
     "dev.net_self_announce": "Auto-annuncia",
@@ -23,7 +21,6 @@
     "dev.no_interfaces": "Nessuna interfaccia rilevata",
     "dev.own_interfaces": "Own interfaces",
     "dev.stale": "obsoleto, {{time}}",
-    "dev.th.bond": "Bond",
     "dev.th.in_flight": "In transito",
     "dev.th.in_flight_title": "Numero di buffer dati SRTLA in coda verso SRTLA",
     "dev.th.interface": "Interfaccia",
@@ -35,5 +32,6 @@
     "log.reconfigure_failed": "Riconfigurazione iniziale non riuscita: {{error}}",
     "mlog.done.bond_toggled": "{{iface}} commutato nel bond",
     "mlog.done.bond_updated": "Selezione bond aggiornata",
-    "mlog.done.reconfigured": "Riconfigurato"
+    "dev.th.bond": "Bond",
+    "dev.include_in_bond": "Includi nel bond"
 }

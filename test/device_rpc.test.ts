@@ -88,7 +88,6 @@ describe("device RPC surface", () => {
                 "broadcaster.start",
                 "broadcaster.stop",
                 "interfaces.list",
-                "reconfigure",
                 "ctrlink_relay.start",
                 "ctrlink_relay.stop",
                 "ctrlink_relay.status",
@@ -196,7 +195,6 @@ describe("device RPC surface", () => {
         ["obs", "stream.start"],
         ["obs", "encoder.stop"],
         ["obs", "modems.enable"],
-        ["obs", "reconfigure"],
         ["obs", "ssh.status"],
     ] as const)(
         "rejects %s before invoking %s or logging",

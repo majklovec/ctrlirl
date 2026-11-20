@@ -15,11 +15,6 @@ const log: LogWording = {
         "modems.toggle": wording("Interfaces", "Bond toggle", (p) =>
             logTranslate("mlog.done.bond_toggled", { iface: p.iface }),
         ),
-        reconfigure: wording(
-            "Interfaces",
-            "Reconfigure",
-            "mlog.done.reconfigured",
-        ),
     },
     sections: { interfaces: "Interfaces" },
     labels: {
