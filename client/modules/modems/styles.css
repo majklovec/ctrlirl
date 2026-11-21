@@ -25,6 +25,7 @@
     font-size: 0.95rem;
     margin: 0 0 0.5rem;
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
 }
@@ -121,4 +122,60 @@
 }
 .mod-modems-card .modem .net input[type="checkbox"] {
     width: auto;
+}
+/* Badge + keepalive dot on the right of the modem heading. */
+.mod-modems-card .modem .modem-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+/* User-plane keepalive dot: flashes green, then fades until the next send. */
+.mod-modems-card .keepalive {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    flex-shrink: 0;
+    cursor: help;
+}
+.mod-modems-card .keepalive-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    /* Override the global .ok status margin. */
+    margin: 0;
+    border-radius: 50%;
+    background: var(--muted);
+}
+.mod-modems-card .keepalive-dot.ok {
+    animation:
+        modem-ka-flash 1.2s ease-out,
+        modem-ka-fade var(--keepalive-interval, 50s) linear forwards;
+}
+.mod-modems-card .keepalive-dot.bad {
+    background: var(--bad);
+}
+@keyframes modem-ka-flash {
+    0% {
+        transform: scale(1.6);
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 70%, transparent);
+        filter: brightness(1.6);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0.5rem transparent;
+        filter: none;
+    }
+}
+@keyframes modem-ka-fade {
+    from {
+        background: var(--ok);
+    }
+    to {
+        background: var(--muted);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mod-modems-card .keepalive-dot.ok {
+        animation: modem-ka-fade var(--keepalive-interval, 50s) linear forwards;
+    }
 }

@@ -6,7 +6,10 @@
  * network module enriches its interface list with `modems.source`.
  */
 
-import type { BackendModule } from "../../../shared/contracts/backend_module";
+import type {
+    BackendModule,
+    Emit,
+} from "../../../shared/contracts/backend_module";
 import {
     ApiError,
     optionalApn,
@@ -19,11 +22,17 @@ import {
     requireIndex,
 } from "../../../shared/params";
 import type { ModuleCore } from "../../backend/module_core";
+import {
+    KEEPALIVE_EVENT,
+    startModemKeepalive,
+    stopModemKeepalive,
+} from "./keepalive";
 import log from "./log";
 import {
     bindModemManager,
     detectModems,
     gsmProfile,
+    modemActiveNetworkIface,
     modemSource,
     performModemAction,
     pruneOrphanGsmConns,
@@ -35,6 +44,7 @@ import {
 import type { ModemInfo, ModemNetworkSetup } from "./types";
 
 let core: ModuleCore;
+let emit: Emit | undefined;
 
 const modemStatus = async (): Promise<ModemInfo[]> => detectModems();
 
@@ -62,7 +72,7 @@ const registration: BackendModule<ModuleCore> = {
         "modems.profile",
         "modems.setup",
     ],
-    events: [],
+    events: [KEEPALIVE_EVENT],
     log,
     bind(c) {
         core = c;
@@ -79,9 +89,19 @@ const registration: BackendModule<ModuleCore> = {
         // Keep every registered modem on the network: a persistent NM gsm
         // autoconnect profile dials on boot, and this re-dials on drop.
         startModemAutodial();
+        // Send a small UDP packet out of each connected modem.
+        emit = ctx.emit;
+        if (!core.config.DRY_RUN)
+            startModemKeepalive({
+                detect: detectModems,
+                modemIface: modemActiveNetworkIface,
+                emit: ctx.emit,
+            });
     },
     async stop() {
         stopModemAutodial();
+        stopModemKeepalive(emit);
+        emit = undefined;
     },
     async dispatch(method, p) {
         switch (method) {

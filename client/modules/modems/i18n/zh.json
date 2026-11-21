@@ -5,6 +5,8 @@
     "dev.autoconfig": "自动配置 APN",
     "dev.bands": "频段",
     "dev.imei": "IMEI",
+    "dev.keepalive_fail": "向 {{target}}:{{port}} 发送 UDP 保活包失败 · {{time}}",
+    "dev.keepalive_ok": "已向 {{target}}:{{port}} 发送 UDP 保活包（未确认送达）· {{time}}",
     "dev.modem_fallback": "调制解调器",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",

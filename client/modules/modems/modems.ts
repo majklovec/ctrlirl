@@ -249,6 +249,26 @@ export function detectModems(): Promise<ModemInfo[]> {
     return scanning;
 }
 
+/** Resolve only a connected bearer owned by this modem; never guess another modem's interface. */
+export async function modemActiveNetworkIface(modem: ModemInfo): Promise<string | null> {
+    const properties = parseKeyvalue(
+        await mmcliStrict("-m", String(modem.index), "--output-keyvalue"),
+    );
+    const bearers = Object.entries(properties)
+        .filter(([key]) => /^modem\.generic\.bearers\.value\[\d+\]$/.test(key))
+        .flatMap(([, value]) => {
+            const bearer = value.match(/\/Bearer\/(\d+)\s*$/)?.[1];
+            return bearer ? [bearer] : [];
+        });
+    for (const bearer of bearers) {
+        const detail = await mmcliStrict("-b", bearer);
+        if (!/connected:\s*yes\b/i.test(detail)) continue;
+        const iface = detail.match(/interface:\s*(\S+)/)?.[1];
+        if (iface && iface !== "--") return iface;
+    }
+    return null;
+}
+
 async function modemNetworkIface(modem: ModemInfo): Promise<string | null> {
     for (const [, bearer] of (
         await mmcli("-m", String(modem.index), "-b")

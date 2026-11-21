@@ -33,5 +33,7 @@
     "mlog.done.modem_scan": "Modem #{{index}} network scan finished",
     "mlog.done.modem_setup": "Modem #{{index}} network configured",
     "wtype.modems": "Modems",
-    "wtype.network": "Network"
+    "wtype.network": "Network",
+    "dev.keepalive_ok": "UDP keepalive sent to {{target}}:{{port}} (delivery unconfirmed) · {{time}}",
+    "dev.keepalive_fail": "UDP keepalive send to {{target}}:{{port}} failed · {{time}}"
 }

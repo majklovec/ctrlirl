@@ -33,5 +33,7 @@
     "mlog.done.modem_scan": "Modem #{{index}} skenování sítě dokončeno",
     "mlog.done.modem_setup": "Modem #{{index}} síť nakonfigurována",
     "wtype.modems": "Modemy",
-    "wtype.network": "Síť"
+    "wtype.network": "Síť",
+    "dev.keepalive_ok": "UDP keepalive odeslán na {{target}}:{{port}} (doručení nepotvrzeno) · {{time}}",
+    "dev.keepalive_fail": "Odeslání UDP keepalive na {{target}}:{{port}} selhalo · {{time}}"
 }

@@ -5,6 +5,8 @@
     "dev.autoconfig": "Configura APN automaticamente",
     "dev.bands": "Banda",
     "dev.imei": "IMEI",
+    "dev.keepalive_fail": "Invio del keepalive UDP a {{target}}:{{port}} non riuscito · {{time}}",
+    "dev.keepalive_ok": "Keepalive UDP inviato a {{target}}:{{port}} (consegna non confermata) · {{time}}",
     "dev.modem_fallback": "Modem",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",

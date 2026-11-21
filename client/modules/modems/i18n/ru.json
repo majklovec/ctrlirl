@@ -5,6 +5,8 @@
     "dev.autoconfig": "Авт. конфигурация APN",
     "dev.bands": "Диапазоны",
     "dev.imei": "IMEI",
+    "dev.keepalive_fail": "Не удалось отправить UDP keepalive на {{target}}:{{port}} · {{time}}",
+    "dev.keepalive_ok": "UDP keepalive отправлен на {{target}}:{{port}} (доставка не подтверждена) · {{time}}",
     "dev.modem_fallback": "Модем",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",

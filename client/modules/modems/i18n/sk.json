@@ -5,6 +5,8 @@
     "dev.autoconfig": "Automatická konfigurácia APN",
     "dev.bands": "Pásmo",
     "dev.imei": "IMEI",
+    "dev.keepalive_fail": "Odoslanie UDP keepalive na {{target}}:{{port}} zlyhalo · {{time}}",
+    "dev.keepalive_ok": "UDP keepalive odoslaný na {{target}}:{{port}} (doručenie nepotvrdené) · {{time}}",
     "dev.modem_fallback": "Modem",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",

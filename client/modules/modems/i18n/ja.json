@@ -5,6 +5,8 @@
     "dev.autoconfig": "APNを自動設定",
     "dev.bands": "バンド",
     "dev.imei": "IMEI",
+    "dev.keepalive_fail": "{{target}}:{{port}} へのUDPキープアライブの送信に失敗 · {{time}}",
+    "dev.keepalive_ok": "{{target}}:{{port}} にUDPキープアライブを送信（到達は未確認）· {{time}}",
     "dev.modem_fallback": "モデム",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",

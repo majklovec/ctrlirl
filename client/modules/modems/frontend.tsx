@@ -29,7 +29,15 @@ import { roleServes, roleServesOrLegacy } from "../../../shared/ui/role_view";
 import log from "./log";
 import type { GsmProfile } from "./modems";
 import { ratLabel } from "./modems";
-import type { ModemInfo, ModemsStatus, ScannedNetwork } from "./types";
+import type {
+	ModemInfo,
+	ModemKeepaliveEvent,
+	ModemsStatus,
+	ScannedNetwork,
+} from "./types";
+
+/** Mirrors keepalive.ts `KEEPALIVE_EVENT` (that file is backend-only). */
+const KEEPALIVE_EVENT = "modems.keepalive";
 
 async function modemAction(
 	host: DeviceCard,
@@ -403,6 +411,49 @@ const stateKind = (state: string) =>
 			? "off"
 			: "warn";
 
+/**
+ * The keyed inner element restarts the flash and fade on each new send.
+ */
+export function keepaliveDot(
+	host: Pick<DeviceCard, "st">,
+	index: number,
+): Child {
+	const ev = host.st.events.get(KEEPALIVE_EVENT)?.data as
+		| ModemKeepaliveEvent
+		| null
+		| undefined;
+	const ka = ev?.keepalives.find((k) => k.index === index);
+	if (!ka) return null;
+	const interval = ev?.intervalMs;
+	const fadeStyle =
+		typeof interval === "number" && Number.isFinite(interval) && interval > 0
+			? `--keepalive-interval: ${interval}ms`
+			: undefined;
+	const time = new Date(ka.at).toLocaleTimeString();
+	const title = ka.ok
+		? t("dev.keepalive_ok", {
+				target: ev?.target ?? "",
+				port: ev?.port ?? 53,
+				time,
+			})
+		: t("dev.keepalive_fail", {
+				target: ev?.target ?? "",
+				port: ev?.port ?? 53,
+				time,
+			});
+	return (
+		<span class="keepalive" title={title} aria-label={title} role="img">
+			{[
+				<i
+					key={`${ka.at}:${ka.ok}`}
+					class={`keepalive-dot ${ka.ok ? "ok" : "bad"}`}
+					style={fadeStyle}
+				/>,
+			]}
+		</span>
+	);
+}
+
 function signal(quality?: number): Child {
 	if (quality === undefined) return "—";
 	return (
@@ -454,7 +505,10 @@ function modemPanel(host: DeviceCard, modem: ModemInfo): m.Vnode {
 			<div class="info">
 				<h3>
 					<span>{`#${modem.index} ${name}`}</span>
-					<Badge text={modem.state} kind={stateKind(modem.state)} />
+					<span class="modem-state">
+						{keepaliveDot(host, modem.index)}
+						<Badge text={modem.state} kind={stateKind(modem.state)} />
+					</span>
 				</h3>
 				<DefinitionList
 					rows={[

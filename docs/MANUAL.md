@@ -298,6 +298,8 @@ Per network interface: **Bond checkbox** ("Include in bond" — the uplinks that
 
 Shows every ModemManager modem: IMEI, operator, registration, signal — with actions to **enable / disable / connect / disconnect / reset** each one. Modems appear as `modem #N` entries in the Interfaces card's bond selection. With no modems: _"No modems found (ModemManager)."_
 
+For each connected modem, the device sends a small UDP DNS query every 50 seconds through its active bearer to `1.1.1.1:53`. Configure the IPv4 address or hostname with `--modem-keepalive-target` / `MODEM_KEEPALIVE_TARGET`, the UDP port with `--modem-keepalive-port` / `MODEM_KEEPALIVE_PORT`, and the interval in milliseconds with `--modem-keepalive-ms` / `MODEM_KEEPALIVE_MS` (minimum 5000). The dot flashes green when the local UDP send succeeds and gradually fades to gray until the next send; it does not confirm delivery. A red dot indicates a local error, which is also logged. The modem install configuration sets the host TCP keepalive time to 60 seconds; this only affects sockets that enable TCP keepalive.
+
 ### 6.5 Log card
 
 A persistent event log — every action (configuration changes, bitrate changes, bond toggles, module starts/stops, modem events) with a timestamp and severity. It is written to `--log-file` and survives restarts.

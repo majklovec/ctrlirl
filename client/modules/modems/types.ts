@@ -41,6 +41,24 @@ export interface ModemNetworkSetup {
 	preferredMode?: string;
 }
 
+/** One modem's latest user-plane keepalive (`modems.keepalive` event). */
+export interface ModemKeepalive {
+	index: number;
+	iface: string | null;
+	/** True when the local UDP send succeeded, not a delivery confirmation. */
+	ok: boolean;
+	/** Epoch ms of the attempt. */
+	at: number;
+}
+
+/** Payload of the `modems.keepalive` event. */
+export interface ModemKeepaliveEvent {
+	target: string;
+	port: number;
+	intervalMs: number;
+	keepalives: ModemKeepalive[];
+}
+
 /** The modems module's status fragment (deep-merged into the device status). */
 export interface ModemsStatus {
     modems: ModemInfo[];

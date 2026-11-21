@@ -2,6 +2,9 @@
     "$schema": "../../../../shared/install/schema.json",
     "version": 1,
     "dependencies": ["ModemManager"],
+    "sysctl": {
+        "net.ipv4.tcp_keepalive_time": 60
+    },
     "udev": [
         {
             "file": "55-ctrlirl-modem.rules",

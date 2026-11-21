@@ -300,6 +300,8 @@ U každého síťového rozhraní se zobrazuje **zaškrtávací políčko Bond**
 
 Zobrazuje všechny modemy spravované službou ModemManager: IMEI, operátora, stav registrace a sílu signálu. U každého lze použít akce **zapnout / vypnout / připojit / odpojit / resetovat**. Ve výběru zařízení pro agregaci na kartě Interfaces jsou modemy uvedeny jako `modem #N`. Pokud nejsou nalezeny žádné modemy, zobrazí se _„No modems found (ModemManager).“_
 
+Pro každý připojený modem zařízení každých 50 sekund odešle malý UDP DNS dotaz přes jeho aktivní bearer na `1.1.1.1:53`. IPv4 adresu nebo hostname lze nastavit pomocí `--modem-keepalive-target` / `MODEM_KEEPALIVE_TARGET`, UDP port pomocí `--modem-keepalive-port` / `MODEM_KEEPALIVE_PORT` a interval v milisekundách pomocí `--modem-keepalive-ms` / `MODEM_KEEPALIVE_MS` (minimum 5000). Tečka blikne zeleně při úspěšném lokálním odeslání UDP paketu a do dalšího odeslání postupně zešedne; doručení nepotvrzuje. Červená tečka označuje lokální chybu, která se také zaznamená do logu. Instalace modemu nastaví TCP keepalive na hostiteli na 60 sekund; toto nastavení se vztahuje pouze na sockety se zapnutým TCP keepalive.
+
 ### 6.5 Karta Log
 
 Trvalý protokol událostí zaznamenává všechny akce (změny konfigurace a datového toku, změny agregace spojení, spuštění a zastavení modulů i události modemů) včetně času a úrovně závažnosti. Zapisuje se do souboru `--log-file` a zachová se i po restartu.
