@@ -1,3 +1,10 @@
+# [9.3.0](https://github.com/majklovec/ctrlirl/compare/v9.2.0...v9.3.0) (2026-11-21)
+
+
+### Features
+
+* **modems:** add udp bearer keepalive ([637c866](https://github.com/majklovec/ctrlirl/commit/637c866dd776153e884b999158ab0840a96bf28d))
+
 # [9.2.0](https://github.com/majklovec/ctrlirl/compare/v9.1.2...v9.2.0) (2026-11-20)
 
 
