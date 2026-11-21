@@ -8,7 +8,7 @@
 import type { LogEvent } from "../../shared/log_messages";
 import type { EmitOptions } from "../../shared/contracts/backend_module";
 import { errorMessage } from "../../shared/util";
-import { logEntries, onLogEntry } from "./eventlog";
+import { logEntries, onLogEntry, onLogReset } from "./eventlog";
 import { buildStatus } from "./methods";
 import { onStateChange } from "./state";
 
@@ -123,6 +123,18 @@ export function addStatusSink(sink: StatusSink): () => void {
                 type: "event",
                 event: "log",
                 data: { entries: [entry] } satisfies LogEvent,
+            });
+            for (const s of activeSinks()) s.send(msg);
+        });
+        onLogReset(() => {
+            const msg = frame({
+                type: "event",
+                event: "log",
+                data: {
+                    reset: true,
+                    cleared: true,
+                    entries: [],
+                } satisfies LogEvent,
             });
             for (const s of activeSinks()) s.send(msg);
         });

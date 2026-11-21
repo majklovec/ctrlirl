@@ -15,7 +15,7 @@
  *   { "type": "event", "event": "<module event>", "data": {...}, "module": "<id>" }
  *
  * Core methods:
- *   status, log.list
+ *   status, log.list, log.clear
  *   setup.get, setup.install {role}, setup.complete {...wizard answers}
  *       (only while the device has no config file)
  *   settings.get, settings.update {hostname?, role?, color?, remoteUrl?, remoteToken?, language?}
@@ -55,7 +55,7 @@ import { realProviderBundle } from "../install/providers";
 import { authEnabled, hashPassword } from "./auth";
 import { setAutostart } from "./autostart";
 import { CONFIG_FILE } from "./config";
-import { logEntries, logEvent } from "./eventlog";
+import { clearLog, logEntries, logEvent } from "./eventlog";
 import {
 	callModule,
 	configureModule,
@@ -293,6 +293,10 @@ const requireModule = (p: Params) => {
 const CORE_METHODS: Record<string, Method> = {
 	status: buildStatus,
 	"log.list": () => ({ entries: logEntries() }),
+	"log.clear": () => {
+		clearLog();
+		return { cleared: true };
+	},
 	"setup.get": async () => ({
 		required: setupRequired,
 		hostname: state.settings.hostname ?? "",

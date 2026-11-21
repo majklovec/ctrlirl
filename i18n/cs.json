@@ -87,6 +87,8 @@
   "dev.device_offline": "zařízení offline",
   "dev.disconnected": "nepřipojeno",
   "dev.lost_reconnecting": "Spojení ztraceno, znovu se připojuji…",
+  "dev.log.clear": "Vymazat log",
+  "dev.log.clear_confirm": "Vymazat všechny položky logu? Tuto akci nelze vrátit.",
   "dev.quality_scoring": "Hodnocení kvality",
   "dev.quality_scoring_title": "Hodnocení SRTLA pro výběr nejlepšího spojení",
   "dev.reconnected": "Znovu připojeno",

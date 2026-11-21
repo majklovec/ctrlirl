@@ -149,6 +149,9 @@ export function createDevices({
         if (!data || !Array.isArray(data.entries)) return null;
         if (data.reset) {
             d.log = data.entries.slice(-LOG_MAX);
+            if (data.cleared) d.serverLog = [];
+            if (data.cleared)
+                return logEvent({ reset: true, cleared: true, entries: [] });
             return logHistory(d);
         }
         for (const e of data.entries) {
@@ -261,6 +264,14 @@ export function createDevices({
             if (!p || p.deviceId !== d.id) return;
             clearTimeout(p.timer);
             pending.delete(msg.id);
+            if (p.method === "log.clear" && msg.ok === true) {
+                d.log = [];
+                d.serverLog = [];
+                publishToDevice(
+                    d,
+                    logEvent({ reset: true, cleared: true, entries: [] }),
+                );
+            }
             sendToViewer(p.viewer, JSON.stringify({ ...msg, id: p.clientId }));
             return;
         }

@@ -87,6 +87,8 @@
   "dev.device_offline": "设备离线",
   "dev.disconnected": "已断开",
   "dev.lost_reconnecting": "已丢失，正在重连…",
+  "dev.log.clear": "Clear log",
+  "dev.log.clear_confirm": "Clear all log entries? This cannot be undone.",
   "dev.quality_scoring": "质量评分",
   "dev.quality_scoring_title": "用于选择最佳链路的 SRTLA 评分",
   "dev.reconnected": "已重连",

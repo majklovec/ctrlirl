@@ -29,11 +29,19 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 type Listener = (entry: LogEntry) => void;
 const listeners = new Set<Listener>();
+type ResetListener = () => void;
+const resetListeners = new Set<ResetListener>();
 
 /** Subscribe to new / updated entries; returns an unsubscribe function. */
 export function onLogEntry(listener: Listener): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);
+}
+
+/** Subscribe to log clears; returns an unsubscribe function. */
+export function onLogReset(listener: ResetListener): () => void {
+    resetListeners.add(listener);
+    return () => resetListeners.delete(listener);
 }
 
 /** Oldest first. */
@@ -61,6 +69,13 @@ export async function flushLog(): Promise<void> {
     clearTimeout(saveTimer);
     saveTimer = null;
     await save();
+}
+
+/** Clear the persistent log and notify every live push target. */
+export function clearLog(): void {
+    entries.length = 0;
+    scheduleSave();
+    for (const listener of resetListeners) listener();
 }
 
 /** Record an event; a repeat of the latest entry bumps its counter instead of adding one. */

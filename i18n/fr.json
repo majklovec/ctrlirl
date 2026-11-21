@@ -87,6 +87,8 @@
   "dev.device_offline": "appareil hors ligne",
   "dev.disconnected": "déconnecté",
   "dev.lost_reconnecting": "Connexion perdue, reconnexion…",
+  "dev.log.clear": "Clear log",
+  "dev.log.clear_confirm": "Clear all log entries? This cannot be undone.",
   "dev.quality_scoring": "Score de qualité",
   "dev.quality_scoring_title": "Score SRTLA pour sélectionner la meilleure liaison",
   "dev.reconnected": "Reconnecté",

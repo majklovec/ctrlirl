@@ -67,6 +67,7 @@ function silenceLog() {
 const CORE_METHODS = [
     "status",
     "log.list",
+    "log.clear",
     "setup.get",
     "setup.complete",
     "settings.get",
@@ -175,6 +176,21 @@ describe("device RPC surface", () => {
         });
         expect(response.result).toHaveProperty("summary");
         expect(response.result?.state).toHaveProperty("encoder");
+    });
+
+    test("log.clear clears the persistent log", async () => {
+        const clear = spyOn(eventlog, "clearLog").mockImplementation(() => {});
+        restores.push(() => clear.mockRestore());
+        const response = await request("log.clear");
+        expect(response).toMatchObject({
+            type: "response",
+            id: "rpc-test",
+            method: "log.clear",
+            ok: true,
+            result: { cleared: true },
+        });
+        expect(clear).toHaveBeenCalledTimes(1);
+        expect(response).not.toHaveProperty("logged");
     });
 
     test("setup.get returns encoder resources on a non-encoder process", async () => {

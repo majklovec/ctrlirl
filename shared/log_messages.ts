@@ -40,6 +40,8 @@ export interface LogEntry {
 /** `event: "log"` payload: the full history when `reset`, otherwise new or updated entries. */
 export interface LogEvent {
     reset?: boolean;
+    /** Clear every row, including page-local browser entries. */
+    cleared?: boolean;
     entries: LogEntry[];
 }
 

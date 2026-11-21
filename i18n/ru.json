@@ -87,6 +87,8 @@
   "dev.device_offline": "устройство офлайн",
   "dev.disconnected": "отключено",
   "dev.lost_reconnecting": "Потеряно, переподключение…",
+  "dev.log.clear": "Clear log",
+  "dev.log.clear_confirm": "Clear all log entries? This cannot be undone.",
   "dev.quality_scoring": "Оценка качества",
   "dev.quality_scoring_title": "Оценка SRTLA для выбора лучшего канала",
   "dev.reconnected": "Переподключено",

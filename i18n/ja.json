@@ -87,6 +87,8 @@
   "dev.device_offline": "デバイスはオフライン",
   "dev.disconnected": "切断済み",
   "dev.lost_reconnecting": "切断、再接続中…",
+  "dev.log.clear": "Clear log",
+  "dev.log.clear_confirm": "Clear all log entries? This cannot be undone.",
   "dev.quality_scoring": "品質スコアリング",
   "dev.quality_scoring_title": "最適リンク選択用の SRTLA スコアリング",
   "dev.reconnected": "再接続済み",

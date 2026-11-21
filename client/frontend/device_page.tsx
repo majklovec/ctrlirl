@@ -105,7 +105,7 @@ const App: m.Component = {
 				headerRight={headerRight()}
 			>
 				{children}
-				<LogCard />
+				<LogCard clear={() => act("log-clear", "log.clear")} />
 			</Page>
 		);
 	},

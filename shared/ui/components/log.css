@@ -67,6 +67,22 @@
     white-space: nowrap;
 }
 
+.log-card .log-clear {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+.log-card .log-clear.dash-delete {
+    color: var(--bad);
+}
+.log-card .log-clear.dash-delete:hover {
+    border-color: var(--bad);
+    background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+.log-card .log-clear:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
 a.device {
     color: var(--accent);
     text-decoration: none;
