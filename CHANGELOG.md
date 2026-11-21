@@ -1,3 +1,10 @@
+# [9.4.0](https://github.com/majklovec/ctrlirl/compare/v9.3.0...v9.4.0) (2026-11-21)
+
+
+### Features
+
+* **log:** add clear log action ([2d4bc8f](https://github.com/majklovec/ctrlirl/commit/2d4bc8f43f2a41478e68cc3fa7ee41a0157bd9ea))
+
 # [9.3.0](https://github.com/majklovec/ctrlirl/compare/v9.2.0...v9.3.0) (2026-11-21)
 
 
