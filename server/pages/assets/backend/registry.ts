@@ -10,7 +10,9 @@
  * The API is child-oriented (list children of a folder) so the frontend can
  * load the tree lazily as it expands.
  */
-import type { Database } from "bun:sqlite";
+import { and, eq, inArray, isNull, like, sql } from "drizzle-orm";
+import type { AppDatabase } from "../../../core/db";
+import { assetFiles, assetFolders } from "../../../core/schema";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -104,7 +106,7 @@ export function createAssets({
     db,
     storageDir = "assets",
 }: {
-    db: Database | null;
+    db: AppDatabase | null;
     /** Directory the asset files are written to (flat, one file per id). */
     storageDir: string;
 }): Assets {
@@ -132,7 +134,7 @@ export function createAssets({
             browseFiles: () => [],
         };
     }
-    const database: Database = db;
+    const database: AppDatabase = db;
 
     const now = () => Date.now();
 
@@ -165,13 +167,29 @@ export function createAssets({
         return name;
     }
 
-    const FOLDER_SELECT =
-        "SELECT id, project_id, parent_id, name, created_at FROM asset_folders WHERE id = ? AND project_id = ?";
-    const FILE_SELECT =
-        "SELECT id, folder_id, name, size, mime_type, created_at, updated_at FROM asset_files WHERE id = ? AND project_id = ?";
+    const folderById = (
+        project: string,
+        id: string,
+    ): FolderRow | undefined =>
+        database
+            .select({
+                id: assetFolders.id,
+                project_id: assetFolders.projectId,
+                parent_id: assetFolders.parentId,
+                name: assetFolders.name,
+                created_at: assetFolders.createdAt,
+            })
+            .from(assetFolders)
+            .where(
+                and(
+                    eq(assetFolders.id, id),
+                    eq(assetFolders.projectId, project),
+                ),
+            )
+            .get() as FolderRow | undefined;
 
     const getFolder = (project: string, id: string): FolderRow => {
-        const row = database.query<FolderRow, [string, string]>(FOLDER_SELECT).get(id, project);
+        const row = folderById(project, id);
         if (!row) throw new ApiError("Folder not found", 404);
         return row;
     };
@@ -188,8 +206,23 @@ export function createAssets({
 
     const getFile = (project: string, id: string): AssetFile => {
         const row = database
-            .query<FileRow, [string, string]>(FILE_SELECT)
-            .get(id, project);
+            .select({
+                id: assetFiles.id,
+                folder_id: assetFiles.folderId,
+                name: assetFiles.name,
+                size: assetFiles.size,
+                mime_type: assetFiles.mimeType,
+                created_at: assetFiles.createdAt,
+                updated_at: assetFiles.updatedAt,
+            })
+            .from(assetFiles)
+            .where(
+                and(
+                    eq(assetFiles.id, id),
+                    eq(assetFiles.projectId, project),
+                ),
+            )
+            .get() as FileRow | undefined;
         if (!row) throw new ApiError("File not found", 404);
         return toFile(row);
     };
@@ -197,14 +230,11 @@ export function createAssets({
     /** Ancestor chain of `folderId` (the folder itself first). */
     const ancestorIds = (project: string, folderId: string): string[] => {
         const chain: string[] = [];
-        let current: FolderRow | undefined = getFolder(project, folderId) ?? undefined;
+        let current: FolderRow | undefined = getFolder(project, folderId);
         while (current) {
             chain.push(current.id);
             if (!current.parent_id) break;
-            current =
-                database
-                    .query<FolderRow, [string, string]>(FOLDER_SELECT)
-                    .get(current.parent_id, project) ?? undefined;
+            current = folderById(project, current.parent_id);
         }
         return chain;
     };
@@ -215,10 +245,16 @@ export function createAssets({
         name: string,
     ): boolean =>
         (database
-            .query<{ n: number }, [string, string, string]>(
-                "SELECT COUNT(*) AS n FROM asset_files WHERE project_id = ? AND folder_id = ? AND name = ?",
+            .select({ n: sql<number>`count(*)` })
+            .from(assetFiles)
+            .where(
+                and(
+                    eq(assetFiles.projectId, project),
+                    eq(assetFiles.folderId, folderId),
+                    eq(assetFiles.name, name),
+                ),
             )
-            .get(project, folderId, name)?.n ?? 0) > 0;
+            .get()?.n ?? 0) > 0;
 
     const toFolder = (project: string, row: FolderRow): AssetFolder => ({
         id: row.id,
@@ -227,30 +263,58 @@ export function createAssets({
         createdAt: row.created_at,
         hasChildren:
             (database
-                .query<{ n: number }, [string, string]>(
-                    "SELECT COUNT(*) AS n FROM asset_folders WHERE project_id = ? AND parent_id = ?",
+                .select({ n: sql<number>`count(*)` })
+                .from(assetFolders)
+                .where(
+                    and(
+                        eq(assetFolders.projectId, project),
+                        eq(assetFolders.parentId, row.id),
+                    ),
                 )
-                .get(project, row.id)?.n ?? 0) > 0,
+                .get()?.n ?? 0) > 0,
         fileCount:
-            database
-                .query<{ n: number }, [string, string]>(
-                    "SELECT COUNT(*) AS n FROM asset_files WHERE project_id = ? AND folder_id = ?",
+            (database
+                .select({ n: sql<number>`count(*)` })
+                .from(assetFiles)
+                .where(
+                    and(
+                        eq(assetFiles.projectId, project),
+                        eq(assetFiles.folderId, row.id),
+                    ),
                 )
-                .get(project, row.id)?.n ?? 0,
+                .get()?.n ?? 0),
     });
 
     function rootFolder(project: string): AssetFolder {
         const existing = database
-            .query<FolderRow, [string]>(
-                "SELECT id, project_id, parent_id, name, created_at FROM asset_folders WHERE project_id = ? AND parent_id IS NULL",
+            .select({
+                id: assetFolders.id,
+                project_id: assetFolders.projectId,
+                parent_id: assetFolders.parentId,
+                name: assetFolders.name,
+                created_at: assetFolders.createdAt,
+            })
+            .from(assetFolders)
+            .where(
+                and(
+                    eq(assetFolders.projectId, project),
+                    isNull(assetFolders.parentId),
+                ),
             )
-            .get(project);
+            .get() as FolderRow | undefined;
         if (existing) return toFolder(project, existing);
         const id = randomUUID();
         const ts = now();
-        database.query<unknown, [string, string, string, number]>(
-            "INSERT INTO asset_folders (id, project_id, parent_id, name, created_at) VALUES (?, ?, NULL, ?, ?)",
-        ).run(id, project, ROOT_NAME, ts);
+        database
+            .insert(assetFolders)
+            .values({
+                id,
+                projectId: project,
+                parentId: null,
+                name: ROOT_NAME,
+                createdAt: ts,
+            })
+            .run();
         return toFolder(project, {
             id,
             project_id: project,
@@ -265,29 +329,40 @@ export function createAssets({
         parentId: string | null,
     ): AssetFolder[] {
         if (parentId === null) rootFolder(project);
-        const rows =
-            parentId === null
-                ? (database
-                      .query<FolderRow, [string]>(
-                          "SELECT id, project_id, parent_id, name, created_at FROM asset_folders WHERE project_id = ? AND parent_id IS NULL ORDER BY name COLLATE NOCASE",
-                      )
-                      .all(project) ?? [])
-                : (database
-                      .query<FolderRow, [string, string]>(
-                          "SELECT id, project_id, parent_id, name, created_at FROM asset_folders WHERE project_id = ? AND parent_id = ? ORDER BY name COLLATE NOCASE",
-                      )
-                      .all(project, parentId) ?? []);
+        const rows = database
+            .select({
+                id: assetFolders.id,
+                project_id: assetFolders.projectId,
+                parent_id: assetFolders.parentId,
+                name: assetFolders.name,
+                created_at: assetFolders.createdAt,
+            })
+            .from(assetFolders)
+            .where(
+                and(
+                    eq(assetFolders.projectId, project),
+                    parentId === null
+                        ? isNull(assetFolders.parentId)
+                        : eq(assetFolders.parentId, parentId),
+                ),
+            )
+            .orderBy(sql`${assetFolders.name} COLLATE NOCASE`)
+            .all() as FolderRow[];
         return rows.map((row) => toFolder(project, row));
     }
 
     function allFolders(project: string): AssetFolder[] {
-        const rows = (
-            database
-                .query<FolderRow, [string]>(
-                    "SELECT id, project_id, parent_id, name, created_at FROM asset_folders WHERE project_id = ?",
-                )
-                .all(project) ?? []
-        );
+        const rows = database
+            .select({
+                id: assetFolders.id,
+                project_id: assetFolders.projectId,
+                parent_id: assetFolders.parentId,
+                name: assetFolders.name,
+                created_at: assetFolders.createdAt,
+            })
+            .from(assetFolders)
+            .where(eq(assetFolders.projectId, project))
+            .all() as FolderRow[];
         return rows.map((row) => toFolder(project, row));
     }
 
@@ -298,12 +373,19 @@ export function createAssets({
     ): AssetFolder {
         const clean = parseName(name, "folder");
         getFolder(project, parentId);
-        const taken =
+        const taken = (
             database
-                .query<{ n: number }, [string, string, string]>(
-                    "SELECT COUNT(*) AS n FROM asset_folders WHERE project_id = ? AND parent_id = ? AND name = ? COLLATE NOCASE",
+                .select({ n: sql<number>`count(*)` })
+                .from(assetFolders)
+                .where(
+                    and(
+                        eq(assetFolders.projectId, project),
+                        eq(assetFolders.parentId, parentId),
+                        sql`${assetFolders.name} = ${clean} COLLATE NOCASE`,
+                    ),
                 )
-                .get(project, parentId, clean)?.n ?? 0;
+                .get()?.n ?? 0
+        );
         if (taken)
             throw new ApiError(
                 "A folder with this name already exists",
@@ -313,9 +395,16 @@ export function createAssets({
         if (depth > MAX_FOLDER_DEPTH)
             throw new ApiError(`Folder is too deep (max ${MAX_FOLDER_DEPTH})`);
         const id = randomUUID();
-        database.query<unknown, [string, string, string, string, number]>(
-            "INSERT INTO asset_folders (id, project_id, parent_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
-        ).run(id, project, parentId, clean, now());
+        database
+            .insert(assetFolders)
+            .values({
+                id,
+                projectId: project,
+                parentId,
+                name: clean,
+                createdAt: now(),
+            })
+            .run();
         return toFolder(project, getFolder(project, id));
     }
 
@@ -328,9 +417,16 @@ export function createAssets({
         const folder = getFolder(project, folderId);
         if (folder.parent_id === null)
             throw new ApiError("The root folder cannot be renamed");
-        database.query<unknown, [string, string, string]>(
-            "UPDATE asset_folders SET name = ? WHERE id = ? AND project_id = ?",
-        ).run(clean, folderId, project);
+        database
+            .update(assetFolders)
+            .set({ name: clean })
+            .where(
+                and(
+                    eq(assetFolders.id, folderId),
+                    eq(assetFolders.projectId, project),
+                ),
+            )
+            .run();
         return toFolder(project, getFolder(project, folderId));
     }
 
@@ -351,9 +447,16 @@ export function createAssets({
         const depth = chain.length + 1;
         if (depth > MAX_FOLDER_DEPTH)
             throw new ApiError(`Folder is too deep (max ${MAX_FOLDER_DEPTH})`);
-        database.query<unknown, [string, string, string]>(
-            "UPDATE asset_folders SET parent_id = ? WHERE id = ? AND project_id = ?",
-        ).run(parentId, folderId, project);
+        database
+            .update(assetFolders)
+            .set({ parentId })
+            .where(
+                and(
+                    eq(assetFolders.id, folderId),
+                    eq(assetFolders.projectId, project),
+                ),
+            )
+            .run();
         return toFolder(project, getFolder(project, folderId));
     }
 
@@ -367,13 +470,16 @@ export function createAssets({
         while (queue.length) {
             const id = queue.shift();
             if (id === undefined) break;
-            const children = (
-                database
-                    .query<{ id: string }, [string, string]>(
-                        "SELECT id FROM asset_folders WHERE project_id = ? AND parent_id = ?",
-                    )
-                    .all(project, id) ?? []
-            );
+            const children = database
+                .select({ id: assetFolders.id })
+                .from(assetFolders)
+                .where(
+                    and(
+                        eq(assetFolders.projectId, project),
+                        eq(assetFolders.parentId, id),
+                    ),
+                )
+                .all();
             for (const child of children) {
                 if (!doomed.has(child.id)) {
                     doomed.add(child.id);
@@ -386,37 +492,60 @@ export function createAssets({
         const doomedIds = [...doomed];
         const doomedFileIds = (
             database
-                .query<{ id: string }, [string, ...string[]]>(
-                    "SELECT id FROM asset_files WHERE project_id = ? AND folder_id IN (" +
-                        doomedIds.map(() => "?").join(",") +
-                        ")",
+                .select({ id: assetFiles.id })
+                .from(assetFiles)
+                .where(
+                    and(
+                        eq(assetFiles.projectId, project),
+                        inArray(assetFiles.folderId, doomedIds),
+                    ),
                 )
-                .all(project, ...doomedIds) ?? []
+                .all()
         ).map((r) => r.id);
-        database.transaction(() => {
-            const delFiles = database.query<unknown, [string, string]>(
-                "DELETE FROM asset_files WHERE project_id = ? AND folder_id = ?",
-            );
-            const delFolder = database.query<unknown, [string, string]>(
-                "DELETE FROM asset_folders WHERE project_id = ? AND id = ?",
-            );
+        database.transaction((t) => {
             for (const id of doomed) {
-                delFiles.run(project, id);
-                delFolder.run(project, id);
+                t.delete(assetFiles)
+                    .where(
+                        and(
+                            eq(assetFiles.projectId, project),
+                            eq(assetFiles.folderId, id),
+                        ),
+                    )
+                    .run();
+                t.delete(assetFolders)
+                    .where(
+                        and(
+                            eq(assetFolders.id, id),
+                            eq(assetFolders.projectId, project),
+                        ),
+                    )
+                    .run();
             }
-        })();
+        });
         for (const id of doomedFileIds) removeDiskFile(id);
     }
 
     function listFiles(project: string, folderId: string): AssetFile[] {
         getFolder(project, folderId); // project_id + existence check
-        const rows = (
-            database
-                .query<FileRow, [string, string]>(
-                    "SELECT id, folder_id, name, size, mime_type, created_at, updated_at FROM asset_files WHERE project_id = ? AND folder_id = ? ORDER BY name COLLATE NOCASE",
-                )
-                .all(project, folderId) ?? []
-        );
+        const rows = database
+            .select({
+                id: assetFiles.id,
+                folder_id: assetFiles.folderId,
+                name: assetFiles.name,
+                size: assetFiles.size,
+                mime_type: assetFiles.mimeType,
+                created_at: assetFiles.createdAt,
+                updated_at: assetFiles.updatedAt,
+            })
+            .from(assetFiles)
+            .where(
+                and(
+                    eq(assetFiles.projectId, project),
+                    eq(assetFiles.folderId, folderId),
+                ),
+            )
+            .orderBy(sql`${assetFiles.name} COLLATE NOCASE`)
+            .all() as FileRow[];
         return rows.map(toFile);
     }
 
@@ -461,9 +590,19 @@ export function createAssets({
         // Bytes go to the storage directory; the row keeps only the metadata.
         mkdirSync(storageDir, { recursive: true });
         writeFileSync(storagePath(id), data);
-        database.query<unknown, [string, string, string, string, number, string, number, number]>(
-            "INSERT INTO asset_files (id, project_id, folder_id, name, size, mime_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(id, project, folderId, finalName, data.byteLength, mime || "application/octet-stream", ts, ts);
+        database
+            .insert(assetFiles)
+            .values({
+                id,
+                projectId: project,
+                folderId,
+                name: finalName,
+                size: data.byteLength,
+                mimeType: mime || "application/octet-stream",
+                createdAt: ts,
+                updatedAt: ts,
+            })
+            .run();
         return getFile(project, id);
     }
 
@@ -476,9 +615,16 @@ export function createAssets({
         const file = getFile(project, fileId);
         if (clean !== file.name && nameTaken(project, file.folderId, clean))
             throw new ApiError("A file with this name already exists", 409);
-        database.query<unknown, [string, number, string, string]>(
-            "UPDATE asset_files SET name = ?, updated_at = ? WHERE id = ? AND project_id = ?",
-        ).run(clean, now(), fileId, project);
+        database
+            .update(assetFiles)
+            .set({ name: clean, updatedAt: now() })
+            .where(
+                and(
+                    eq(assetFiles.id, fileId),
+                    eq(assetFiles.projectId, project),
+                ),
+            )
+            .run();
         return getFile(project, fileId);
     }
 
@@ -491,17 +637,30 @@ export function createAssets({
         getFolder(project, folderId);
         if (file.folderId !== folderId && nameTaken(project, folderId, file.name))
             throw new ApiError("A file with this name already exists", 409);
-        database.query<unknown, [string, number, string, string]>(
-            "UPDATE asset_files SET folder_id = ?, updated_at = ? WHERE id = ? AND project_id = ?",
-        ).run(folderId, now(), fileId, project);
+        database
+            .update(assetFiles)
+            .set({ folderId, updatedAt: now() })
+            .where(
+                and(
+                    eq(assetFiles.id, fileId),
+                    eq(assetFiles.projectId, project),
+                ),
+            )
+            .run();
         return getFile(project, fileId);
     }
 
     function deleteFile(project: string, fileId: string): void {
         getFile(project, fileId);
-        database.query<unknown, [string, string]>(
-            "DELETE FROM asset_files WHERE id = ? AND project_id = ?",
-        ).run(fileId, project);
+        database
+            .delete(assetFiles)
+            .where(
+                and(
+                    eq(assetFiles.id, fileId),
+                    eq(assetFiles.projectId, project),
+                ),
+            )
+            .run();
         removeDiskFile(fileId);
     }
 
@@ -524,13 +683,17 @@ export function createAssets({
         kind: "image" | "video" | "audio",
     ): (AssetFile & { path: string })[] {
         rootFolder(project);
-        const folders = (
-            database
-                .query<FolderRow, [string]>(
-                    "SELECT id, project_id, parent_id, name, created_at FROM asset_folders WHERE project_id = ?",
-                )
-                .all(project) ?? []
-        );
+        const folders = database
+            .select({
+                id: assetFolders.id,
+                project_id: assetFolders.projectId,
+                parent_id: assetFolders.parentId,
+                name: assetFolders.name,
+                created_at: assetFolders.createdAt,
+            })
+            .from(assetFolders)
+            .where(eq(assetFolders.projectId, project))
+            .all() as FolderRow[];
         const byId = new Map(folders.map((f) => [f.id, f]));
         const prefix = `${kind}/`;
         const out: (AssetFile & { path: string })[] = [];
@@ -539,13 +702,26 @@ export function createAssets({
         const walk = (folderId: string, trail: string[]): void => {
             const folder = byId.get(folderId);
             if (!folder) return;
-            const rows = (
-                database
-                    .query<FileRow, [string, string, string]>(
-                        "SELECT id, folder_id, name, size, mime_type, created_at, updated_at FROM asset_files WHERE project_id = ? AND folder_id = ? AND mime_type LIKE ? ORDER BY name COLLATE NOCASE",
-                    )
-                    .all(project, folderId, `${prefix}%`) ?? []
-            );
+            const rows = database
+                .select({
+                    id: assetFiles.id,
+                    folder_id: assetFiles.folderId,
+                    name: assetFiles.name,
+                    size: assetFiles.size,
+                    mime_type: assetFiles.mimeType,
+                    created_at: assetFiles.createdAt,
+                    updated_at: assetFiles.updatedAt,
+                })
+                .from(assetFiles)
+                .where(
+                    and(
+                        eq(assetFiles.projectId, project),
+                        eq(assetFiles.folderId, folderId),
+                        like(assetFiles.mimeType, `${prefix}%`),
+                    ),
+                )
+                .orderBy(sql`${assetFiles.name} COLLATE NOCASE`)
+                .all() as FileRow[];
             for (const row of rows)
                 out.push({ ...toFile(row), path: trail.join("/") });
             const children = folders

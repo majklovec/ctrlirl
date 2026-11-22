@@ -1,8 +1,19 @@
 import { Database } from "bun:sqlite";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { type BunSQLiteDatabase, drizzle } from "drizzle-orm/bun-sqlite";
 import { appPath } from "../../shared/paths";
 import { isCompiledBinary } from "../../shared/util";
+import * as schema from "./schema";
+
+/**
+ * The server's database handle: Drizzle over the `bun:sqlite` driver
+ * (`$client` is the raw driver for the few statements the builder cannot
+ * express).
+ */
+export type AppDatabase = BunSQLiteDatabase<typeof schema> & {
+    $client: Database;
+};
 
 /**
  * The server's SQLite schema lives in the numbered `.sql` migrations in
@@ -11,9 +22,9 @@ import { isCompiledBinary } from "../../shared/util";
  * `schema_migrations` table, which makes `ALTER TABLE`-style changes safe
  * without per-column checks at the call site.
  *
- * To change the schema, add a new `NNNN_<name>.sql` file to `migrations/` —
- * never edit an applied migration (its name is what the tracker compares
- * against).
+ * To change the schema, add a new `NNNN_<name>.sql` file to `migrations/`
+ * (and the matching column in `schema.ts`) — never edit an applied
+ * migration (its name is what the tracker compares against).
  */
 const MIGRATIONS_DIR = appPath("server/core/migrations");
 
@@ -71,9 +82,15 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
         })();
 }
 
-/** Open the server's SQLite database and bring its schema up to date. */
-export async function openDatabase(databaseFile: string): Promise<Database> {
-    const db = new Database(databaseFile);
-    await migrate(db);
-    return db;
+/**
+ * Open the server's SQLite database, bring its schema up to date and wrap
+ * it in Drizzle (the raw driver stays reachable via `db.$client` for the
+ * few statements the query builder cannot express).
+ */
+export async function openDatabase(
+    databaseFile: string,
+): Promise<AppDatabase> {
+    const raw = new Database(databaseFile);
+    await migrate(raw);
+    return drizzle(raw, { schema }) as AppDatabase;
 }

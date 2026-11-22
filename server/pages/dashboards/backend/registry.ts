@@ -1,4 +1,5 @@
-import type { Database } from "bun:sqlite";
+import type { AppDatabase } from "../../../core/db";
+import { dashboards as dashboardsTable } from "../../../core/schema";
 import { randomUUID } from "node:crypto";
 import { checkColor } from "../../../../shared/params";
 import {
@@ -31,7 +32,7 @@ const DASH_COLUMNS = 12;
 
 interface DashboardRow {
     id: string;
-    project_id: string | null;
+    projectId: string | null;
     name: string;
     color: string | null;
     version: number;
@@ -48,7 +49,7 @@ export function createDashboards({
     deviceExists,
     deviceStatus,
 }: {
-    db: Database | null;
+    db: AppDatabase | null;
     databaseFile: string;
     publish: Publish;
     ownsDevice: (id: string, project: string) => boolean;
@@ -250,7 +251,9 @@ export function createDashboards({
     function loadDashboards(): ServerDashboard[] {
         if (!db) return [];
         const rows = db
-            .prepare("SELECT * FROM dashboards ORDER BY position")
+            .select()
+            .from(dashboardsTable)
+            .orderBy(dashboardsTable.position)
             .all() as DashboardRow[];
         return rows.map((row) => {
             let widgets: ServerDashboardWidget[] = [];
@@ -264,7 +267,7 @@ export function createDashboards({
             }
             return {
                 id: row.id,
-                project: row.project_id ?? LOCAL_PROJECT_ID,
+                project: row.projectId ?? LOCAL_PROJECT_ID,
                 name: row.name,
                 color: row.color ?? undefined,
                 version: row.version,
@@ -279,24 +282,24 @@ export function createDashboards({
     function saveDashboards(): void {
         if (!db) return;
         try {
-            db.transaction(() => {
-                db.prepare("DELETE FROM dashboards").run();
-                const ins = db.prepare(
-                    'INSERT INTO dashboards (id, project_id, name, color, version, "columns", widgets, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                );
-                dashboards.forEach((d, i) =>
-                    ins.run(
-                        d.id,
-                        d.project ?? LOCAL_PROJECT_ID,
-                        d.name,
-                        d.color ?? null,
-                        d.version,
-                        d.columns,
-                        JSON.stringify(d.widgets),
-                        i,
-                    ),
-                );
-            })();
+            db.transaction((t) => {
+                t.delete(dashboardsTable).run();
+                if (dashboards.length === 0) return;
+                t.insert(dashboardsTable)
+                    .values(
+                        dashboards.map((d, i) => ({
+                            id: d.id,
+                            projectId: d.project ?? LOCAL_PROJECT_ID,
+                            name: d.name,
+                            color: d.color ?? null,
+                            version: d.version,
+                            columns: d.columns,
+                            widgets: JSON.stringify(d.widgets),
+                            position: i,
+                        })),
+                    )
+                    .run();
+            });
         } catch (err: unknown) {
             console.error(`[dashboards] persist ${DB_FILE}:`, err);
         }

@@ -1,5 +1,40 @@
-/* Minimal CLI argument helpers shared by the device client and the control server. */
+/*
+ * CLI argument helpers shared by the device client and the control server,
+ * backed by yargs. The process argv is parsed once into `parsed`; the
+ * helpers below keep the historical resolution semantics:
+ *
+ *   `--name value` and `--name=value` forms, string-typed values
+ *   (`parse-numbers` is off, so `arg()` keeps returning strings), a
+ *   missing value falling back to the caller's default, and invalid
+ *   ints/enums exiting with code 2.
+ *
+ * The `*Env` helpers layer the env var between the CLI and the fallback
+ * (CLI > env > fallback). `argv`/`flag` read the raw tokens — the install
+ * CLI needs the raw words for its positional-command handling.
+ */
+import yargs from "yargs";
+
+/** The raw process tokens (no `bun script.ts` prefix) — positional handling. */
 export const argv = Bun.argv.slice(2);
+
+/**
+ * The yargs parse of the process argv. Values stay strings
+ * (`parse-numbers` off) and option-less flags land as `true`, matching the
+ * historical string-based readers below.
+ */
+const parsed = yargs(argv)
+    .parserConfiguration({
+        "boolean-negation": false,
+        "parse-numbers": false,
+        "populate--": true,
+    })
+    .exitProcess(false)
+    .help(false)
+    .version(false)
+    .strict(false)
+    .scriptName("")
+    .parseSync() as Record<string, unknown>;
+
 export const flag = (name: string): boolean => argv.includes(name);
 
 export const argFail = (
@@ -13,20 +48,16 @@ export const argFail = (
     process.exit(2);
 };
 
+/** The yargs value for `--name` (kebab or camel key), undefined when absent. */
+const valueOf = (name: string): unknown =>
+    parsed[name.startsWith("--") ? name.slice(2) : name];
+
 /** Reads `--name value` or `--name=value`; the overload guarantees a string when a fallback is given. */
 export function arg(name: string): string | undefined;
 export function arg(name: string, fallback: string): string;
 export function arg(name: string, fallback?: string): string | undefined {
-    // Flags are stored with their `--` prefix in argv; accept either form at
-    // the call site so `arg("role")` and `arg("--role")` both resolve.
-    const flag = name.startsWith("--") ? name : `--${name}`;
-    const prefix = `${flag}=`;
-    for (let i = 0; i < argv.length; i++) {
-        const a = argv[i];
-        if (a === flag) return argv[i + 1] ?? fallback;
-        if (a.startsWith(prefix)) return a.slice(prefix.length);
-    }
-    return fallback;
+    const value = valueOf(name);
+    return typeof value === "string" ? value : fallback;
 }
 
 export const intArg = (

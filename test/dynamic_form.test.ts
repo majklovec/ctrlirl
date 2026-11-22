@@ -107,7 +107,7 @@ function mount(): HTMLElement {
 					disabled: cfg.disabled,
 					t: cfg.t,
 				},
-			) as m.Vnode,
+			),
 	});
 	root = el;
 	mithril.redraw();

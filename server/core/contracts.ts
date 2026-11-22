@@ -13,7 +13,7 @@
  * Cross-page state flows only through the capability map on PageServices —
  * one page never imports another, and the core stays entity-agnostic.
  */
-import type { Database } from "bun:sqlite";
+import type { AppDatabase } from "./db";
 import type { Elysia } from "elysia";
 import type { createAuth } from "./auth/auth";
 import type { createFrontend } from "../../shared/frontend";
@@ -50,7 +50,7 @@ export interface CapabilityRegistry {
  * `db` is null in `--no-auth` mode, exactly like today's stores.
  */
 export interface PageServices {
-    db: Database | null;
+    db: AppDatabase | null;
     auth: Auth;
     publish: Publish;
     config: ServerConfig;

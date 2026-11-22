@@ -9,7 +9,7 @@
  * core/app.ts (the app is built after the services, the page routes are
  * mounted after both) — so a page always publishes onto the live server.
  */
-import type { Database } from "bun:sqlite";
+import type { AppDatabase } from "./db";
 import { createAuth } from "./auth/auth";
 import { createFrontend } from "../../shared/frontend";
 import type {
@@ -22,7 +22,7 @@ import type {
 import { createCapabilities } from "./registry";
 
 export interface Services {
-    db: Database | null;
+    db: AppDatabase | null;
     auth: Auth;
     publish: Publish;
     config: ServerConfig;

@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { createAuth } from "../server/core/auth/auth";
+import { dashboards as dashboardsTable } from "../server/core/schema";
 import { createDashboards } from "../server/pages/dashboards/backend/registry";
 import { createProjects } from "../server/pages/projects/backend/registry";
 import { destroyWidgetHub } from "../shared/registry";
@@ -35,7 +37,7 @@ describe("control-server domain contracts", () => {
 
     afterAll(() => {
         destroyWidgetHub();
-        auth.db?.close();
+        auth.db?.$client.close();
     });
 
     test("keeps bootstrap, invitations, sessions and token ownership scoped", async () => {
@@ -201,7 +203,14 @@ describe("control-server domain contracts", () => {
             current: dashboard,
         });
         expect(
-            auth.db?.prepare("SELECT name, version FROM dashboards").get(),
+            auth?.db
+                ?.select({
+                    name: dashboardsTable.name,
+                    version: dashboardsTable.version,
+                })
+                .from(dashboardsTable)
+                .where(eq(dashboardsTable.name, "Operations"))
+                .get(),
         ).toEqual({ name: "Operations", version: 1 });
         const removed = await call("DELETE", path);
         expect(await removed.json()).toEqual({ ok: true, dashboards: [] });

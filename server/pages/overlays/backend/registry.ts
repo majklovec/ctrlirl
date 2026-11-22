@@ -14,7 +14,13 @@
  * no cookie, because a Browser Source has no session.
  */
 
-import type { Database } from "bun:sqlite";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import type { AppDatabase } from "../../../core/db";
+import {
+    mapPoints,
+    mapPaths,
+    overlays as overlaysTable,
+} from "../../../core/schema";
 import { createHash, randomUUID } from "node:crypto";
 import {
     defaultOverlay,
@@ -175,7 +181,7 @@ export function createOverlays({
     databaseFile,
     publish,
 }: {
-    db: Database | null;
+    db: AppDatabase | null;
     databaseFile: string;
     publish: Publish;
 }): Overlays {
@@ -186,21 +192,24 @@ export function createOverlays({
     function persist(store: Store): void {
         if (!db) return;
         try {
-            db.prepare(
-                `INSERT INTO overlays (id, project_id, schema_version, data, updated_at)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT(id) DO UPDATE SET
-                     project_id = excluded.project_id,
-                     schema_version = excluded.schema_version,
-                     data = excluded.data,
-                     updated_at = excluded.updated_at`,
-            ).run(
-                store.id,
-                store.project,
-                OVERLAY_SCHEMA_VERSION,
-                JSON.stringify(store.overlay),
-                store.updatedAt,
-            );
+            db.insert(overlaysTable)
+                .values({
+                    id: store.id,
+                    projectId: store.project,
+                    schemaVersion: OVERLAY_SCHEMA_VERSION,
+                    data: JSON.stringify(store.overlay),
+                    updatedAt: store.updatedAt,
+                })
+                .onConflictDoUpdate({
+                    target: overlaysTable.id,
+                    set: {
+                        projectId: store.project,
+                        schemaVersion: OVERLAY_SCHEMA_VERSION,
+                        data: JSON.stringify(store.overlay),
+                        updatedAt: store.updatedAt,
+                    },
+                })
+                .run();
         } catch (err: unknown) {
             console.error(`[overlays] persist ${DB_FILE}:`, err);
         }
@@ -211,9 +220,9 @@ export function createOverlays({
     function prune(id: string): void {
         if (!db) return;
         try {
-            db.prepare("DELETE FROM map_points WHERE overlay_id = ?").run(id);
-            db.prepare("DELETE FROM map_paths WHERE overlay_id = ?").run(id);
-            db.prepare("DELETE FROM overlays WHERE id = ?").run(id);
+            db.delete(mapPoints).where(eq(mapPoints.overlayId, id)).run();
+            db.delete(mapPaths).where(eq(mapPaths.overlayId, id)).run();
+            db.delete(overlaysTable).where(eq(overlaysTable.id, id)).run();
         } catch (err: unknown) {
             console.error(`[overlays] prune ${DB_FILE}:`, err);
         }
@@ -225,28 +234,30 @@ export function createOverlays({
      * legacy table (no backward compatibility). */
     function backfillFromLegacy(): void {
         if (!db) return;
-        const hasLegacy = db
+        // Legacy-table surgery (sqlite_master, DROP TABLE) — raw on purpose.
+        const raw = db.$client;
+        const hasLegacy = raw
             .prepare(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='overlay_projects'",
             )
             .get() as { name: string } | null;
         if (!hasLegacy) return;
         const overlayCount = (
-            db.prepare("SELECT count(*) c FROM overlays").get() as { c: number }
+            raw.prepare("SELECT count(*) c FROM overlays").get() as { c: number }
         ).c;
         if (overlayCount > 0) {
             // already migrated (e.g. a restart) — just retire the legacy table
-            db.exec("DROP TABLE overlay_projects");
+            raw.exec("DROP TABLE overlay_projects");
             return;
         }
-        const rows = db
+        const rows = raw
             .prepare("SELECT owner, data FROM overlay_projects")
             .all() as { owner: string; data: string }[];
-        const insert = db.prepare(
+        const insert = raw.prepare(
             "INSERT INTO overlays (id, project_id, schema_version, data, updated_at) VALUES (?, ?, ?, ?, ?)",
         );
         const personalProjectOf = (login: string): string => {
-            const u = db
+            const u = raw
                 .prepare("SELECT id FROM users WHERE login = ?")
                 .get(login) as { id: number } | undefined;
             return u ? `personal-${u.id}` : LOCAL_PROJECT_ID;
@@ -295,14 +306,20 @@ export function createOverlays({
                 }
             }
         }
-        db.exec("DROP TABLE overlay_projects");
+        raw.exec("DROP TABLE overlay_projects");
     }
 
     function load(): void {
         if (!db) return;
         backfillFromLegacy();
         const rows = db
-            .prepare("SELECT id, project_id, data, updated_at FROM overlays")
+            .select({
+                id: overlaysTable.id,
+                project_id: overlaysTable.projectId,
+                data: overlaysTable.data,
+                updated_at: overlaysTable.updatedAt,
+            })
+            .from(overlaysTable)
             .all() as {
             id: string;
             project_id: string | null;
@@ -936,9 +953,16 @@ export function createOverlays({
      * (the next fix re-opens one). */
     function mapEnd(store: Store, name: string): void {
         if (!db || !name || keepHistoryMaps(store.overlay).length === 0) return;
-        db.prepare(
-            "UPDATE map_paths SET name = ?, ended_at = ? WHERE overlay_id = ? AND name = 'default' AND ended_at IS NULL",
-        ).run(name, Date.now(), store.id);
+        db.update(mapPaths)
+            .set({ name, endedAt: Date.now() })
+            .where(
+                and(
+                    eq(mapPaths.overlayId, store.id),
+                    eq(mapPaths.name, "default"),
+                    isNull(mapPaths.endedAt),
+                ),
+            )
+            .run();
     }
 
     /** Every keep_history live map whose bound centre variable this batch
@@ -955,20 +979,33 @@ export function createOverlays({
         const point = parsePosition(pos);
         if (!point) return;
         let open = db
-            .prepare(
-                "SELECT id FROM map_paths WHERE overlay_id = ? AND name = 'default' AND ended_at IS NULL LIMIT 1",
+            .select({ id: mapPaths.id })
+            .from(mapPaths)
+            .where(
+                and(
+                    eq(mapPaths.overlayId, store.id),
+                    eq(mapPaths.name, "default"),
+                    isNull(mapPaths.endedAt),
+                ),
             )
-            .get(store.id) as { id: string } | null;
+            .limit(1)
+            .get() as { id: string } | null;
         if (!open) {
             const id = randomUUID();
-            db.prepare(
-                "INSERT INTO map_paths (id, overlay_id, name, started_at) VALUES (?, ?, ?, ?)",
-            ).run(id, store.id, "default", Date.now());
+            db.insert(mapPaths)
+                .values({ id, overlayId: store.id, name: "default", startedAt: Date.now() })
+                .run();
             open = { id };
         }
-        db.prepare(
-            "INSERT INTO map_points (overlay_id, path_id, lat, lon, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ).run(store.id, open.id, point.lat, point.lon, Date.now());
+        db.insert(mapPoints)
+            .values({
+                overlayId: store.id,
+                pathId: open.id,
+                lat: point.lat,
+                lon: point.lon,
+                recordedAt: Date.now(),
+            })
+            .run();
     }
 
     function setVariables(
@@ -1040,23 +1077,38 @@ export function createOverlays({
         if (!db) return null;
         const store = runtimeStore(project, overlayId);
         if (!store) return null;
-        const paths = (
-            db
-                .prepare(
-                    "SELECT id, name, started_at, ended_at FROM map_paths WHERE overlay_id = ? ORDER BY started_at, name",
-                )
-                .all(store.id) as {
-                id: string;
-                name: string;
-                started_at: number;
-                ended_at: number | null;
-            }[]
-        ).map((p) => ({ ...p, points: [] as { lat: number; lon: number; at: number }[] }));
+        const rawPaths = db
+            .select({
+                id: mapPaths.id,
+                name: mapPaths.name,
+                started_at: mapPaths.startedAt,
+                ended_at: mapPaths.endedAt,
+            })
+            .from(mapPaths)
+            .where(eq(mapPaths.overlayId, store.id))
+            .orderBy(asc(mapPaths.startedAt), asc(mapPaths.name))
+            .all() as {
+            id: string;
+            name: string;
+            started_at: number;
+            ended_at: number | null;
+        }[];
+        const paths = rawPaths.map((p) => ({
+            ...p,
+            points: [] as { lat: number; lon: number; at: number }[],
+        }));
         const points = db
-            .prepare(
-                "SELECT path_id, lat, lon, recorded_at FROM map_points WHERE overlay_id = ? ORDER BY recorded_at DESC LIMIT 20000",
-            )
-            .all(store.id) as {
+            .select({
+                path_id: mapPoints.pathId,
+                lat: mapPoints.lat,
+                lon: mapPoints.lon,
+                recorded_at: mapPoints.recordedAt,
+            })
+            .from(mapPoints)
+            .where(eq(mapPoints.overlayId, store.id))
+            .orderBy(desc(mapPoints.recordedAt))
+            .limit(20000)
+            .all() as {
             path_id: string;
             lat: number;
             lon: number;

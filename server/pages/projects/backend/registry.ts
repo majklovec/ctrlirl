@@ -9,7 +9,15 @@
  * the (project_id, user_id) primary key plus the owner invariants make a
  * project always have exactly one owner.
  */
-import type { Database } from "bun:sqlite";
+import { and, desc, eq, sql } from "drizzle-orm";
+import type { AppDatabase } from "../../../core/db";
+import {
+    projectInvites,
+    projectMembers,
+    projects as projectsTable,
+    tokens,
+    users,
+} from "../../../core/schema";
 import { randomBytes, randomUUID } from "node:crypto";
 import { ApiError } from "../../../../shared/params";
 import { LOCAL_PROJECT_ID } from "../../../core/runtime";
@@ -195,15 +203,17 @@ export interface Projects {
     };
 }
 
-export function createProjects(db: Database | null): Projects {
+export function createProjects(db: AppDatabase | null): Projects {
     /** The db, or the 503 throw in `--no-auth` mode (narrows `db` to non-null). */
-    const useDb = (): Database => (db ? db : noDb());
+    const useDb = (): AppDatabase => (db ? db : noDb());
 
     const userIdOf = (login: string): number => {
         const d = useDb();
         const row = d
-            .prepare("SELECT id FROM users WHERE login = ?")
-            .get(login) as { id: number } | undefined;
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.login, login))
+            .get();
         if (!row) throw new ApiError(`Unknown user: ${login}`, 401);
         return row.id;
     };
@@ -214,10 +224,15 @@ export function createProjects(db: Database | null): Projects {
     ): ProjectRole | null => {
         const d = useDb();
         const row = d
-            .prepare(
-                "SELECT role FROM project_members WHERE project_id = ? AND user_id = ?",
+            .select({ role: projectMembers.role })
+            .from(projectMembers)
+            .where(
+                and(
+                    eq(projectMembers.projectId, projectId),
+                    eq(projectMembers.userId, userId),
+                ),
             )
-            .get(projectId, userId) as { role: ProjectRole } | undefined;
+            .get() as { role: ProjectRole } | undefined;
         return row?.role ?? null;
     };
 
@@ -226,13 +241,21 @@ export function createProjects(db: Database | null): Projects {
         if (typeof token !== "string" || token === "")
             throw new ApiError("token is required");
         const row = d
-            .prepare(
-                "SELECT i.id, i.project_id, i.role, i.expires_at, i.used_by, " +
-                    "p.name FROM project_invites i " +
-                    "JOIN projects p ON p.id = i.project_id " +
-                    "WHERE i.token = ?",
+            .select({
+                id: projectInvites.id,
+                project_id: projectInvites.projectId,
+                role: projectInvites.role,
+                expires_at: projectInvites.expiresAt,
+                used_by: projectInvites.usedBy,
+                name: projectsTable.name,
+            })
+            .from(projectInvites)
+            .innerJoin(
+                projectsTable,
+                eq(projectInvites.projectId, projectsTable.id),
             )
-            .get(token) as JoinInviteRow | undefined;
+            .where(eq(projectInvites.token, token))
+            .get() as JoinInviteRow | undefined;
         if (!row) throw new ApiError("Invite link not found", 404);
         if (row.used_by !== null)
             throw new ApiError("Invite link already used", 409);
@@ -262,14 +285,26 @@ export function createProjects(db: Database | null): Projects {
     return {
         list: (user) => {
             if (!db) return [];
+            const uid = db
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.login, user))
+                .get()?.id;
+            if (uid === undefined) return [];
             const rows = db
-                .prepare(
-                    "SELECT p.id, p.name, m.role FROM projects p " +
-                        "JOIN project_members m ON m.project_id = p.id " +
-                        "WHERE m.user_id = (SELECT id FROM users WHERE login = ?) " +
-                        "ORDER BY p.created_at DESC",
+                .select({
+                    id: projectsTable.id,
+                    name: projectsTable.name,
+                    role: projectMembers.role,
+                })
+                .from(projectsTable)
+                .innerJoin(
+                    projectMembers,
+                    eq(projectMembers.projectId, projectsTable.id),
                 )
-                .all(user) as { id: string; name: string; role: ProjectRole }[];
+                .where(eq(projectMembers.userId, uid))
+                .orderBy(desc(projectsTable.createdAt))
+                .all() as { id: string; name: string; role: ProjectRole }[];
             return rows.map((r) => ({ id: r.id, name: r.name, role: r.role }));
         },
 
@@ -289,13 +324,16 @@ export function createProjects(db: Database | null): Projects {
             // earliest project as a member. Not auto-created — a user without
             // any project 404s (the UI offers to create one).
             const row = d
-                .prepare(
-                    "SELECT p.id FROM projects p " +
-                        "JOIN project_members m ON m.project_id = p.id " +
-                        "WHERE m.user_id = ? " +
-                        "ORDER BY p.created_at ASC, p.id ASC LIMIT 1",
+                .select({ id: projectsTable.id })
+                .from(projectsTable)
+                .innerJoin(
+                    projectMembers,
+                    eq(projectMembers.projectId, projectsTable.id),
                 )
-                .get(uid) as { id: string } | undefined;
+                .where(eq(projectMembers.userId, uid))
+                .orderBy(projectsTable.createdAt, projectsTable.id)
+                .limit(1)
+                .get();
             if (!row)
                 throw new ApiError(`User ${user} has no projects`, 404);
             return row.id;
@@ -306,15 +344,14 @@ export function createProjects(db: Database | null): Projects {
             const name = parseName(rawName);
             const id = randomUUID();
             const uid = userIdOf(user);
-            d.transaction(() => {
-                d.prepare(
-                    "INSERT INTO projects (id, name, owner_id) VALUES (?, ?, ?)",
-                ).run(id, name, uid);
-                d.prepare(
-                    "INSERT INTO project_members (project_id, user_id, role) " +
-                        "VALUES (?, ?, 'owner')",
-                ).run(id, uid);
-            })();
+            d.transaction((t) => {
+                t.insert(projectsTable)
+                    .values({ id, name, ownerId: uid })
+                    .run();
+                t.insert(projectMembers)
+                    .values({ projectId: id, userId: uid, role: "owner" })
+                    .run();
+            });
             return { id, name, role: "owner" };
         },
 
@@ -322,31 +359,35 @@ export function createProjects(db: Database | null): Projects {
             const d = useDb();
             const role = requireRole(actor, projectId, ["owner", "editor"]);
             const name = parseName(rawName);
-            d.prepare(
-                "UPDATE projects SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            ).run(name, projectId);
+            d.update(projectsTable)
+                .set({
+                    name,
+                    updatedAt: sql`(CURRENT_TIMESTAMP)`,
+                })
+                .where(eq(projectsTable.id, projectId))
+                .run();
             return { id: projectId, name, role };
         },
 
         remove: (actor, projectId) => {
             const d = useDb();
             requireRole(actor, projectId, ["owner"]);
-            d.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
+            d.delete(projectsTable).where(eq(projectsTable.id, projectId)).run();
         },
 
         listTokens: (actor, projectId) => {
             const d = useDb();
             requireRole(actor, projectId, ["owner", "editor", "viewer"]);
             const rows = d
-                .prepare(
-                    "SELECT id, token, created_at FROM tokens " +
-                        "WHERE project_id = ? ORDER BY id ASC",
-                )
-                .all(projectId) as {
-                    id: number;
-                    token: string;
-                    created_at: string;
-                }[];
+                .select({
+                    id: tokens.id,
+                    token: tokens.token,
+                    created_at: tokens.createdAt,
+                })
+                .from(tokens)
+                .where(eq(tokens.projectId, projectId))
+                .orderBy(tokens.id)
+                .all();
             return rows.map((r) => ({
                 id: r.id,
                 token: r.token,
@@ -358,21 +399,21 @@ export function createProjects(db: Database | null): Projects {
             const d = useDb();
             requireRole(actor, projectId, ["owner", "editor"]);
             const token = randomBytes(24).toString("hex");
-            const ins = d
-                .prepare(
-                    "INSERT INTO tokens (user_id, token, project_id) " +
-                        "SELECT id, ?, ? FROM users WHERE login = ?",
-                )
-                .run(token, projectId, actor);
+            // The INSERT...SELECT was just "insert with the actor's id" — the
+            // role check above already proved the user exists.
             const created = d
-                .prepare(
-                    "SELECT id, token, created_at FROM tokens WHERE id = ?",
-                )
-                .get(Number(ins.lastInsertRowid)) as {
-                id: number;
-                token: string;
-                created_at: string;
-            };
+                .insert(tokens)
+                .values({
+                    userId: userIdOf(actor),
+                    token,
+                    projectId,
+                })
+                .returning({
+                    id: tokens.id,
+                    token: tokens.token,
+                    created_at: tokens.createdAt,
+                })
+                .get();
             return {
                 id: created.id,
                 token: created.token,
@@ -384,30 +425,59 @@ export function createProjects(db: Database | null): Projects {
             const d = useDb();
             requireRole(actor, projectId, ["owner", "editor"]);
             // Scope the delete to the project: a missing or foreign id 404s.
-            const result = d
-                .prepare(
-                    "DELETE FROM tokens WHERE id = ? AND project_id = ?",
+            // Scope the delete to the project: a missing or foreign id 404s.
+            // tokenId is a string at the API edge (the URL tail).
+            const existing = d
+                .select({ id: tokens.id })
+                .from(tokens)
+                .where(
+                    and(
+                        eq(tokens.id, Number(tokenId)),
+                        eq(tokens.projectId, projectId),
+                    ),
                 )
-                .run(tokenId, projectId);
-            if (Number(result.changes) === 0)
+                .get();
+            if (!existing)
                 throw new ApiError(`Token ${tokenId} not found`, 404);
+            d.delete(tokens)
+                .where(
+                    and(
+                        eq(tokens.id, Number(tokenId)),
+                        eq(tokens.projectId, projectId),
+                    ),
+                )
+                .run();
         },
 
         members: (projectId) => {
             const d = useDb();
             const project = d
-                .prepare("SELECT id FROM projects WHERE id = ?")
-                .get(projectId) as { id: string } | undefined;
+                .select({ id: projectsTable.id })
+                .from(projectsTable)
+                .where(eq(projectsTable.id, projectId))
+                .get();
             if (!project)
                 throw new ApiError(`Project ${projectId} not found`, 404);
             const rows = d
-                .prepare(
-                    "SELECT m.user_id, u.login, m.role FROM project_members m " +
-                        "JOIN users u ON u.id = m.user_id " +
-                        "WHERE m.project_id = ? " +
-                        "ORDER BY (m.role = 'owner') DESC, m.joined_at",
+                .select({
+                    user_id: users.id,
+                    login: users.login,
+                    role: projectMembers.role,
+                })
+                .from(projectMembers)
+                .innerJoin(users, eq(users.id, projectMembers.userId))
+                .where(eq(projectMembers.projectId, projectId))
+                // Owners first, then by join time — a boolean expr sorts
+                // DESC in SQLite (1 > 0).
+                .orderBy(
+                    desc(sql`(project_members.role = 'owner')`),
+                    projectMembers.joinedAt,
                 )
-                .all(projectId) as MemberRow[];
+                .all() as {
+                user_id: number;
+                login: string;
+                role: ProjectRole;
+            }[];
             return rows.map((r) => ({
                 userId: r.user_id,
                 login: r.login,
@@ -421,42 +491,56 @@ export function createProjects(db: Database | null): Projects {
                 throw new ApiError("role must be editor or viewer");
             requireRole(actor, projectId, ["owner"]);
             const target = d
-                .prepare(
-                    "SELECT role FROM project_members " +
-                        "WHERE project_id = ? AND user_id = ?",
+                .select({ role: projectMembers.role })
+                .from(projectMembers)
+                .where(
+                    and(
+                        eq(projectMembers.projectId, projectId),
+                        eq(projectMembers.userId, targetUserId),
+                    ),
                 )
-                .get(projectId, targetUserId) as
-                | { role: ProjectRole }
-                | undefined;
+                .get();
             if (!target) throw new ApiError("Member not found", 404);
             if (target.role === "owner")
                 throw new ApiError("The owner role is fixed", 403);
-            d.prepare(
-                "UPDATE project_members SET role = ? " +
-                    "WHERE project_id = ? AND user_id = ?",
-            ).run(role, projectId, targetUserId);
+            d.update(projectMembers)
+                .set({ role })
+                .where(
+                    and(
+                        eq(projectMembers.projectId, projectId),
+                        eq(projectMembers.userId, targetUserId),
+                    ),
+                )
+                .run();
         },
 
         removeMember: (actor, projectId, targetUserId) => {
             const d = useDb();
             requireRole(actor, projectId, ["owner"]);
             const target = d
-                .prepare(
-                    "SELECT role FROM project_members " +
-                        "WHERE project_id = ? AND user_id = ?",
+                .select({ role: projectMembers.role })
+                .from(projectMembers)
+                .where(
+                    and(
+                        eq(projectMembers.projectId, projectId),
+                        eq(projectMembers.userId, targetUserId),
+                    ),
                 )
-                .get(projectId, targetUserId) as
-                | { role: ProjectRole }
-                | undefined;
+                .get();
             if (!target) throw new ApiError("Member not found", 404);
             if (target.role === "owner")
                 throw new ApiError(
                     "The owner cannot be removed — transfer it first or delete the project",
                     403,
                 );
-            d.prepare(
-                "DELETE FROM project_members WHERE project_id = ? AND user_id = ?",
-            ).run(projectId, targetUserId);
+            d.delete(projectMembers)
+                .where(
+                    and(
+                        eq(projectMembers.projectId, projectId),
+                        eq(projectMembers.userId, targetUserId),
+                    ),
+                )
+                .run();
         },
 
         createInvite: (actor, projectId, role, origin) => {
@@ -480,11 +564,16 @@ export function createProjects(db: Database | null): Projects {
             const expiresAt = new Date(
                 createdAt.getTime() + INVITE_TTL_MS,
             ).toISOString();
-            d.prepare(
-                "INSERT INTO project_invites " +
-                    "(id, project_id, token, role, created_by, expires_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-            ).run(id, projectId, token, role, userIdOf(actor), expiresAt);
+            d.insert(projectInvites)
+                .values({
+                    id,
+                    projectId,
+                    token,
+                    role,
+                    createdBy: userIdOf(actor),
+                    expiresAt,
+                })
+                .run();
             return {
                 id,
                 role,
@@ -499,26 +588,44 @@ export function createProjects(db: Database | null): Projects {
             const d = useDb();
             requireRole(actor, projectId, ["owner"]);
             const rows = d
-                .prepare(
-                    "SELECT i.id, i.token, i.role, i.created_at, i.expires_at, " +
-                        "u.login AS used_by FROM project_invites i " +
-                        "LEFT JOIN users u ON u.id = i.used_by " +
-                        "WHERE i.project_id = ? ORDER BY i.created_at DESC",
-                )
-                .all(projectId) as InviteRow[];
+                .select({
+                    id: projectInvites.id,
+                    token: projectInvites.token,
+                    role: projectInvites.role,
+                    created_at: projectInvites.createdAt,
+                    expires_at: projectInvites.expiresAt,
+                    used_by: users.login,
+                })
+                .from(projectInvites)
+                .leftJoin(users, eq(users.id, projectInvites.usedBy))
+                .where(eq(projectInvites.projectId, projectId))
+                .orderBy(desc(projectInvites.createdAt))
+                .all() as InviteRow[];
             return rows.map((r) => inviteOf(r, origin));
         },
 
         revokeInvite: (actor, projectId, inviteId) => {
             const d = useDb();
             requireRole(actor, projectId, ["owner"]);
-            const result = d
-                .prepare(
-                    "DELETE FROM project_invites WHERE project_id = ? AND id = ?",
+            const existing = d
+                .select({ id: projectInvites.id })
+                .from(projectInvites)
+                .where(
+                    and(
+                        eq(projectInvites.projectId, projectId),
+                        eq(projectInvites.id, inviteId),
+                    ),
                 )
-                .run(projectId, inviteId);
-            if (Number(result.changes) === 0)
-                throw new ApiError("Invite link not found", 404);
+                .get();
+            if (!existing) throw new ApiError("Invite link not found", 404);
+            d.delete(projectInvites)
+                .where(
+                    and(
+                        eq(projectInvites.projectId, projectId),
+                        eq(projectInvites.id, inviteId),
+                    ),
+                )
+                .run();
         },
 
         previewInvite: (user, token) => {
@@ -532,15 +639,15 @@ export function createProjects(db: Database | null): Projects {
             const uid = userIdOf(user);
             if (roleRow(uid, row.project_id))
                 throw new ApiError("You are already a member", 409);
-            d.transaction(() => {
-                d.prepare(
-                    "INSERT INTO project_members (project_id, user_id, role) " +
-                        "VALUES (?, ?, ?)",
-                ).run(row.project_id, uid, row.role);
-                d.prepare(
-                    "UPDATE project_invites SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?",
-                ).run(uid, row.id);
-            })();
+            d.transaction((t) => {
+                t.insert(projectMembers)
+                    .values({ projectId: row.project_id, userId: uid, role: row.role })
+                    .run();
+                t.update(projectInvites)
+                    .set({ usedBy: uid, usedAt: sql`(CURRENT_TIMESTAMP)` })
+                    .where(eq(projectInvites.id, row.id))
+                    .run();
+            });
             return {
                 id: row.project_id,
                 name: row.name,

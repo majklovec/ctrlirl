@@ -1,4 +1,5 @@
-import { Database } from "bun:sqlite";
+import { alias } from "drizzle-orm/sqlite-core";
+import { desc, eq, sql } from "drizzle-orm";
 import {
     randomBytes,
     randomUUID,
@@ -6,7 +7,8 @@ import {
     timingSafeEqual,
 } from "node:crypto";
 import { text } from "../../../shared/http";
-import { openDatabase } from "../db";
+import { type AppDatabase, openDatabase } from "../db";
+import { invitations, tokens, users } from "../schema";
 import { LOCAL_PROJECT_ID, LOCAL_USER } from "../runtime";
 
 export async function createAuth({
@@ -43,17 +45,18 @@ export async function createAuth({
 
     /** The user database (null in `--no-auth` mode): logins with scrypt-hashed
      * passwords and the device tokens assigned to each user. */
-    const db: Database | null = NO_AUTH
+    const db: AppDatabase | null = NO_AUTH
         ? null
         : await (async () => {
               const d = await openDatabase(DB_FILE);
 
               if (
                   (
-                      d.prepare("SELECT COUNT(*) AS n FROM users").get() as {
-                          n: number;
-                      }
-                  ).n === 0
+                      d
+                          .select({ n: sql<number>`count(*)` })
+                          .from(users)
+                          .get()?.n ?? 0
+                  ) === 0
               ) {
                   console.log(
                       `[auth] the user database ${DB_FILE} has no users yet — create the first account at /register`,
@@ -70,10 +73,11 @@ export async function createAuth({
         if (NO_AUTH) return LOCAL_USER;
         if (!token || !db) return null;
         const row = db
-            .prepare(
-                "SELECT u.login FROM tokens t JOIN users u ON u.id = t.user_id WHERE t.token = ?",
-            )
-            .get(token) as { login: string } | undefined;
+            .select({ login: users.login })
+            .from(tokens)
+            .innerJoin(users, eq(tokens.userId, users.id))
+            .where(eq(tokens.token, token))
+            .get();
         return row?.login ?? null;
     }
 
@@ -87,11 +91,11 @@ export async function createAuth({
         if (NO_AUTH) return LOCAL_PROJECT_ID;
         if (!token || !db) return null;
         const row = db
-            .prepare(
-                "SELECT project_id FROM tokens WHERE token = ?",
-            )
-            .get(token) as { project_id: string | null } | undefined;
-        return row?.project_id ?? null;
+            .select({ projectId: tokens.projectId })
+            .from(tokens)
+            .where(eq(tokens.token, token))
+            .get();
+        return row?.projectId ?? null;
     }
 
     // Opaque cookie sessions: the browser stores a session id (HttpOnly), so
@@ -131,9 +135,11 @@ export async function createAuth({
         if (NO_AUTH) return true;
         if (!db) return false;
         const row = db
-            .prepare("SELECT admin FROM users WHERE login = ?")
-            .get(login) as { admin: number } | undefined;
-        return row?.admin === 1;
+            .select({ admin: users.admin })
+            .from(users)
+            .where(eq(users.login, login))
+            .get();
+        return row?.admin ?? false;
     }
 
     /** Auth + admin guard: the session user's login, or a 401/403 Response. */
@@ -172,7 +178,8 @@ export async function createAuth({
             db
         ) {
             const rows = db
-                .prepare("SELECT login, password FROM users")
+                .select({ login: users.login, password: users.password })
+                .from(users)
                 .all() as {
                 login: string;
                 password: string;
@@ -253,8 +260,10 @@ export async function createAuth({
         const hash = hashPassword(password);
 
         // Bootstrap: the very first account becomes admin and needs no invite. The
-        // guarded INSERT makes this atomic for concurrent first registrations.
-        const bootstrap = db
+        // guarded INSERT makes this atomic for concurrent first registrations —
+        // the builder cannot express a guarded insert, so it stays raw on the
+        // underlying driver.
+        const bootstrap = db.$client
             .prepare(
                 "INSERT INTO users (login, password, admin) SELECT ?, ?, 1 WHERE (SELECT COUNT(*) FROM users) = 0",
             )
@@ -274,38 +283,45 @@ export async function createAuth({
             );
 
         const row = db
-            .prepare(
-                "SELECT id, used_by, expires_at FROM invitations WHERE code = ?",
-            )
-            .get(code) as
-            | { id: number; used_by: number | null; expires_at: string | null }
-            | undefined;
+            .select({
+                id: invitations.id,
+                usedBy: invitations.usedBy,
+                expiresAt: invitations.expiresAt,
+            })
+            .from(invitations)
+            .where(eq(invitations.code, code))
+            .get();
         if (!row)
             return Response.json(
                 { ok: false, error: "Invalid invitation code" },
                 { status: 403 },
             );
-        if (row.used_by !== null)
+        if (row.usedBy !== null)
             return Response.json(
                 { ok: false, error: "Invitation already used" },
                 { status: 403 },
             );
-        if (row.expires_at && new Date(row.expires_at) < new Date())
+        if (row.expiresAt && new Date(row.expiresAt) < new Date())
             return Response.json(
                 { ok: false, error: "Invitation expired" },
                 { status: 403 },
             );
 
         try {
-            db.transaction(() => {
-                db.prepare(
-                    "INSERT INTO users (login, password, admin) VALUES (?, ?, 0)",
-                ).run(clean, hash);
-                db.prepare(
-                    "UPDATE invitations SET used_by = (SELECT id FROM users WHERE login = ?), " +
-                        "used_at = CURRENT_TIMESTAMP WHERE id = ?",
-                ).run(clean, row.id);
-            })();
+            db.transaction((t) => {
+                const [created] = t
+                    .insert(users)
+                    .values({ login: clean, password: hash, admin: false })
+                    .returning()
+                    .all();
+                t.update(invitations)
+                    .set({
+                        usedBy: created.id,
+                        usedAt: sql`(CURRENT_TIMESTAMP)`,
+                    })
+                    .where(eq(invitations.id, row.id))
+                    .run();
+            });
         } catch {
             // Username already taken (UNIQUE) or any other insert/commit failure.
             return Response.json(
@@ -325,10 +341,9 @@ export async function createAuth({
         return (
             db !== null &&
             (
-                db.prepare("SELECT COUNT(*) AS n FROM users").get() as {
-                    n: number;
-                }
-            ).n > 0
+                db.select({ n: sql<number>`count(*)` }).from(users).get()?.n ??
+                0
+            ) > 0
         );
     }
 
@@ -389,9 +404,13 @@ export async function createAuth({
             Date.now() + 7 * 24 * 60 * 60 * 1000,
         ).toISOString();
 
-        db.prepare(
-            "INSERT INTO invitations (code, created_by, expires_at) SELECT ?, id, ? FROM users WHERE login = ?",
-        ).run(code, expiresAt, auth);
+        // created_by selects from the acting user's row — stays raw on the
+        // underlying driver.
+        db.$client
+            .prepare(
+                "INSERT INTO invitations (code, created_by, expires_at) SELECT ?, id, ? FROM users WHERE login = ?",
+            )
+            .run(code, expiresAt, auth);
 
         return Response.json({ ok: true, code, expiresAt }, { status: 201 });
     }
@@ -402,23 +421,28 @@ export async function createAuth({
         if (auth instanceof Response) return auth;
         if (!db) return unauthorized();
 
+        // The wire format keeps the snake_case column names (the profile
+        // page reads them as-is).
         const rows = db
-            .prepare(
-                "SELECT i.code, i.created_at, i.expires_at, i.used_at, " +
-                    "u1.login AS created_by, u2.login AS used_by " +
-                    "FROM invitations i " +
-                    "LEFT JOIN users u1 ON u1.id = i.created_by " +
-                    "LEFT JOIN users u2 ON u2.id = i.used_by " +
-                    "ORDER BY i.id DESC",
+            .select({
+                code: invitations.code,
+                created_at: invitations.createdAt,
+                expires_at: invitations.expiresAt,
+                used_at: invitations.usedAt,
+                created_by: alias(users, "u1").login,
+                used_by: alias(users, "u2").login,
+            })
+            .from(invitations)
+            .leftJoin(
+                alias(users, "u1"),
+                eq(alias(users, "u1").id, invitations.createdBy),
             )
-            .all() as {
-            code: string;
-            created_at: string;
-            expires_at: string | null;
-            used_at: string | null;
-            created_by: string | null;
-            used_by: string | null;
-        }[];
+            .leftJoin(
+                alias(users, "u2"),
+                eq(alias(users, "u2").id, invitations.usedBy),
+            )
+            .orderBy(desc(invitations.id))
+            .all();
 
         return Response.json({ ok: true, invitations: rows });
     }
@@ -459,18 +483,20 @@ export async function createAuth({
             );
         }
         const row = db
-            .prepare("SELECT password FROM users WHERE login = ?")
-            .get(user) as { password: string } | undefined;
+            .select({ password: users.password })
+            .from(users)
+            .where(eq(users.login, user))
+            .get();
         if (!row || !verifyPassword(current, row.password)) {
             return Response.json(
                 { ok: false, error: "Invalid username or password" },
                 { status: 401 },
             );
         }
-        db.prepare("UPDATE users SET password = ? WHERE login = ?").run(
-            hashPassword(next),
-            user,
-        );
+        db.update(users)
+            .set({ password: hashPassword(next) })
+            .where(eq(users.login, user))
+            .run();
         // The session itself stays valid: only the login secret changed.
         return Response.json({ ok: true });
     }
