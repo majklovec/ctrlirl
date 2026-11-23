@@ -131,6 +131,22 @@ describe("resolve", () => {
         ).rejects.toThrow(/escapes the install directory/);
     });
 
+    test("contentFile inside install/ passes with a Windows-style (backslash) baseDir", async () => {
+        // CI regression: a compiled Windows binary yields a baseDir with
+        // backslash separators (dirname(process.execPath)); the old
+        // startsWith(base + "/") check then misfired and rejected nested
+        // files like `udev/modem.rules` as "escaping" the install dir.
+        const winBase = "C:\\Users\\runner\\client\\modules\\modems\\install";
+        const spec: ModuleInstallSpec = {
+            version: 1,
+            udev: [{ file: "55-ctrlirl-modem.rules", contentFile: "udev/modem.rules" }],
+        };
+        const read = async (): Promise<string> => "SUBSYSTEM==\"usb\"";
+        const resolved = await resolveSpec(spec, winBase, {}, read);
+        expect(resolved.udev?.[0]?.content).toBe('SUBSYSTEM=="usb"');
+        expect(resolved.services).toBeUndefined();
+    });
+
     test("resolveSpec resolves service content, firewall rules and udev content", async () => {
         const dir = await (await import("node:fs/promises")).mkdtemp(
             join(tmpdir(), "ctrlirl-resolve-spec-"),

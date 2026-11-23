@@ -13,12 +13,22 @@
  * Placeholders are only honoured in declared string fields (service content,
  * firewall rules, udev content); everything else is copied through verbatim.
  */
-import { resolve as pathResolve } from "node:path";
+import { relative as pathRelative, resolve as pathResolve } from "node:path";
 import type { ModuleInstallSpec, ServiceSpec, UdevRule } from "./types";
 import { InstSpecError } from "./merge";
 
 /** `install/` directory the placeholders are relative to. */
 export type InstallBaseDir = string;
+
+/**
+ * True when `full` (absolute) is `base` itself or lies inside it. Uses a
+ * relative-path check — a `startsWith(base + "/")` comparison silently
+ * misfires on Windows, where `path.resolve` emits backslashes.
+ */
+function isWithin(base: string, full: string): boolean {
+    const rel = pathRelative(base, full);
+    return rel === "" || (rel !== ".." && !rel.startsWith("../"));
+}
 
 export const readFile = async (path: string): Promise<string> =>
     await Bun.file(path).text();
@@ -43,7 +53,7 @@ export async function resolvePlaceholdersIn(
         switch (kind) {
             case "file": {
                 const full = pathResolve(baseDir, name);
-                if (!full.startsWith(pathResolve(baseDir) + "/"))
+                if (!isWithin(pathResolve(baseDir), full))
                     throw new InstSpecError(
                         `{{file:}} path escapes the install directory: ${name}`,
                     );
@@ -100,7 +110,7 @@ async function resolveService(
         );
     if (s.contentFile) {
         const full = pathResolve(baseDir, s.contentFile);
-        if (!full.startsWith(pathResolve(baseDir) + "/"))
+        if (!isWithin(pathResolve(baseDir), full))
             throw new InstSpecError(
                 `service ${s.name}: contentFile escapes the install directory`,
             );
@@ -127,7 +137,7 @@ async function resolveUdev(
         throw new InstSpecError(`udev ${u.file}: both content and contentFile are set (pick one)`);
     if (u.contentFile) {
         const full = pathResolve(baseDir, u.contentFile);
-        if (!full.startsWith(pathResolve(baseDir) + "/"))
+        if (!isWithin(pathResolve(baseDir), full))
             throw new InstSpecError(`udev ${u.file}: contentFile escapes the install directory`);
         let fileContent: string;
         try {
