@@ -25,7 +25,7 @@ import { numProp, strProp } from "@ui/overlay/element";
 import { bindField, bindableForm } from "@ui/overlay/fields";
 import type { Vnode } from "mithril";
 import m from "mithril";
-import { formatDuration } from "../lib/ticker";
+import { formatDuration } from "../lib/interval";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
 
 /* ── countdown ────────────────────────────────────────────────────────── */

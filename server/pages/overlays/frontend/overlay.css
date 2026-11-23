@@ -376,6 +376,39 @@ body {
     }
 }
 
+/* ticker: the track lays the item sequence out twice (elements/ticker.tsx);
+ * scrolling exactly half its length makes the loop seamless.
+ * `ovTickerScrollLeft` carries the horizontal track's vertical centering
+ * (`-50%` Y) because the animation overwrites the element's transform; the
+ * animation DURATION is written to the DOM node from the measured content
+ * width / row count (px/s `speed` prop) and is not part of the keyframe. */
+@keyframes ovTickerScrollLeft {
+    from {
+        transform: translate3d(0, -50%, 0);
+    }
+    to {
+        transform: translate3d(-50%, -50%, 0);
+    }
+}
+
+@keyframes ovTickerScrollUp {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
+    to {
+        transform: translate3d(0, -50%, 0);
+    }
+}
+
+@keyframes ovTickerScrollDown {
+    from {
+        transform: translate3d(0, -50%, 0);
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+    }
+}
+
 /* emote wall: a chip drifts up the board and fades out; `--ew-drift`
  * (set inline per chip) adds a little sideways wander */
 @keyframes ovEmoteFloat {

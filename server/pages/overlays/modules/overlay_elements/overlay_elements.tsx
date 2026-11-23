@@ -26,6 +26,7 @@ import { socialsElement } from "./elements/socials";
 import { spinWheelElement } from "./elements/spin_wheel";
 import { tasksElement } from "./elements/tasks";
 import { textElement } from "./elements/text";
+import { tickerElement } from "./elements/ticker";
 import { videoElement } from "./elements/video";
 import { weatherElement } from "./elements/weather";
 
@@ -54,6 +55,7 @@ const elements: (OverlayElementDef & OverlayElementSchema)[] = [
 	chatElement,
 	liveMapElement,
 	ambientElement,
+	tickerElement,
 ];
 
 export default elements;

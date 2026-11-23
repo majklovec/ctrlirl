@@ -1,22 +1,22 @@
 /** @jsx m */
 /*
  * Small shared helpers for the time-driven overlay widgets (countdown, spin
- * wheel, emote wall, …). A `Ticker` component is the one idiom for "redraw me
- * every N ms while I'm on screen": it owns a `setInterval` and clears it on
- * removal, so a removed element never keeps ticking.
+ * wheel, emote wall, …). An `Interval` component is the one idiom for
+ * "redraw me every N ms while I'm on screen": it owns a `setInterval` and
+ * clears it on removal, so a removed element never keeps ticking.
  */
 
 import type { Children } from "mithril";
 import m from "mithril";
 
-export interface TickerAttrs {
+export interface IntervalAttrs {
 	/** Redraw period in ms. */
 	every: number;
 	/** Re-evaluated on each tick with the current `Date.now()`. */
 	render: (now: number) => Children;
 }
 
-interface TickerState {
+interface IntervalState {
 	timer: ReturnType<typeof setInterval>;
 	every: number;
 	now: number;
@@ -25,7 +25,7 @@ interface TickerState {
 /** Re-run `render(now)` every `every` ms; stops on removal. The render
  * function keeps the ticking inside the element subtree — a removed element
  * never keeps its interval alive. */
-export const Ticker: m.Component<TickerAttrs, TickerState> = {
+export const Interval: m.Component<IntervalAttrs, IntervalState> = {
 	oncreate(vnode) {
 		vnode.state.now = Date.now();
 		vnode.state.every = vnode.attrs.every;

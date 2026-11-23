@@ -70,6 +70,7 @@ const WELL_FORMED: Array<[OverlayElementType, Record<string, unknown>]> = [
 	["webrtc", { streamId: "abc-123-def" }],
 	["alert", { ...DEFAULT_ALERT_PROPS }],
 	["ambient", { kind: "aurora", speed: 1, trail: 1, background: "#05070d" }],
+	["ticker", { items: ["hi"], direction: "left", speed: 80 }],
 ];
 
 describe("element registry contract", () => {

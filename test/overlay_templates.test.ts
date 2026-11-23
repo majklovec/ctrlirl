@@ -95,7 +95,6 @@ describe("overlay_templates: catalog", () => {
 				"lower_third_bar",
 				"music_viz",
 				"starting_soon",
-				"ticker",
 				"webcam_frame",
 			].sort(),
 		);
