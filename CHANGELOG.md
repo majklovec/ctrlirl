@@ -1,3 +1,10 @@
+## [10.0.1](https://github.com/majklovec/ctrlirl/compare/v10.0.0...v10.0.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **install:** cross-platform contain check for udev/service contentFile ([14c114b](https://github.com/majklovec/ctrlirl/commit/14c114bd86de6c175780d6d925ad46f7c82fa3f6))
+
 # [10.0.0](https://github.com/majklovec/ctrlirl/compare/v9.4.0...v10.0.0) (2026-11-23)
 
 
