@@ -16,7 +16,7 @@ pipeline/majklovec
 generated/
 dist/*
 # The plain-UDP↔TUN pump binary (built by build.sh, deployed by hand — not committed).
-users.db
+database.sqlite
 config/
 
 # Headless-DOM test bundles (normally removed by test teardown)

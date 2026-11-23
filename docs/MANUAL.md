@@ -61,10 +61,10 @@ The encoder bonds the stream out over all uplinks with `srtla_send` and sends it
 
 ### Main parts of the program
 
-| Part               | Entry point                        | What it is                                                                                                                                                                                                  |
-| ------------------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Device client**  | `client/backend/client.ts`         | Runs every device role. Serves the local web UI + API on port **8085**, starts role modules, and (optionally) dials the control server. |
-| **Control server** | `server/backend/server.ts`         | Central management server on port **8090**: user accounts, device list, per-user dashboards. Reaches devices over their _outbound_ WebSocket, so devices behind NAT / mobile networks are fully manageable. |
+| Part               | Entry point                | What it is                                                                                                                                                                                                  |
+| ------------------ | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Device client**  | `client/backend/client.ts` | Runs every device role. Serves the local web UI + API on port **8085**, starts role modules, and (optionally) dials the control server.                                                                     |
+| **Control server** | `server/backend/server.ts` | Central management server on port **8090**: user accounts, device list, per-user dashboards. Reaches devices over their _outbound_ WebSocket, so devices behind NAT / mobile networks are fully manageable. |
 
 ---
 
@@ -76,19 +76,20 @@ One device client, with roles defined in `client/roles/` (each declares the
 modules and capabilities it runs) — choose one with `--role` or the first-run
 wizard / settings page. **The UI only shows what applies to the active role.**
 
-| Role          | Default? | What it does                                                                                                                                                                                             | Needs root?             |
-| ------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `encoder`     | **yes**  | Runs [belacoder](https://github.com/BELABOX/belacoder) or [ceracoder](https://github.com/CERALIVE/ceracoder) with a GStreamer pipeline and bonds the stream out over all uplinks to the SRTLA receiver (default `relay:6000`) through `srtla_send`. Manages source routing, the uplinks file, and modems (ModemManager). | yes (bonding / routing) |
-| `obs`         | no       | The `obs` module connects to OBS Studio, forwards events, and runs the low-bitrate scene switcher.                                                                                             | no                      |
-| `broadcaster` | no    | The `broadcaster` module receives SRTLA with `srtla_rec` and publishes RTMP outputs through ffmpeg.                                                                                                      | no                      |
-| `ctrlink_relay` | no   | The `ctrlink_relay` module bridges the shared LAN interfaces' L3 traffic transparently to the encoder (per-interface UDP relays); the SRTLA destination lives on the encoder. | no                      |
+| Role            | Default? | What it does                                                                                                                                                                                                                                                                                                             | Needs root?             |
+| --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `encoder`       | **yes**  | Runs [belacoder](https://github.com/BELABOX/belacoder) or [ceracoder](https://github.com/CERALIVE/ceracoder) with a GStreamer pipeline and bonds the stream out over all uplinks to the SRTLA receiver (default `relay:6000`) through `srtla_send`. Manages source routing, the uplinks file, and modems (ModemManager). | yes (bonding / routing) |
+| `obs`           | no       | The `obs` module connects to OBS Studio, forwards events, and runs the low-bitrate scene switcher.                                                                                                                                                                                                                       | no                      |
+| `broadcaster`   | no       | The `broadcaster` module receives SRTLA with `srtla_rec` and publishes RTMP outputs through ffmpeg.                                                                                                                                                                                                                      | no                      |
+| `ctrlink_relay` | no       | The `ctrlink_relay` module bridges the shared LAN interfaces' L3 traffic transparently to the encoder (per-interface UDP relays); the SRTLA destination lives on the encoder.                                                                                                                                            | no                      |
 
 ### User roles (control server)
 
 The control server keeps per-user profiles in a local SQLite database:
-- **Admin** — the **first** account created at `/register` is automatically the administrator. Admins get an **Invitations panel** on the profile page to mint single-use invitation codes (optionally with an expiry) for other people to join.
-- **User** — every later account needs a valid invitation code to register. Users see and control **only the devices that were registered with their own device tokens**, and only their own dashboards.
-- **`local` profile** — with `--no-auth` (local testing) everything is mapped to one shared `local` admin profile; no tokens and no database are needed, dashboards are kept in memory only.
+
+-   **Admin** — the **first** account created at `/register` is automatically the administrator. Admins get an **Invitations panel** on the profile page to mint single-use invitation codes (optionally with an expiry) for other people to join.
+-   **User** — every later account needs a valid invitation code to register. Users see and control **only the devices that were registered with their own device tokens**, and only their own dashboards.
+-   **`local` profile** — with `--no-auth` (local testing) everything is mapped to one shared `local` admin profile; no tokens and no database are needed, dashboards are kept in memory only.
 
 Devices are _owned_ by the user whose **device token** was present when the device dialed in (`Authorization: Bearer <token>` on the `ws://<server>/device` connection).
 
@@ -104,7 +105,7 @@ Devices are _owned_ by the user whose **device token** was present when the devi
 | `belacoder` / `ceracoder` + GStreamer | `encoder`                                                                                   |
 | `iproute2` + ModemManager (`mmcli`)   | bonding & modem management (`encoder`)                                                      |
 | `srtla_rec` + ffmpeg                  | SRTLA-to-RTMP streaming (`broadcaster`)                                                     |
-| OBS Studio with obs-websocket v5      | `obs` role, obs module, stats/chat dashboards                                    |
+| OBS Studio with obs-websocket v5      | `obs` role, obs module, stats/chat dashboards                                               |
 | TLS reverse proxy                     | production control server (`wss://` / `https://` are required for tokens + session cookies) |
 
 For a local checkout with the bundled binaries, override their paths explicitly with `ENCODER_BIN` and `SRTLA_SEND_BIN` (see [Command-line reference](#12-command-line-reference)).
@@ -185,10 +186,10 @@ The control server uses the same pattern with `server` (no `root` needed). Put r
 docker compose up -d --build
 ```
 
-- **server** — the control server (`Dockerfile`, image `majkl/ctrlirl-control`), UI on `:8090`.
-- **obs-client** — `client.ts --role obs`, using the `obs` module to connect to host OBS (`ws://host.docker.internal:4455`).
-- **encoder** — `client.ts --role encoder`, runs `ceracoder`/GStreamer and bonds SRTLA out over the uplinks via `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
-- **broadcaster** — `client.ts --role broadcaster`, runs the `client/modules/broadcaster` receiver/publisher; configure RTMP destinations in device settings and expose its SRTLA receiver on UDP `5001`.
+-   **server** — the control server (`Dockerfile`, image `majkl/ctrlirl-control`), UI on `:8090`.
+-   **obs-client** — `client.ts --role obs`, using the `obs` module to connect to host OBS (`ws://host.docker.internal:4455`).
+-   **encoder** — `client.ts --role encoder`, runs `ceracoder`/GStreamer and bonds SRTLA out over the uplinks via `srtla_send` (`Dockerfile.device`, image `majkl/ctrlirl-device`).
+-   **broadcaster** — `client.ts --role broadcaster`, runs the `client/modules/broadcaster` receiver/publisher; configure RTMP destinations in device settings and expose its SRTLA receiver on UDP `5001`.
 
 All device roles use `Dockerfile.device`, which includes the module runtime and required streaming tools. The **encoder** container grants the `NET_ADMIN` capability because at startup it builds per-uplink policy routing (`ip rule add` + route tables) and watches interfaces with `ip monitor`; without it the encoder logs `ip rule add … Operation not permitted` and exits. The OBS role does not need the capability. On the default bridge network the encoder's routing changes act on the container's own namespace; for real bonded uplinks on the host's raw interfaces run the encoder with `network_mode: host`.
 
@@ -213,10 +214,11 @@ Pick the interface language (12 languages are available). It can be changed at a
 ### Step 2 — Device role
 
 Choose one of the device roles (defined in `client/roles/`):
-- **Encoder** — "Captures a GStreamer pipeline and sends it over SRTLA"
-- **OBS** — connects to OBS Studio and enables the OBS controller.
-- **Broadcaster** — receives SRTLA and publishes RTMP outputs.
-- **CtrLink Relay** — bridges the shared LAN interfaces to the encoder.
+
+-   **Encoder** — "Captures a GStreamer pipeline and sends it over SRTLA"
+-   **OBS** — connects to OBS Studio and enables the OBS controller.
+-   **Broadcaster** — receives SRTLA and publishes RTMP outputs.
+-   **CtrLink Relay** — bridges the shared LAN interfaces to the encoder.
 
 Selecting _Encoder_ inserts the Encoder step into the wizard (as in the screenshot).
 
@@ -225,38 +227,42 @@ Selecting _Encoder_ inserts the Encoder step into the wizard (as in the screensh
 ### Step 3 — Identity
 
 How the device identifies itself to the control server:
-- **Device name (hostname)** — lowercase letters, numbers, dots and hyphens, max 64 characters.
-- **Accent color** — the header color of the device UI.
+
+-   **Device name (hostname)** — lowercase letters, numbers, dots and hyphens, max 64 characters.
+-   **Accent color** — the header color of the device UI.
 
 ![Wizard: identity](screenshots/04-wizard-identity.png)
 
 ### Step 4 — Control server
 
 Optional connection to a central server:
-- **Control server URL** — e.g. `ws://192.168.1.10:8090/device` (or `wss://…` behind TLS).
-- **Control token** — one of the device tokens minted on the owner's profile page. Leave both empty to run standalone (local UI only).
+
+-   **Control server URL** — e.g. `ws://192.168.1.10:8090/device` (or `wss://…` behind TLS).
+-   **Control token** — one of the device tokens minted on the owner's profile page. Leave both empty to run standalone (local UI only).
 
 ![Wizard: control server](screenshots/05-wizard-control.png)
 
 ### Step 5 — Encoder
 
 Encoder-specific fields for the capture pipeline:
-- **Pipeline** — one of the GStreamer pipeline files under `--pipelines`, grouped by subdirectory (e.g. `generic/h265_v4l_mjpeg_1080p`). The list is preselected from disk; see [Encoder options](#8-encoder-options-explained) for what the rest of the fields mean.
-- **Min / Max bitrate (kbps)** — the live video bitrate window (defaults 300 / 5000).
-- **Audio source** — which ALSA audio card to capture ("Pipeline default" keeps whatever the pipeline says).
-- **Audio codec** — AAC or Opus.
-- **Audio delay (ms)** — audio-to-video alignment offset.
-- **SRT latency (ms)** — SRT transmission latency (default 2000).
-- **Stream ID** (optional) — the SRT stream ID announced to the receiver.
-- **Bitrate overlay** — draws the current bitrate on the stream.
+
+-   **Pipeline** — one of the GStreamer pipeline files under `--pipelines`, grouped by subdirectory (e.g. `generic/h265_v4l_mjpeg_1080p`). The list is preselected from disk; see [Encoder options](#8-encoder-options-explained) for what the rest of the fields mean.
+-   **Min / Max bitrate (kbps)** — the live video bitrate window (defaults 300 / 5000).
+-   **Audio source** — which ALSA audio card to capture ("Pipeline default" keeps whatever the pipeline says).
+-   **Audio codec** — AAC or Opus.
+-   **Audio delay (ms)** — audio-to-video alignment offset.
+-   **SRT latency (ms)** — SRT transmission latency (default 2000).
+-   **Stream ID** (optional) — the SRT stream ID announced to the receiver.
+-   **Bitrate overlay** — draws the current bitrate on the stream.
 
 ![Wizard: encoder](screenshots/06-wizard-encoder.png)
 
 ### Step 6 — Review & save
 
 Review all choices (go back to change anything), then:
-- **Autostart** — "Start the saved stream automatically after restart."
-- **Save configuration** — writes the config, dials the control server, brings the role up.
+
+-   **Autostart** — "Start the saved stream automatically after restart."
+-   **Save configuration** — writes the config, dials the control server, brings the role up.
 
 The confirmation reads: _"Configuration saved. Restart the service to apply the selected role, hostname and control server."_
 
@@ -322,7 +328,7 @@ Open the gear icon in the device header → **Device settings**. The notice at t
 | Option                 | Meaning                                                                                                                                                                                              |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Hostname**           | The device's display name (lowercase letters, numbers, dots and hyphens, max 64 chars). The UUID — the fixed identity on the control server — stays unchanged and survives hostname changes.         |
-| **Device role**        | `encoder` / `obs` / `broadcaster`. Changing the role requires a service restart.                                                                                        |
+| **Device role**        | `encoder` / `obs` / `broadcaster`. Changing the role requires a service restart.                                                                                                                     |
 | **Accent color**       | Header color of the device UI.                                                                                                                                                                       |
 | **Control server URL** | `ws://…`/`wss://…` endpoint of the control server (`…/device`). Saving re-dials the control server, so the device re-registers with its new URL, token, hostname and role without a service restart. |
 | **Remote token**       | Device token of the owning user. Placeholders: `configured (leave blank to keep)` / `not configured`.                                                                                                |
@@ -335,35 +341,39 @@ GStreamer pipeline files on the device. **Group subfolders become pipeline group
 **Pipeline editor** (at `/pipelines/new/`, or _Edit_ on an existing one):
 
 ![Pipeline editor](screenshots/11-pipeline-editor.png)
-- **Pipeline path** — `group/name` (e.g. `test/x264_test_pattern`). New files are written under `--pipelines` at that path.
-- **Pipeline content** — the GStreamer launch string, with syntax highlighting. **Element colours** legend: source, sink, parser, demuxer, muxer, decoder, encoder, converter, filter, other, caps, key-pad, value.
-- **Save (Ctrl+S)** — a file must contain a non-empty GStreamer launch string (at least one `!` between elements) to be saved.
+
+-   **Pipeline path** — `group/name` (e.g. `test/x264_test_pattern`). New files are written under `--pipelines` at that path.
+-   **Pipeline content** — the GStreamer launch string, with syntax highlighting. **Element colours** legend: source, sink, parser, demuxer, muxer, decoder, encoder, converter, filter, other, caps, key-pad, value.
+-   **Save (Ctrl+S)** — a file must contain a non-empty GStreamer launch string (at least one `!` between elements) to be saved.
 
 > Every pipeline must match the available hardware and GStreamer plugins on the device — e.g. Rockchip pipelines use `mpph265enc`, which is not available on a generic x86 host. If the UI reports _Pipeline is empty_, select another pipeline or restore the file.
 
 ### 7.2 Pipeline repositories
 
 Pipelines can be imported from GitHub:
-- **Add repository** — `author/repository` format. Files below the repository's `pipeline/` directory are **imported recursively** into `PIPELINES_DIR/author/repository/` and re-imported after every git pull.
-- Each repository shows a **pipeline count** badge with:
-  - **Update** — refresh just that repository.
-  - **Update all** — refresh every configured repository, replacing local files so deleted upstream pipelines are removed too.
-  - **Remove** — remove the repository _and_ its imported pipeline files.
+
+-   **Add repository** — `author/repository` format. Files below the repository's `pipeline/` directory are **imported recursively** into `PIPELINES_DIR/author/repository/` and re-imported after every git pull.
+-   Each repository shows a **pipeline count** badge with:
+    -   **Update** — refresh just that repository.
+    -   **Update all** — refresh every configured repository, replacing local files so deleted upstream pipelines are removed too.
+    -   **Remove** — remove the repository _and_ its imported pipeline files.
 
 ### 7.3 OBS connection
 
 _Connection to OBS Studio used by the obs module. The module is restarted after saving._
-- **OBS WebSocket URL** — e.g. `ws://127.0.0.1:4455`.
-- **OBS password** — the password configured in OBS Studio (Settings → General/Stream). Leave blank to keep the current one.
+
+-   **OBS WebSocket URL** — e.g. `ws://127.0.0.1:4455`.
+-   **OBS password** — the password configured in OBS Studio (Settings → General/Stream). Leave blank to keep the current one.
 
 ### 7.4 SSH
 
 _Manage this box's SSH server — start and stop it, choose the login account, and set or reset its password._
-- **User** — the login account (default `root`).
-- **Password** — the account's password, always visible (the device reports it in the clear). Editable only while SSH is stopped; the staged value is applied to the account when SSH starts.
-- **Start / Stop** — the SSH server.
-- **New password** — generates a fresh password. _Can be generated only while SSH is stopped — stop SSH first._
-- **Save** — stages the typed password; it is applied to the account when SSH starts.
+
+-   **User** — the login account (default `root`).
+-   **Password** — the account's password, always visible (the device reports it in the clear). Editable only while SSH is stopped; the staged value is applied to the account when SSH starts.
+-   **Start / Stop** — the SSH server.
+-   **New password** — generates a fresh password. _Can be generated only while SSH is stopped — stop SSH first._
+-   **Save** — stages the typed password; it is applied to the account when SSH starts.
 
 ---
 
@@ -371,38 +381,38 @@ _Manage this box's SSH server — start and stop it, choose the login account, a
 
 Every option an encoder exposes (wizard step, encoder card, settings):
 
-| Option                                                           | What it means                                                                                                                                                                                                                                   |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Pipeline**                                                     | The GStreamer launch string belacoder/ceracoder will run. Pipeline ids are paths under `--pipelines`, e.g. `rk3588/h265_hdmi_1440p25`. Before launch the pipeline is adapted the way belaUI does (audio card selection, AAC→Opus switching, …). |
-| **Min bitrate (kbps)**                                           | Lower bound of the live video bitrate window.                                                                                                                                                                                                   |
-| **Max bitrate (kbps)**                                           | Upper bound of the live video bitrate window. For **belacoder** the change is written to the bitrate file and re-read on SIGHUP — no restart needed.                                                                                            |
-| **Audio source**                                                 | ALSA audio card to capture. `Pipeline default` keeps whatever the pipeline defines; picking a specific card rewires the audio source element.                                                                                                   |
-| **Audio codec**                                                  | `AAC` or `Opus` — the audio encoder used in the outgoing SRT stream.                                                                                                                                                                            |
-| **Audio delay (ms)**                                             | Offset applied to the audio track to align it with the video.                                                                                                                                                                                   |
-| **SRT latency (ms)**                                             | SRT transmission latency for the encoder→receiver link (default 2000 ms).                                                                                                                                                                          |
-| **Stream ID** (optional)                                         | The SRT stream ID announced to the receiver; leave empty for untagged SRT.                                                                                                                                                                      |
-| **Bitrate overlay**                                              | Draws the current live bitrate onto the video.                                                                                                                                                                                                  |
-| **Stream host / SRT port / Stream ID** | The SRTLA destination the encoder sends to (default `relay:6000`).                                                                                                                                                                                                  |
-| **Bitrate balancer** (ceracoder only)                            | `Adaptive (RTT + buffer)` — adjusts bitrate from RTT and buffer pressure; `AIMD (TCP-style)` — additive-increase/multiplicative-decrease like TCP congestion control; `Fixed bitrate` — constant.                                               |
-| **Increase step (kbps) / Increase interval (ms)** (ceracoder)    | How much and how often the balancer may raise the bitrate.                                                                                                                                                                                      |
-| **Decrease step (kbps) / Decrease interval (ms)** (ceracoder)    | How much and how often the balancer may lower the bitrate.                                                                                                                                                                                      |
-| **Congestion multiplier (0–1)** (ceracoder)                      | How aggressively the bitrate is multiplied down on congestion (1 = hard, 0 = no cut).                                                                                                                                                           |
+| Option                                                        | What it means                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pipeline**                                                  | The GStreamer launch string belacoder/ceracoder will run. Pipeline ids are paths under `--pipelines`, e.g. `rk3588/h265_hdmi_1440p25`. Before launch the pipeline is adapted the way belaUI does (audio card selection, AAC→Opus switching, …). |
+| **Min bitrate (kbps)**                                        | Lower bound of the live video bitrate window.                                                                                                                                                                                                   |
+| **Max bitrate (kbps)**                                        | Upper bound of the live video bitrate window. For **belacoder** the change is written to the bitrate file and re-read on SIGHUP — no restart needed.                                                                                            |
+| **Audio source**                                              | ALSA audio card to capture. `Pipeline default` keeps whatever the pipeline defines; picking a specific card rewires the audio source element.                                                                                                   |
+| **Audio codec**                                               | `AAC` or `Opus` — the audio encoder used in the outgoing SRT stream.                                                                                                                                                                            |
+| **Audio delay (ms)**                                          | Offset applied to the audio track to align it with the video.                                                                                                                                                                                   |
+| **SRT latency (ms)**                                          | SRT transmission latency for the encoder→receiver link (default 2000 ms).                                                                                                                                                                       |
+| **Stream ID** (optional)                                      | The SRT stream ID announced to the receiver; leave empty for untagged SRT.                                                                                                                                                                      |
+| **Bitrate overlay**                                           | Draws the current live bitrate onto the video.                                                                                                                                                                                                  |
+| **Stream host / SRT port / Stream ID**                        | The SRTLA destination the encoder sends to (default `relay:6000`).                                                                                                                                                                              |
+| **Bitrate balancer** (ceracoder only)                         | `Adaptive (RTT + buffer)` — adjusts bitrate from RTT and buffer pressure; `AIMD (TCP-style)` — additive-increase/multiplicative-decrease like TCP congestion control; `Fixed bitrate` — constant.                                               |
+| **Increase step (kbps) / Increase interval (ms)** (ceracoder) | How much and how often the balancer may raise the bitrate.                                                                                                                                                                                      |
+| **Decrease step (kbps) / Decrease interval (ms)** (ceracoder) | How much and how often the balancer may lower the bitrate.                                                                                                                                                                                      |
+| **Congestion multiplier (0–1)** (ceracoder)                   | How aggressively the bitrate is multiplied down on congestion (1 = hard, 0 = no cut).                                                                                                                                                           |
 
 ---
 
 ## 9. Encoder SRTLA options explained
 
-| Option                    | What it means                                                                                                                                                                                                                    |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SRTLA Remote host**     | The SRTLA receiver's host name/IP (the bonded uplink target).                                                                                                                                                               |
-| **SRTLA Remote port**     | The receiver's port (default 5000).                                                                                                                                                                                              |
-| **Scheduler**             | `Enhanced` (default) — the improved SRTLA link-scheduling algorithm; `Classic` — the original scheduler. Applied live over the control socket.                                                                                   |
-| **Quality scoring**       | Enables SRTLA scoring for best-link selection — links are rated (share of total throughput, min RTT, quality markers like `up` / `weak` / `stalled` / `timed out`) and the scheduler uses the score to weight data per link.     |
+| Option                    | What it means                                                                                                                                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SRTLA Remote host**     | The SRTLA receiver's host name/IP (the bonded uplink target).                                                                                                                                                                      |
+| **SRTLA Remote port**     | The receiver's port (default 5000).                                                                                                                                                                                                |
+| **Scheduler**             | `Enhanced` (default) — the improved SRTLA link-scheduling algorithm; `Classic` — the original scheduler. Applied live over the control socket.                                                                                     |
+| **Quality scoring**       | Enables SRTLA scoring for best-link selection — links are rated (share of total throughput, min RTT, quality markers like `up` / `weak` / `stalled` / `timed out`) and the scheduler uses the score to weight data per link.       |
 | **Bond (per interface)**  | Which interfaces participate in the bonded send. On startup the encoder builds per-uplink policy routing (`ip rule` + route tables) so each uplink leaves through its intended interface; the **Reconfigure** button reapplies it. |
-| **Reload mode**           | `signal` (SIGHUP — fast, re-reads uplinks file) vs `restart` (full process restart) after `--srtla-reload` / the UI Reload button.                                                                                               |
-| **Uplinks file**          | `--uplinks` file consumed by `srtla_send` (one IP per participating uplink).                                                                                                                                                     |
-| **Control socket**        | `--srtla-socket` used for live link stats and mode/quality changes; `""` disables it.                                                                                                                                            |
-| **Start / Stop / Reload** | Lifecycle of the `srtla_send` bonded-send process.                                                                                                                  |
+| **Reload mode**           | `signal` (SIGHUP — fast, re-reads uplinks file) vs `restart` (full process restart) after `--srtla-reload` / the UI Reload button.                                                                                                 |
+| **Uplinks file**          | `--uplinks` file consumed by `srtla_send` (one IP per participating uplink).                                                                                                                                                       |
+| **Control socket**        | `--srtla-socket` used for live link stats and mode/quality changes; `""` disables it.                                                                                                                                              |
+| **Start / Stop / Reload** | Lifecycle of the `srtla_send` bonded-send process.                                                                                                                                                                                 |
 
 > [!IMPORTANT]
 > The encoder needs root (or the `NET_ADMIN` capability in Docker) to create the policy routes; without it it logs `ip rule add … Operation not permitted` and exits.
@@ -457,16 +467,16 @@ Start it (`bun server/backend/server.ts --port 8090`), sign in, and manage the f
 
 The table shows every device owned by the signed-in user:
 
-| Column              | Meaning                                                                                                                          |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **Device**          | Hostname + UUID.                                                                                                                 |
-| **Role**            | `encoder` / `obs` / `broadcaster` (badges).                                                       |
-| **Status**          | `online` / `offline` (with _last seen_ time), `stale` if it stopped reporting.                                                   |
-| **Connected**       | Live WebSocket connection of the device.                                                                                         |
-| **Stream**          | `streaming` / `stopped` / `no links` badge.                                                                                      |
-| **Bitrate / max**   | Current live bitrate vs. the configured max.                                                                                     |
-| **Links**           | Bonded uplinks: per-link share of total throughput, min RTT, quality (`up` / `weak` / `stalled` / `timed out` / `sole carrier`). |
-| **Encoder**         | State chip of the encoder process.                                                                                                        |
+| Column            | Meaning                                                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Device**        | Hostname + UUID.                                                                                                                 |
+| **Role**          | `encoder` / `obs` / `broadcaster` (badges).                                                                                      |
+| **Status**        | `online` / `offline` (with _last seen_ time), `stale` if it stopped reporting.                                                   |
+| **Connected**     | Live WebSocket connection of the device.                                                                                         |
+| **Stream**        | `streaming` / `stopped` / `no links` badge.                                                                                      |
+| **Bitrate / max** | Current live bitrate vs. the configured max.                                                                                     |
+| **Links**         | Bonded uplinks: per-link share of total throughput, min RTT, quality (`up` / `weak` / `stalled` / `timed out` / `sole carrier`). |
+| **Encoder**       | State chip of the encoder process.                                                                                               |
 
 Click a device to open its **device page**.
 
@@ -481,25 +491,28 @@ The device page renders the **same cards** as the device's own UI (Encoder, Inte
 Reach it from the username menu in the header.
 
 ![Profile page](screenshots/16-control-profile.png)
-- **Change password** — current password + new password (8+ chars) + confirmation.
-- **Device tokens** — **Add token** mints a fresh token; **click to copy** the value; **Remove** revokes. _"No tokens yet. Add one so your devices can connect."_ Each device you want to manage should connect with one of your tokens (`--remote-token` / `CONTROL_SERVER_TOKEN`).
-- **Invitations** (admin only) — **Create invitation** mints a single-use code (optionally with an expiry) that someone pastes into the [register page](screenshots/02-register.png). _"No invitations yet. Create one so someone can join."_
+
+-   **Change password** — current password + new password (8+ chars) + confirmation.
+-   **Device tokens** — **Add token** mints a fresh token; **click to copy** the value; **Remove** revokes. _"No tokens yet. Add one so your devices can connect."_ Each device you want to manage should connect with one of your tokens (`--remote-token` / `CONTROL_SERVER_TOKEN`).
+-   **Invitations** (admin only) — **Create invitation** mints a single-use code (optionally with an expiry) that someone pastes into the [register page](screenshots/02-register.png). _"No invitations yet. Create one so someone can join."_
 
 ### 11.4 Dashboards
 
 Per-user, persisted to SQLite, live-updating (a shared feed streams widget data to every open view).
 
 ![Dashboards list](screenshots/17-control-dashboards.png)
-- **Create a new dashboard** — type a name (e.g. _Streaming_) and press **Create**.
-- Each row: **Name** (links to the view page), **Widgets** count, and **View / Edit / Delete** actions.
+
+-   **Create a new dashboard** — type a name (e.g. _Streaming_) and press **Create**.
+-   Each row: **Name** (links to the view page), **Widgets** count, and **View / Edit / Delete** actions.
 
 **Add widget** — pick a type:
 
 ![Add widget page](screenshots/18-dashboard-add.png)
 
 Widgets are of two kinds:
-- **Device widgets** — a live status card per device: `encoder`, `obs`, or `broadcaster`, depending on the device's role and enabled modules. The type list shows one entry per connected device.
-- **Channel widgets** — device-independent: **Stats** (YouTube/Twitch/Kick viewer counts) and **Chat** (merged chat feeds).
+
+-   **Device widgets** — a live status card per device: `encoder`, `obs`, or `broadcaster`, depending on the device's role and enabled modules. The type list shows one entry per connected device.
+-   **Channel widgets** — device-independent: **Stats** (YouTube/Twitch/Kick viewer counts) and **Chat** (merged chat feeds).
 
 **Dashboard view page:**
 
@@ -531,37 +544,37 @@ A widget for a device whose module is off shows _Module disabled on device_; a w
 
 Every flag has an environment-variable counterpart. Resolution order: **CLI flag > env var > config file > default**.
 
-| Option                    | Env                             | Default                          | What it does                                                                                                                                          |
-| ------------------------- | ------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--role`                  | `ROLE`                          | —                                | A role defined in `client/roles/` (`encoder`, `obs`, `broadcaster`, `ctrlink_relay`). Without a selected role no module runs — the web UI (setup wizard) stays up until one is picked. |
-| `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on.                                                                                                    |
-| `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Extra browser origins for `/ws` (comma-separated, `*` = any).                                                                                         |
+| Option                    | Env                             | Default                          | What it does                                                                                                                                                                                                           |
+| ------------------------- | ------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--role`                  | `ROLE`                          | —                                | A role defined in `client/roles/` (`encoder`, `obs`, `broadcaster`, `ctrlink_relay`). Without a selected role no module runs — the web UI (setup wizard) stays up until one is picked.                                 |
+| `--host`, `--port`        | `API_HOST`, `API_PORT`          | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on.                                                                                                                                                                     |
+| `--allow-origin`          | `ALLOWED_ORIGINS`               | —                                | Extra browser origins for `/ws` (comma-separated, `*` = any).                                                                                                                                                          |
 | `--config`                | `CONFIG_FILE`                   | `$TMPDIR/config.json`            | Device config — persistent identity and setup (username/password, hostname, role, remote control link, …) plus module config slices. **Use a persistent path in production** (autostart needs it to survive a reboot). |
-| `--state-file`            | `STATE_FILE`                    | `/var/lib/ctrlirl/state.json`    | Device state — the per-module data sections (modems, SRTLA target, …). The directory must be writable by the device process. |
-| `--uplinks`               | `UPLINKS_FILE`                  | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`.                                                                                                                        |
-| `--srtla-reload`          | `SRTLA_RELOAD_MODE`             | `signal`                         | How to reload `srtla_send`: `signal` (SIGHUP) or `restart`.                                                                                           |
-| `--srtla-socket`          | `SRTLA_CONTROL_SOCKET`          | `$TMPDIR/srtla_send.sock`        | `srtla_send` control socket (link stats, mode/quality); `""` disables it.                                                                             |
-| `--debounce-ms`           | `DEBOUNCE_MS`                   | `1500`                           | Interface-event debounce in ms.                                                                                                                       |
-| `--pipelines`             | `PIPELINES_DIR`                 | `/usr/share/belacoder/pipelines` | Pipeline files, including subdirectories.                                                                                                             |
-| `--encoder`               | `ENCODER_BIN`                   | `belacoder`                      | Encoder binary; `ceracoder` is detected by name and switches the encoder module to INI-config mode.                                                   |
-| —                         | `SRTLA_SEND_BIN`                | `srtla_send`                     | Path to the `srtla_send` binary.                                                                                                                      |
-| `--bitrate-file`          | `BITRATE_FILE`                  | `$TMPDIR/belacoder_br`           | belacoder bitrate file (re-read on SIGHUP).                                                                                                           |
-| `--ceracoder-conf`        | `CERACODER_CONF`                | `$TMPDIR/ceracoder.conf`         | ceracoder INI config (balancer + tuning), applied live by the encoder module.                                                                         |
-| `--log-file`              | `LOG_FILE`                      | `$TMPDIR/srtla_log.json`         | Persistent event log shown in the web UI.                                                                                                             |
-| `--remote`                | `CONTROL_SERVER_URL`            | —                                | Control server, e.g. `wss://ctl.example.com/device`.                                                                                                   |
-| `--remote-token`          | `CONTROL_SERVER_TOKEN`          | —                                | Device token. **Prefer the env var** (keeps it out of `ps`).                                                                                           |
-| `--remote-interval`       | `CONTROL_SERVER_INTERVAL`       | `30`                             | Periodic status push in seconds (`0` = only on change).                                                                                               |
-| `--remote-stats-interval` | `CONTROL_SERVER_STATS_INTERVAL` | `2`                              | `srtla_send` link-stats push interval in seconds.                                                                                                     |
-| `--dry-run`               | `DRY_RUN`                       | —                                | Print `ip`/process actions instead of running them (safe testing).                                                                                    |
+| `--state-file`            | `STATE_FILE`                    | `/var/lib/ctrlirl/state.json`    | Device state — the per-module data sections (modems, SRTLA target, …). The directory must be writable by the device process.                                                                                           |
+| `--uplinks`               | `UPLINKS_FILE`                  | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`.                                                                                                                                                                                         |
+| `--srtla-reload`          | `SRTLA_RELOAD_MODE`             | `signal`                         | How to reload `srtla_send`: `signal` (SIGHUP) or `restart`.                                                                                                                                                            |
+| `--srtla-socket`          | `SRTLA_CONTROL_SOCKET`          | `$TMPDIR/srtla_send.sock`        | `srtla_send` control socket (link stats, mode/quality); `""` disables it.                                                                                                                                              |
+| `--debounce-ms`           | `DEBOUNCE_MS`                   | `1500`                           | Interface-event debounce in ms.                                                                                                                                                                                        |
+| `--pipelines`             | `PIPELINES_DIR`                 | `/usr/share/belacoder/pipelines` | Pipeline files, including subdirectories.                                                                                                                                                                              |
+| `--encoder`               | `ENCODER_BIN`                   | `belacoder`                      | Encoder binary; `ceracoder` is detected by name and switches the encoder module to INI-config mode.                                                                                                                    |
+| —                         | `SRTLA_SEND_BIN`                | `srtla_send`                     | Path to the `srtla_send` binary.                                                                                                                                                                                       |
+| `--bitrate-file`          | `BITRATE_FILE`                  | `$TMPDIR/belacoder_br`           | belacoder bitrate file (re-read on SIGHUP).                                                                                                                                                                            |
+| `--ceracoder-conf`        | `CERACODER_CONF`                | `$TMPDIR/ceracoder.conf`         | ceracoder INI config (balancer + tuning), applied live by the encoder module.                                                                                                                                          |
+| `--log-file`              | `LOG_FILE`                      | `$TMPDIR/srtla_log.json`         | Persistent event log shown in the web UI.                                                                                                                                                                              |
+| `--remote`                | `CONTROL_SERVER_URL`            | —                                | Control server, e.g. `wss://ctl.example.com/device`.                                                                                                                                                                   |
+| `--remote-token`          | `CONTROL_SERVER_TOKEN`          | —                                | Device token. **Prefer the env var** (keeps it out of `ps`).                                                                                                                                                           |
+| `--remote-interval`       | `CONTROL_SERVER_INTERVAL`       | `30`                             | Periodic status push in seconds (`0` = only on change).                                                                                                                                                                |
+| `--remote-stats-interval` | `CONTROL_SERVER_STATS_INTERVAL` | `2`                              | `srtla_send` link-stats push interval in seconds.                                                                                                                                                                      |
+| `--dry-run`               | `DRY_RUN`                       | —                                | Print `ip`/process actions instead of running them (safe testing).                                                                                                                                                     |
 
 ### 12.2 Control server (`server/backend/server.ts`)
 
-| Option             | Env        | Default        | What it does                                                                                                                  |
-| ------------------ | ---------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--host`, `--port` | `SERVER_HOST`, `SERVER_PORT` | `0.0.0.0:8090` | Listen address. Run behind a TLS reverse proxy in production (device tokens and the session cookie need `wss://`/`https://`). |
-| `--db`             | `DB_FILE`                    | `users.db`     | SQLite database: users, device tokens, dashboards.                                                                            |
-| `--storage`        | `STORAGE_DIR`                | `assets`       | Directory the asset files are saved to (the database keeps only the metadata).                                               |
-| `--no-auth`        | `NO_AUTH`                    | —              | Local testing only — one shared `local` profile, no tokens needed (no database; dashboards are kept in memory only).          |
+| Option             | Env                          | Default           | What it does                                                                                                                  |
+| ------------------ | ---------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--host`, `--port` | `SERVER_HOST`, `SERVER_PORT` | `0.0.0.0:8090`    | Listen address. Run behind a TLS reverse proxy in production (device tokens and the session cookie need `wss://`/`https://`). |
+| `--db`             | `DB_FILE`                    | `database.sqlite` | SQLite database: users, device tokens, dashboards.                                                                            |
+| `--storage`        | `STORAGE_DIR`                | `assets`          | Directory the asset files are saved to (the database keeps only the metadata).                                                |
+| `--no-auth`        | `NO_AUTH`                    | —                 | Local testing only — one shared `local` profile, no tokens needed (no database; dashboards are kept in memory only).          |
 
 ### 12.3 Module-specific settings
 
@@ -571,21 +584,21 @@ OBS connection fields are owned by `obs` and can be supplied through `OBS_URL` /
 
 ## 13. Troubleshooting
 
-| Symptom                                                  | What to check                                                                                                                                                                               |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Wizard doesn't advance**                               | Validation is silent — a required field is empty/invalid (hostname format, missing pipeline, ports). Fill every step's fields; selects start on a placeholder option that must be replaced. |
-| **"Pipeline is empty"**                                  | The selected pipeline file is empty or whitespace-only. Select another pipeline in the Encoder card or restore/create the file in Settings → Pipelines.                                     |
-| **Pipeline won't start**                                 | Pipeline/hardware mismatch (e.g. Rockchip `mpph265enc` on x86) or missing GStreamer plugins. Pick a pipeline from a group matching your hardware.                                           |
+| Symptom                                                    | What to check                                                                                                                                                                               |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Wizard doesn't advance**                                 | Validation is silent — a required field is empty/invalid (hostname format, missing pipeline, ports). Fill every step's fields; selects start on a placeholder option that must be replaced. |
+| **"Pipeline is empty"**                                    | The selected pipeline file is empty or whitespace-only. Select another pipeline in the Encoder card or restore/create the file in Settings → Pipelines.                                     |
+| **Pipeline won't start**                                   | Pipeline/hardware mismatch (e.g. Rockchip `mpph265enc` on x86) or missing GStreamer plugins. Pick a pipeline from a group matching your hardware.                                           |
 | **Encoder exits: `ip rule add … Operation not permitted`** | Missing root / `NET_ADMIN`. Run as root (systemd) or add the capability in Docker.                                                                                                          |
-| **`srtla_send down` badge**                              | The send process died — check the Log card, fix the uplink target, press Start (or Reload).                                                                                                 |
-| **Encoder `restarting` forever**                         | Watch Restarts + Log card; usually a dead capture device or pipeline crash.                                                                                                                 |
-| **Device shows `offline` on the control server**         | Device not running, or URL/token wrong — the last push is shown with _last seen_. Fix `--remote` / `--remote-token` (or Settings → Control server URL / Remote token).                      |
-| **"stale, …"**                                           | Device connected but not reporting — network problem between device and server, or `--remote-interval`/`--remote-stats-interval` too long.                                                  |
-| **No SRT stats in the switcher**                         | obs-websocket v5 not loaded in OBS, or the _OBS SRT source_ name doesn't match the SRT input in OBS.                                                                                        |
-| **Can't set a new SSH password**                         | Stop SSH first — a new password can be generated only while SSH is stopped.                                                                                                                 |
-| **Register fails with invitation errors**                | _inviteInvalid / inviteUsed / inviteExpired_ — ask an admin for a fresh code; only the very first account registers without one.                                                            |
-| **Device settings saved but role unchanged**             | Expected: _"The new role takes effect after restarting the device service."_                                                                                                                |
-| **Docker encoder doesn't bond the host's uplinks**       | On the bridge network routing changes only affect the container namespace — run the encoder with `network_mode: host`.                                                                        |
+| **`srtla_send down` badge**                                | The send process died — check the Log card, fix the uplink target, press Start (or Reload).                                                                                                 |
+| **Encoder `restarting` forever**                           | Watch Restarts + Log card; usually a dead capture device or pipeline crash.                                                                                                                 |
+| **Device shows `offline` on the control server**           | Device not running, or URL/token wrong — the last push is shown with _last seen_. Fix `--remote` / `--remote-token` (or Settings → Control server URL / Remote token).                      |
+| **"stale, …"**                                             | Device connected but not reporting — network problem between device and server, or `--remote-interval`/`--remote-stats-interval` too long.                                                  |
+| **No SRT stats in the switcher**                           | obs-websocket v5 not loaded in OBS, or the _OBS SRT source_ name doesn't match the SRT input in OBS.                                                                                        |
+| **Can't set a new SSH password**                           | Stop SSH first — a new password can be generated only while SSH is stopped.                                                                                                                 |
+| **Register fails with invitation errors**                  | _inviteInvalid / inviteUsed / inviteExpired_ — ask an admin for a fresh code; only the very first account registers without one.                                                            |
+| **Device settings saved but role unchanged**               | Expected: _"The new role takes effect after restarting the device service."_                                                                                                                |
+| **Docker encoder doesn't bond the host's uplinks**         | On the bridge network routing changes only affect the container namespace — run the encoder with `network_mode: host`.                                                                      |
 
 ### Common log events (Log card)
 
