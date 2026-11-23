@@ -1,3 +1,20 @@
+# [10.0.0](https://github.com/majklovec/ctrlirl/compare/v9.4.0...v10.0.0) (2026-11-23)
+
+
+### Code Refactoring
+
+* **server:** rename db to database.sqlite ([ad28f94](https://github.com/majklovec/ctrlirl/commit/ad28f94150dcd74b1ee63da7ca594b7b58f4e6cb))
+
+
+### Features
+
+* **overlay:** add ticker element ([fc86437](https://github.com/majklovec/ctrlirl/commit/fc8643703b146c09c2864c0f5332357cb1ef77cd))
+
+
+### BREAKING CHANGES
+
+* **server:** the control server now creates database.sqlite by default.
+
 # [9.4.0](https://github.com/majklovec/ctrlirl/compare/v9.3.0...v9.4.0) (2026-11-21)
 
 
