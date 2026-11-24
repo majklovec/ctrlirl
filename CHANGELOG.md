@@ -1,3 +1,10 @@
+# [10.1.0](https://github.com/majklovec/ctrlirl/compare/v10.0.1...v10.1.0) (2026-11-24)
+
+
+### Features
+
+* **projects:** add project runtime token ([3b3c214](https://github.com/majklovec/ctrlirl/commit/3b3c2146edd1785a41f109d62d67a09a501b2cce))
+
 ## [10.0.1](https://github.com/majklovec/ctrlirl/compare/v10.0.0...v10.0.1) (2026-11-23)
 
 
