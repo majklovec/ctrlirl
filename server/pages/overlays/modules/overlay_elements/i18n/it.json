@@ -185,6 +185,7 @@
     "overlay.ticker_direction.up": "Up",
     "overlay.ticker_direction.down": "Down",
     "overlay.ticker_speed": "Speed (px/s)",
+    "overlay.ticker_padding": "Spaziatura interna (px)",
     "overlay.ticker_label": "Label",
     "overlay.ticker_separator": "Separator",
     "overlay.tk_entries": "Compiti",

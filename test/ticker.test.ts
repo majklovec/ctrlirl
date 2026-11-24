@@ -1,4 +1,11 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	describe,
+	expect,
+	test,
+} from "bun:test";
 import type { TickerDirection } from "../server/pages/overlays/modules/overlay_elements/elements/ticker";
 import type {
 	ElementContext,
@@ -120,6 +127,13 @@ describe("ticker message rendering", () => {
 					.map((span) => span.textContent)
 					.filter((text) => text !== "•");
 				expect(messages).toEqual(["First", "Second", "First", "Second"]);
+				const padded = [...track!.querySelectorAll("span")].filter(
+					(span) => direction !== "left" || span.textContent === "•",
+				);
+				const defaultPadding = direction === "left" ? "40px" : "20px";
+				expect(padded.map((span) => span.style.paddingLeft)).toEqual(
+					Array(4).fill(defaultPadding),
+				);
 				if (live) {
 					expect(track!.style.animation).toContain(
 						`ovTickerScroll${direction === "left" ? "Left" : direction === "up" ? "Up" : "Down"}`,
@@ -144,5 +158,74 @@ describe("ticker message rendering", () => {
 		expect(root.querySelector(".ov-ticker-track")!.textContent).toBe(
 			"Updated•Updated•",
 		);
+	});
+});
+
+describe("ticker padding", () => {
+	test("the inspector writes padding in pixels and 0 removes it", () => {
+		root = document.createElement("div");
+		document.body.appendChild(root);
+		const el = element("left");
+		m.render(
+			root,
+			tickerElement.editForm({
+				element: el,
+				variables: [],
+				mutate: (update) => update(el),
+			}),
+		);
+		const input = root.querySelector<HTMLInputElement>(
+			'input[name="tickerPadding"]',
+		)!;
+		expect(input.value).toBe("40");
+		input.value = "0";
+		input.dispatchEvent(
+			new document.defaultView!.Event("input", { bubbles: true }),
+		);
+		expect(el.props.tickerPadding).toBe(0);
+
+		m.render(root, tickerElement.draw(el, context(false)));
+		const separator = root.querySelector<HTMLElement>(
+			".ov-ticker-track span:nth-child(2)",
+		)!;
+		expect(separator.style.paddingLeft).toBe("0px");
+		expect(separator.style.paddingRight).toBe("0px");
+	});
+
+	test("custom padding applies to all vertical rows", () => {
+		root = document.createElement("div");
+		const el = element("down");
+		el.props.tickerPadding = 12;
+		m.render(root, tickerElement.draw(el, context(false)));
+		const rows = root.querySelectorAll<HTMLElement>(".ov-ticker-track span");
+		expect(rows).toHaveLength(4);
+		for (const row of rows) {
+			expect(row.style.paddingLeft).toBe("12px");
+			expect(row.style.paddingRight).toBe("12px");
+		}
+	});
+
+	test("changing padding recalculates the horizontal runtime duration", async () => {
+		root = document.createElement("div");
+		document.body.appendChild(root);
+		const el = element("left");
+		const live = context(true);
+		const frame = () =>
+			new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		m.render(root, tickerElement.draw(el, live));
+
+		const track = root.querySelector<HTMLElement>(".ov-ticker-track")!;
+		const separator = track.querySelector<HTMLElement>("span:nth-child(2)")!;
+		Object.defineProperty(track, "scrollWidth", {
+			get: () => 400 + 8 * parseFloat(separator.style.paddingLeft),
+		});
+		await frame();
+		expect(track.style.animationDuration).toBe("4.50s");
+
+		el.props.tickerPadding = 10;
+		m.render(root, tickerElement.draw(el, live));
+		await frame();
+		expect(separator.style.paddingLeft).toBe("10px");
+		expect(track.style.animationDuration).toBe("3.00s");
 	});
 });

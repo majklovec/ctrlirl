@@ -45,6 +45,8 @@ export interface TickerProps {
 	label: string;
 	/** Separator between items (`left` direction only). */
 	separator: string;
+	/** Side padding in px, around separators (left) or message rows (up/down). */
+	tickerPadding?: number;
 	color: string;
 	accent: string;
 	background: string;
@@ -52,7 +54,7 @@ export interface TickerProps {
 	fontFamily: string;
 }
 
-export const DEFAULT_TICKER_PROPS: Required<TickerProps> = {
+export const DEFAULT_TICKER_PROPS: TickerProps = {
 	items: ["Welcome to the stream"],
 	direction: "left",
 	speed: 80,
@@ -77,6 +79,14 @@ function tickerItems(p: Record<string, unknown>): string[] {
 	return (Array.isArray(p.items) ? p.items : []).filter(
 		(s): s is string => typeof s === "string",
 	);
+}
+
+function tickerPadding(
+	p: Record<string, unknown>,
+	direction: TickerDirection,
+): number {
+	const padding = numProp(p, "tickerPadding", -1);
+	return padding >= 0 ? padding : direction === "left" ? 40 : 20;
 }
 
 // ── the scrolling track ──────────────────────────────────────────────────
@@ -240,6 +250,7 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	const speed = numProp(p, "speed", 80);
 	const label = strProp(p, "label", "LIVE");
 	const separator = strProp(p, "separator", "•");
+	const padding = tickerPadding(p, direction);
 	const color = strProp(p, "color", "#ffffff");
 	const accent = strProp(p, "accent", "#6c5ce7");
 	const background = strProp(p, "background", "#0f0f19");
@@ -279,7 +290,7 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 									fontWeight: "600",
 									height: `${rowHeight}px`,
 									lineHeight: `${rowHeight}px`,
-									padding: `0 20px`,
+									padding: `0 ${padding}px`,
 									overflow: "hidden",
 									textOverflow: "ellipsis",
 								},
@@ -296,16 +307,20 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 							style: {
 								color: accent,
 								fontSize: `${Math.round(fontSize * 1.3)}px`,
-								padding: "0 40px",
+								padding: `0 ${padding}px`,
 							},
 						},
 						separator,
 					),
 				);
 		}
-	const measureKey = [direction, speed, fontSize, items.join("\u0000")].join(
-		"|",
-	);
+	const measureKey = [
+		direction,
+		speed,
+		fontSize,
+		padding,
+		items.join("\u0000"),
+	].join("|");
 
 	return (
 		<div
@@ -457,6 +472,13 @@ function editForm({
 				min: 6,
 				max: 200,
 			},
+			{
+				path: "props.tickerPadding",
+				labelKey: "overlay.ticker_padding",
+				type: "number",
+				value: tickerPadding(p, direction),
+				min: 0,
+			},
 		],
 	);
 	return bindableForm({ element: e, mutate, variables, variableUrl, rows });
@@ -473,6 +495,12 @@ function validate(e: OverlayElement): string[] {
 	const size = numProp(e.props, "fontSize", 22);
 	if (!(size >= 6 && size <= 200))
 		problems.push("font size out of range (6–200)");
+	if (
+		e.props.tickerPadding !== undefined &&
+		numProp(e.props, "tickerPadding", -1) < 0
+	) {
+		problems.push("ticker padding must be a non-negative number");
+	}
 	return problems;
 }
 
@@ -490,6 +518,7 @@ export const tickerElement: OverlayElementDef & OverlayElementSchema = {
 		"speed",
 		"label",
 		"separator",
+		"tickerPadding",
 		"color",
 		"accent",
 		"background",
@@ -503,6 +532,7 @@ export const tickerElement: OverlayElementDef & OverlayElementSchema = {
 	handles: "box",
 	normalizeProps(props, read) {
 		const d = DEFAULT_TICKER_PROPS;
+		const padding = read.num("tickerPadding", -1, 0, Number.POSITIVE_INFINITY);
 		return {
 			items: Array.isArray(props.items)
 				? props.items
@@ -517,6 +547,7 @@ export const tickerElement: OverlayElementDef & OverlayElementSchema = {
 			speed: read.num("speed", d.speed, 1, 2000),
 			label: read.str("label", d.label, 32),
 			separator: read.str("separator", d.separator, 8),
+			tickerPadding: padding >= 0 ? padding : undefined,
 			color: read.hex("color", d.color),
 			accent: read.hex("accent", d.accent),
 			background: read.hex("background", d.background),

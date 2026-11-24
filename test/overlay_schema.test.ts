@@ -65,6 +65,19 @@ const validV1Overlay = (): RawOverlay => ({
 });
 
 describe("overlay schema", () => {
+	test("ticker padding preserves explicit values and can be left unset", () => {
+		const parseTicker = (props: Record<string, unknown>) =>
+			parseElementInput(textElement({ type: "ticker", props }));
+		expect(
+			parseTicker({ direction: "up" }).props.tickerPadding,
+		).toBeUndefined();
+		expect(
+			parseTicker({ tickerPadding: -1 }).props.tickerPadding,
+		).toBeUndefined();
+		expect(parseTicker({ tickerPadding: 0 }).props.tickerPadding).toBe(0);
+		expect(parseTicker({ tickerPadding: 12 }).props.tickerPadding).toBe(12);
+	});
+
 	test("default overlay is a valid v1 overlay", () => {
 		const overlay = defaultOverlay();
 		expect(overlay.schemaVersion).toBe(OVERLAY_SCHEMA_VERSION);

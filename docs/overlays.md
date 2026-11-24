@@ -78,6 +78,9 @@ The `ticker` element displays a list of messages in a static preview in the
 editor and scrolls them at runtime. Choose `left`, `up`, or `down` for the
 scroll direction and set `speed` in pixels per second. The horizontal ticker
 also supports a corner label and a separator between messages.
+Set **Padding (px)** (`tickerPadding`) to adjust the space on each side of horizontal
+separators or vertical message rows. When unset, the defaults are 40 px for
+`left` and 20 px for `up` or `down`. Use `0` to remove that padding.
 
 The `ambient` element's **Shift** background also exposes `circle_count`
 (1–1000, default 150; rounded to an integer), `base_hue` (0–360, default 220),
