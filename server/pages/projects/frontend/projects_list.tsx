@@ -89,6 +89,10 @@ const state = {
 	tokenBusy: false,
 	removingToken: false,
 
+	// The project's own token (overlay runtime URLs, device connections).
+	projectToken: "",
+	projectTokenBusy: false,
+
 	// The /projects/join/<token> screen.
 	joinToken: "",
 	joinProjectName: null as string | null,
@@ -139,7 +143,9 @@ async function loadDetail(project: Project): Promise<void> {
 	state.members = undefined;
 	state.invites = undefined;
 	state.tokens = undefined;
+	state.projectToken = "";
 	render();
+	void loadProjectToken(project.id);
 	try {
 		const body = await apiJson<{ members: Member[] }>(
 			`/api/projects/${project.id}/members`,
@@ -151,6 +157,45 @@ async function loadDetail(project: Project): Promise<void> {
 	}
 	void loadTokens(project.id);
 	if (project.role === "owner") await loadInvites(project.id);
+}
+
+/** GET /api/projects/:id/token → the project's own token (any member). */
+async function loadProjectToken(projectId: string): Promise<void> {
+	try {
+		const body = await apiJson<{ token: string }>(
+			`/api/projects/${projectId}/token`,
+		);
+		if (state.selected?.id === projectId)
+			state.projectToken = body.token;
+		render();
+	} catch {
+		render();
+	}
+}
+
+/** POST /api/projects/:id/token → a new project token (owner / editor).
+ * Regenerating invalidates every runtime URL using the old one. */
+async function regenerateProjectToken(): Promise<void> {
+	if (state.projectTokenBusy || !state.selected) return;
+	const id = state.selected.id;
+	const sure = await confirmDialog(
+		t("projects.projectToken.regenerate_confirm"),
+		{ okLabel: t("projects.projectToken.regenerate"), danger: true },
+	);
+	if (!sure) return;
+	state.projectTokenBusy = true;
+	render();
+	void apiJson<{ token: string }>(`/api/projects/${id}/token`, {
+		method: "POST",
+	})
+		.then(({ token }) => {
+			if (state.selected?.id === id) state.projectToken = token;
+		})
+		.catch(() => {})
+		.finally(() => {
+			state.projectTokenBusy = false;
+			render();
+		});
 }
 
 /** GET /api/projects/:id/tokens → the project's device tokens (any member). */
@@ -770,6 +815,30 @@ const App: m.Component = {
 									</Card>
 								) : null,
 								<Card title={t("projects.tokens.title")}>
+									<p class="muted">
+										{t("projects.projectToken.label")}:
+									</p>
+									<code
+										class="token-value"
+										title={t("projects.tokens.copy")}
+										onclick={() => copyToken(state.projectToken)}
+									>
+										{state.projectToken || "…"}
+									</code>
+									<p class="muted">
+										{t("projects.projectToken.hint")}
+									</p>
+									{state.selected.role !== "viewer" ? (
+										<div class="actions project-token-actions">
+											<Button
+												label={t("projects.projectToken.regenerate")}
+												disabled={state.projectTokenBusy}
+												onclick={() =>
+													void regenerateProjectToken()
+												}
+											/>
+										</div>
+									) : null}
 									<p class="muted">{t("projects.tokens.wsEndpoint")}</p>
 									<code
 										class="token-value"

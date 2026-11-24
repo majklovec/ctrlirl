@@ -2,13 +2,13 @@
  * OBS overlay editor routes:
  *   GET  /overlays/                the overlay list page (cookie auth)
  *   GET  /overlays/edit/:id/       the overlay editor page (cookie auth)
- *   GET  /overlay/:id?token=…      the runtime page (owner user-token auth,
- *                                  transparent); <token> is the overlay
- *                                  owner's user token
+ *   GET  /overlay/:id?token=…      the runtime page (project-token auth,
+ *                                  transparent); <token> is the overlay's
+ *                                  project's token
  *   GET  /overlay/:id/variables?…  revalue variables: ?<name>=<value>…, an
- *                                  empty value clears (owner user-token auth)
+ *                                  empty value clears (project-token auth)
  *   POST /overlay/:id/variables?…  revalue variables from a JSON body
- *                                  {<name>: value|null} (owner user-token auth)
+ *                                  {<name>: value|null} (project-token auth)
  *   GET  /overlay/:id/event/:name?…
  *                                  trigger a universal event on overlay <id>:
  *                                  every trigger-driven element (alerts, spin
@@ -18,20 +18,19 @@
  *                                  variables when an element plays it; a
  *                                  name of `path.end/<route>` also renames
  *                                  that overlay's live-map default route to
- *                                  <route> (archiving the segment) (owner
- *                                  user-token auth)
+ *                                  <route> (archiving the segment)
+ *                                  (project-token auth)
  *   GET  /overlay/:id/map-history?token=…
  *                                  the overlay's live-map route history
  *                                  (JSON: named routes with their recorded
  *                                  GPS points; open routes have endedAt
- *                                  null) (owner user-token auth)
+ *                                  null) (project-token auth)
  *   GET  /overlay/:id/files/:fileId?token=…
  *                                  the bytes of an asset-library file an
  *                                  image/video element references
- *                                  (`libraryAssetId`); owner-scoped through
- *                                  the owner's user token (owner user-token
- *                                  auth)
- *   WS   /overlay/:id/ws?token=…   the runtime live feed (owner user-token
+ *                                  (`libraryAssetId`); project-scoped through
+ *                                  the project token (project-token auth)
+ *   WS   /overlay/:id/ws?token=…   the runtime live feed (project-token
  *                                  auth); also accepts the runtime page's
  *                                  `overlays.applyEvent` uplink (it writes
  *                                  an on-air event's values to variables)
@@ -41,9 +40,10 @@
  *   …    /api/overlays…            the editor REST API (cookie auth)
  *
  * The runtime page is what OBS loads as a Browser Source: no session cookie,
- * only the overlay OWNER's user token (chat-overlay pattern), a fully
- * transparent body. The token resolves to a login and the overlay's owner is
- * checked against it, so a token can only reach its owner's overlays.
+ * only the overlay's project token (chat-overlay pattern), a fully
+ * transparent body. The token resolves to a project and the overlay's
+ * project is checked against it (a device token bound to that project is
+ * accepted too), so a token can only reach its project's overlays.
  */
 import { Elysia } from "elysia";
 import { APP_VERSION } from "../../../../shared/app_version";
@@ -249,11 +249,11 @@ export function mountOverlayRoutes(
                     );
                 }),
         )
-        // Media of an image/video element that references the owner's asset
-        // library (`libraryAssetId`). Token-scoped like the rest of the
-        // runtime: the owner's user token names the overlay's owner, and only
-        // that owner's files can be served through it. A bad token, unknown
-        // overlay, a foreign overlay, or a file that is not the owner's all
+        // Media of an image/video element that references the project's
+        // asset library (`libraryAssetId`). Token-scoped like the rest of the
+        // runtime: the project token names the overlay's project, and only
+        // that project's files can be served through it. A bad token, unknown
+        // overlay, a foreign overlay, or a file that is not the project's all
         // 404 (probes must not leak).
         .get(
             "/overlay/:id/files/:fileId",

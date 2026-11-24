@@ -9,9 +9,10 @@
  *   - the runtime feed (`overlay-runtime:<overlayId>`, keyed per overlay)
  *     consumed by the OBS runtime pages (their WS is wired in overlay_routes.ts).
  *
- * Runtime pages are owner-authenticated with the overlay OWNER's user token
- * (`?token=…`, resolved to a login and checked against the overlay's owner) —
- * no cookie, because a Browser Source has no session.
+ * Runtime pages are authenticated with the overlay's project token
+ * (`?token=…`, resolved to the project and checked against the overlay's
+ * project — a device token bound to that project is accepted too) — no
+ * cookie, because a Browser Source has no session.
  */
 
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
@@ -114,13 +115,13 @@ export interface Overlays {
         overlayId: string,
     ): string[] | null;
     /**
-     * Owner-authenticated batch revalue for the variables endpoint
+     * Project-token-authenticated batch revalue for the variables endpoint
      * (`GET /overlay/:id/variables?token=…&<name>=<value>…` and
      * `POST /overlay/:id/variables?token=…` with a JSON `{<name>: value|null}`
-     * body, `token` the owner's user token). `values` maps variable name → raw
+     * body, `token` the project's token). `values` maps variable name → raw
      * value; `null`/`""` empties the variable to its type's neutral value. The
      * whole batch lands in one commit and one `overlays.overlay` frame. `null`
-     * when the user does not own an overlay with `overlayId` (the route 404s —
+     * when the project has no overlay with `overlayId` (the route 404s —
      * probes must not leak overlay existence); an empty batch, an unknown name,
      * or a bad value throws ApiError(404/400).
      */
@@ -130,16 +131,16 @@ export interface Overlays {
         values: Record<string, unknown>,
     ): { status: number; body: Record<string, unknown> } | null;
     /**
-     * Owner-authenticated universal event trigger for
+     * Project-token-authenticated universal event trigger for
      * `GET /overlay/:id/event/<name>?token=…&<name>=<value>…` (`token` the
-     * owner's user token): publishes an `overlays.event` frame
+     * project's token): publishes an `overlays.event` frame
      * (`{name, payload}`) on the overlay's runtime topic; the runtime page
      * routes it to every trigger-driven element (alerts, spin wheel, …) whose
      * `event` prop equals `name`. Any query values are validated and
      * type-coerced and ride along in `payload` — the runtime page writes them
      * into the overlay variables (the `overlays.applyEvent` WS uplink →
      * `applyEventValues`) only when an element goes on air for it. `null` when
-     * the user does not own an overlay with `overlayId`; `name` is not
+     * the project has no overlay with `overlayId`; `name` is not
      * validated against overlay state (it just needs to match an element on
      * the client).
      */
@@ -150,18 +151,18 @@ export interface Overlays {
         values: Record<string, unknown>,
     ): { status: number; body: Record<string, unknown> } | null;
     /**
-     * Owner-authenticated live-map route history for
+     * Project-token-authenticated live-map route history for
      * `GET /overlay/:id/map-history?token=…` (TODO/09-map.md `keep_history`;
-     * `token` the owner's user token): every route of an overlay in start
+     * `token` the project's token): every route of an overlay in start
      * order with its recorded GPS points in time order (the live route
      * carries `endedAt: null`). Recording is server-side: a variables batch
      * that updates a keep_history live_map's bound centerPosition variable
      * records a point into the live `default` route, opening it on the first
      * fix (a live trace is always visible); a `path.end/<name>` event renames
      * the live `default` route to `name` (archiving the segment), and the
-     * next fix then starts a fresh `default` route. `null` when the user does
-     * not own an overlay with `overlayId` (the route 404s, no-leak contract
-     * like the other token endpoints).
+     * next fix then starts a fresh `default` route. `null` when the project
+     * has no overlay with `overlayId` (the route 404s, no-leak contract like
+     * the other token endpoints).
      */
     mapHistory(
         project: string,
@@ -847,7 +848,7 @@ export function createOverlays({
         }
     }
 
-    // ── runtime access (owner-authenticated via the owner's user token) ──
+    // ── runtime access (project-token authenticated) ──
     function runtimeStore(project: string, overlayId: string): Store | null {
         const store = stores.get(overlayId);
         // project check: a token names only its project's overlays, so a probe
@@ -1045,9 +1046,9 @@ export function createOverlays({
      * `overlays.applyEvent` WS uplink → `applyEventValues`) only when an
      * element goes on air for it, so a queued element's values never clobber
      * the on-air ones early (and they persist once written). `null` when the
-     * user does not own an overlay with `overlayId` (the route 404s, same
-     * no-leak contract as the variables endpoint); unknown variable names and
-     * bad values throw ApiError. */
+     * project has no overlay with `overlayId` (the route 404s, same no-leak
+     * contract as the variables endpoint); unknown variable names and bad
+     * values throw ApiError. */
     function triggerEvent(
         project: string,
         overlayId: string,

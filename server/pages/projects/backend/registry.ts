@@ -155,6 +155,17 @@ export interface Projects {
     createToken(actor: string, projectId: string): DeviceToken;
     /** Delete a device token (owner/editor); 404 for a missing or foreign id. */
     removeToken(actor: string, projectId: string, tokenId: string): void;
+    /**
+     * The project's own token (any member): authenticates the project's
+     * overlay runtime URLs and device connections (one per project,
+     * migration 0014).
+     */
+    projectToken(actor: string, projectId: string): string;
+    /**
+     * Regenerate the project's token (owner/editor) — the new value; every
+     * runtime URL and device connection using the old one stops working.
+     */
+    regenerateProjectToken(actor: string, projectId: string): string;
     /** The project's members, owner first, then join order (404 on a missing project). */
     members(projectId: string): ProjectMember[];
     /** Change a member's role (owner; the owner row is fixed). */
@@ -447,6 +458,30 @@ export function createProjects(db: AppDatabase | null): Projects {
                     ),
                 )
                 .run();
+        },
+
+        projectToken: (actor, projectId) => {
+            const d = useDb();
+            requireRole(actor, projectId, ["owner", "editor", "viewer"]);
+            const row = d
+                .select({ token: projectsTable.token })
+                .from(projectsTable)
+                .where(eq(projectsTable.id, projectId))
+                .get();
+            if (!row)
+                throw new ApiError(`Project ${projectId} not found`, 404);
+            return row.token;
+        },
+
+        regenerateProjectToken: (actor, projectId) => {
+            const d = useDb();
+            requireRole(actor, projectId, ["owner", "editor"]);
+            const token = randomBytes(24).toString("hex");
+            d.update(projectsTable)
+                .set({ token })
+                .where(eq(projectsTable.id, projectId))
+                .run();
+            return token;
         },
 
         members: (projectId) => {

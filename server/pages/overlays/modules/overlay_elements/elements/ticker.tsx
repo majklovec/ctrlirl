@@ -18,8 +18,8 @@
  */
 
 import { Icon } from "@ui/components/icons";
-import type { MithrilJSXComponent } from "@ui/jsx";
 import { t } from "@ui/i18n";
+import type { MithrilJSXComponent } from "@ui/jsx";
 import type {
 	ElementContext,
 	ElementProps,
@@ -29,7 +29,7 @@ import type {
 import { numProp, strProp } from "@ui/overlay/element";
 import type { FormRow } from "@ui/overlay/fields";
 import { bindableForm } from "@ui/overlay/fields";
-import type { Children, Vnode } from "mithril";
+import type { Vnode } from "mithril";
 import m from "mithril";
 import type { OverlayElementSchema } from "../../../../../core/overlay_element";
 
@@ -93,9 +93,6 @@ interface TickerTrackAttrs {
 	/** Identity of everything the measured duration depends on. */
 	measureKey: string;
 	animate?: string;
-	/** The track's content — optional in the type (mithril passes it), so
-	 * the JSX attrs object matches the callable signature. */
-	children?: Children;
 }
 
 interface TickerTrackState {
@@ -172,7 +169,7 @@ const TickerTrack = {
 						: {}),
 				}}
 			>
-				{a.children}
+				{vnode.children}
 			</div>
 		);
 	},
@@ -205,9 +202,7 @@ export const TickerItemsField = {
 									oninput={(ev: Event) =>
 										set(
 											items.map((row, j) =>
-												j === i
-													? (ev.target as HTMLInputElement).value
-													: row,
+												j === i ? (ev.target as HTMLInputElement).value : row,
 											),
 										)
 									}
@@ -249,11 +244,7 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	const accent = strProp(p, "accent", "#6c5ce7");
 	const background = strProp(p, "background", "#0f0f19");
 	const fontSize = numProp(p, "fontSize", 22);
-	const fontFamily = strProp(
-		p,
-		"fontFamily",
-		"Inter, system-ui, sans-serif",
-	);
+	const fontFamily = strProp(p, "fontFamily", "Inter, system-ui, sans-serif");
 	const horizontal = direction === "left";
 	const rowHeight = Math.round(fontSize * ROW_RATIO);
 	// Runtime only: the editor stays on the static (design) state.
@@ -383,7 +374,12 @@ function draw(element: OverlayElement, ctx: ElementContext): Vnode {
 	);
 }
 
-function editForm({ element: e, mutate, variables, variableUrl }: ElementProps): Vnode {
+function editForm({
+	element: e,
+	mutate,
+	variables,
+	variableUrl,
+}: ElementProps): Vnode {
 	const p = e.props;
 	const direction = tickerDirection(p);
 	const rows: FormRow[] = [
@@ -469,13 +465,11 @@ function editForm({ element: e, mutate, variables, variableUrl }: ElementProps):
 function validate(e: OverlayElement): string[] {
 	const problems: string[] = [];
 	const items = tickerItems(e.props);
-	if (
-		!Array.isArray(e.props.items) ||
-		items.every((s) => s.trim() === "")
-	)
+	if (!Array.isArray(e.props.items) || items.every((s) => s.trim() === ""))
 		problems.push("ticker needs at least one item");
 	const speed = numProp(e.props, "speed", 80);
-	if (!(speed >= 1 && speed <= 2000)) problems.push("speed out of range (1–2000)");
+	if (!(speed >= 1 && speed <= 2000))
+		problems.push("speed out of range (1–2000)");
 	const size = numProp(e.props, "fontSize", 22);
 	if (!(size >= 6 && size <= 200))
 		problems.push("font size out of range (6–200)");

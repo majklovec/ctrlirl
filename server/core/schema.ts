@@ -30,6 +30,11 @@ export const projects = sqliteTable("projects", {
     isPersonal: integer("is_personal", { mode: "boolean" })
         .notNull()
         .default(false),
+    /** The project's persistent token (migration 0014): authenticates the
+     * overlay runtime URLs and device connections to it. */
+    token: text("token")
+        .notNull()
+        .default(sql`(lower(hex(randomblob(24))))`),
     createdAt: text("created_at")
         .notNull()
         .default(sql`(CURRENT_TIMESTAMP)`),

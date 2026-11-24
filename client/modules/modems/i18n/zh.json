@@ -3,16 +3,15 @@
     "dev.apn_hint": "APN name (e.g. internet)",
     "dev.apply": "Apply",
     "dev.autoconfig": "自动配置 APN",
+    "dev.options": "Options",
     "dev.bands": "频段",
     "dev.imei": "IMEI",
-    "dev.keepalive_fail": "向 {{target}}:{{port}} 发送 UDP 保活包失败 · {{time}}",
-    "dev.keepalive_ok": "已向 {{target}}:{{port}} 发送 UDP 保活包（未确认送达）· {{time}}",
     "dev.modem_fallback": "调制解调器",
+    "dev.no_modems": "未找到调制解调器 (ModemManager)。",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",
     "dev.network_no_scan": "Run the scan first",
     "dev.network_unknown": "Unknown",
-    "dev.no_modems": "未找到调制解调器 (ModemManager)。",
     "dev.operator": "运营商",
     "dev.password": "密码",
     "dev.power": "电源",
@@ -34,5 +33,7 @@
     "mlog.done.modem_scan": "Modem #{{index}} network scan finished",
     "mlog.done.modem_setup": "Modem #{{index}} network configured",
     "wtype.modems": "调制解调器",
-    "wtype.network": "网络"
+    "wtype.network": "网络",
+    "dev.keepalive_ok": "已向 {{target}}:{{port}} 发送 UDP 保活包（未确认送达）· {{time}}",
+    "dev.keepalive_fail": "向 {{target}}:{{port}} 发送 UDP 保活包失败 · {{time}}"
 }

@@ -3,16 +3,15 @@
     "dev.apn_hint": "APN name (e.g. internet)",
     "dev.apply": "Apply",
     "dev.autoconfig": "APNを自動設定",
+    "dev.options": "Options",
     "dev.bands": "バンド",
     "dev.imei": "IMEI",
-    "dev.keepalive_fail": "{{target}}:{{port}} へのUDPキープアライブの送信に失敗 · {{time}}",
-    "dev.keepalive_ok": "{{target}}:{{port}} にUDPキープアライブを送信（到達は未確認）· {{time}}",
     "dev.modem_fallback": "モデム",
+    "dev.no_modems": "モデムが見つかりません (ModemManager)。",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",
     "dev.network_no_scan": "Run the scan first",
     "dev.network_unknown": "Unknown",
-    "dev.no_modems": "モデムが見つかりません (ModemManager)。",
     "dev.operator": "オペレーター",
     "dev.password": "パスワード",
     "dev.power": "電源",
@@ -34,5 +33,7 @@
     "mlog.done.modem_scan": "Modem #{{index}} network scan finished",
     "mlog.done.modem_setup": "Modem #{{index}} network configured",
     "wtype.modems": "モデム",
-    "wtype.network": "ネットワーク"
+    "wtype.network": "ネットワーク",
+    "dev.keepalive_ok": "{{target}}:{{port}} にUDPキープアライブを送信（到達は未確認）· {{time}}",
+    "dev.keepalive_fail": "{{target}}:{{port}} へのUDPキープアライブの送信に失敗 · {{time}}"
 }

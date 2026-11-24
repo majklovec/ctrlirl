@@ -8,7 +8,7 @@ import {
 } from "node:crypto";
 import { text } from "../../../shared/http";
 import { type AppDatabase, openDatabase } from "../db";
-import { invitations, tokens, users } from "../schema";
+import { invitations, projects, tokens, users } from "../schema";
 import { LOCAL_PROJECT_ID, LOCAL_USER } from "../runtime";
 
 export async function createAuth({
@@ -82,10 +82,12 @@ export async function createAuth({
     }
 
     /**
-     * Resolve the project for a presented device token (the `tokens.project_id`
-     * column, back-filled by migration 0012). With `--no-auth` every
-     * connection maps to the local user's Personal project so the same
-     * project-scoped code path runs. `null` when the token is unknown.
+     * Resolve the project for a presented token: a device token
+     * (`tokens.project_id`, back-filled by migration 0012) or the project's
+     * own token (`projects.token`, migration 0014 — it resolves to that
+     * project). With `--no-auth` every connection maps to the local user's
+     * Personal project so the same project-scoped code path runs. `null`
+     * when the token is unknown.
      */
     function projectForToken(token: string | null): string | null {
         if (NO_AUTH) return LOCAL_PROJECT_ID;
@@ -95,7 +97,13 @@ export async function createAuth({
             .from(tokens)
             .where(eq(tokens.token, token))
             .get();
-        return row?.projectId ?? null;
+        if (row?.projectId) return row.projectId;
+        const project = db
+            .select({ id: projects.id })
+            .from(projects)
+            .where(eq(projects.token, token))
+            .get();
+        return project?.id ?? null;
     }
 
     // Opaque cookie sessions: the browser stores a session id (HttpOnly), so

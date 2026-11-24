@@ -3,16 +3,15 @@
     "dev.apn_hint": "APN name (e.g. internet)",
     "dev.apply": "Apply",
     "dev.autoconfig": "Automatická konfigurácia APN",
+    "dev.options": "Options",
     "dev.bands": "Pásmo",
     "dev.imei": "IMEI",
-    "dev.keepalive_fail": "Odoslanie UDP keepalive na {{target}}:{{port}} zlyhalo · {{time}}",
-    "dev.keepalive_ok": "UDP keepalive odoslaný na {{target}}:{{port}} (doručenie nepotvrdené) · {{time}}",
     "dev.modem_fallback": "Modem",
+    "dev.no_modems": "Nenašli sa žiadne modemy (ModemManager).",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",
     "dev.network_no_scan": "Run the scan first",
     "dev.network_unknown": "Unknown",
-    "dev.no_modems": "Nenašli sa žiadne modemy (ModemManager).",
     "dev.operator": "Operátor",
     "dev.password": "Heslo",
     "dev.power": "Napájanie",
@@ -34,5 +33,7 @@
     "mlog.done.modem_scan": "Modem #{{index}} network scan finished",
     "mlog.done.modem_setup": "Modem #{{index}} network configured",
     "wtype.modems": "Módemy",
-    "wtype.network": "Sieť"
+    "wtype.network": "Sieť",
+    "dev.keepalive_ok": "UDP keepalive odoslaný na {{target}}:{{port}} (doručenie nepotvrdené) · {{time}}",
+    "dev.keepalive_fail": "Odoslanie UDP keepalive na {{target}}:{{port}} zlyhalo · {{time}}"
 }

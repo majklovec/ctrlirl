@@ -18,6 +18,8 @@ const existingToken: Token = {
     createdAt: "2026-01-02T03:04:05.000Z",
 };
 
+const projectToken = "fixture-project-token";
+
 let pageBundle = "";
 let mountCount = 0;
 let win: HappyWindow;
@@ -104,6 +106,7 @@ beforeEach(async () => {
     win.document.body.innerHTML = '<div id="app"></div>';
     requests = [];
     copied = [];
+    regenerations = 0;
     savedGlobals = globalKeys.map((key) => [
         key,
         Object.getOwnPropertyDescriptor(globalThis, key),
@@ -164,6 +167,8 @@ function card(title: string) {
     return found;
 }
 
+let regenerations = 0;
+
 async function importProjectsPage(): Promise<void> {
     const source = `${pageBundle}\n// projects view fixture ${++mountCount}\n`;
     await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
@@ -190,6 +195,12 @@ async function mountPage(role: Role, tokens: Token[]): Promise<void> {
                         expiresAt: null,
                         usedBy: null,
                     }],
+                };
+            if (path === "/api/projects/fixture/token" && method === "GET")
+                return { token: projectToken };
+            if (path === "/api/projects/fixture/token" && method === "POST")
+                return {
+                    token: `regenerated-project-token-${++regenerations}`,
                 };
             if (path === "/api/projects/fixture/tokens" && method === "GET")
                 return { tokens };
@@ -273,6 +284,30 @@ describe("project device token list", () => {
         await until(() => copied.length === 1);
         expect(copied).toEqual([existingToken.token]);
 
+        // The project token shows at the top of the card; regenerating it
+        // (after the confirm dialog) swaps in the fresh value.
+        await until(() =>
+            tokensCard.textContent?.includes(projectToken) === true,
+        );
+        const regenerate =
+            tokensCard.querySelector(".project-token-actions button");
+        if (!(regenerate instanceof win.HTMLButtonElement))
+            throw new Error("Missing regenerate project token button");
+        regenerate.click();
+        await until(() =>
+            win.document.querySelector("button[data-ok]") !== null,
+        );
+        win.document.querySelector("button[data-ok]")?.click();
+        await until(() =>
+            tokensCard.textContent?.includes(
+                `regenerated-project-token-${regenerations}`,
+            ) === true,
+        );
+        expect(requests).toContainEqual({
+            path: "/api/projects/fixture/token",
+            method: "POST",
+        });
+
         const add = tokensCard.querySelector(".project-card-actions button");
         if (!(add instanceof win.HTMLButtonElement))
             throw new Error("Missing add token button");
@@ -306,12 +341,19 @@ describe("project device token list", () => {
         await mountPage("viewer", [existingToken]);
         const tokensCard = card("projects.tokens.title");
         expect(tokensCard.querySelector(".project-card-actions")).toBeNull();
+        expect(tokensCard.querySelector(".project-token-actions")).toBeNull();
         expect(tokensCard.querySelector("tbody button")).toBeNull();
-        const tokenValue = tokensCard.querySelector("code");
+        // Viewers see the project token (copy only) and the device tokens.
+        const projectTokenValue = tokensCard.querySelector("code");
+        if (!projectTokenValue) throw new Error("Missing project token value");
+        projectTokenValue.click();
+        await until(() => copied.length === 1);
+        expect(copied).toEqual([projectToken]);
+        const tokenValue = tokensCard.querySelector("table code");
         if (!tokenValue) throw new Error("Missing token value");
         tokenValue.click();
-        await until(() => copied.length === 1);
-        expect(copied).toEqual([existingToken.token]);
+        await until(() => copied.length === 2);
+        expect(copied).toEqual([projectToken, existingToken.token]);
     });
 
     test("keeps the empty state and add control", async () => {

@@ -3,16 +3,15 @@
     "dev.apn_hint": "APN name (e.g. internet)",
     "dev.apply": "Apply",
     "dev.autoconfig": "Авт. конфигурация APN",
+    "dev.options": "Options",
     "dev.bands": "Диапазоны",
     "dev.imei": "IMEI",
-    "dev.keepalive_fail": "Не удалось отправить UDP keepalive на {{target}}:{{port}} · {{time}}",
-    "dev.keepalive_ok": "UDP keepalive отправлен на {{target}}:{{port}} (доставка не подтверждена) · {{time}}",
     "dev.modem_fallback": "Модем",
+    "dev.no_modems": "Модемы не найдены (ModemManager).",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",
     "dev.network_no_scan": "Run the scan first",
     "dev.network_unknown": "Unknown",
-    "dev.no_modems": "Модемы не найдены (ModemManager).",
     "dev.operator": "Оператор",
     "dev.password": "Пароль",
     "dev.power": "Питание",
@@ -34,5 +33,7 @@
     "mlog.done.modem_scan": "Modem #{{index}} network scan finished",
     "mlog.done.modem_setup": "Modem #{{index}} network configured",
     "wtype.modems": "Модемы",
-    "wtype.network": "Сеть"
+    "wtype.network": "Сеть",
+    "dev.keepalive_ok": "UDP keepalive отправлен на {{target}}:{{port}} (доставка не подтверждена) · {{time}}",
+    "dev.keepalive_fail": "Не удалось отправить UDP keepalive на {{target}}:{{port}} · {{time}}"
 }

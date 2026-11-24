@@ -6,16 +6,16 @@ served as transparent runtime pages that OBS loads with a **Browser Source**.
 A user can have **multiple independent overlays** (stored in the `overlays`
 table). Each overlay is fully self-contained — its own canvas, variables and
 elements — so one account can run several OBS scenes side by side. Runtime
-pages are owner-scoped: every runtime URL carries the overlay **owner's user
-token** (a profile device token) plus the overlay id, and the server resolves
-the token to a login and checks it owns the overlay. Media (images, videos,
-alert sounds) is not stored in the overlay: elements reference files in the
-user's asset library, which the server keeps on disk (the `--storage`
-directory) and serves to the runtime page through its owner-scoped file
-endpoint.
+pages are project-scoped: every runtime URL carries the overlay's **project
+token** (one per project, shown on the Projects page) plus the overlay id, and
+the server resolves the token to a project and checks the overlay belongs to
+it. Media (images, videos, alert sounds) is not stored in the overlay:
+elements reference files in the user's asset library, which the server keeps
+on disk (the `--storage` directory) and serves to the runtime page through its
+project-scoped file endpoint.
 
 - Overlay list: `/overlays/`, overlay editor: `/overlays/edit/<overlay id>/` (logged-in users only)
-- Runtime: `/overlay/<overlay id>?token=<user token>` (no session, owner-gated)
+- Runtime: `/overlay/<overlay id>?token=<project token>` (no session, project-gated)
 - Schema, limits and normalization: [`server/pages/overlays/overlay.ts`](../server/pages/overlays/overlay.ts)
 - Element plugin contract: [`server/core/overlay_element.ts`](../server/core/overlay_element.ts)
   (schema half) and [`shared/ui/overlay/element.ts`](../shared/ui/overlay/element.ts)
@@ -73,6 +73,11 @@ shape (see `ElementBase` in [`server/pages/overlays/overlay.ts`](../server/pages
 
 Every element attribute — props, `transform` fields and `visible` — can be
 bound to a variable (see [Binding](#binding) below).
+
+The `ticker` element displays a list of messages in a static preview in the
+editor and scrolls them at runtime. Choose `left`, `up`, or `down` for the
+scroll direction and set `speed` in pixels per second. The horizontal ticker
+also supports a corner label and a separator between messages.
 
 The `ambient` element's **Shift** background also exposes `circle_count`
 (1–1000, default 150; rounded to an integer), `base_hue` (0–360, default 220),
@@ -192,7 +197,7 @@ Every mutation goes over REST and is fanned out to two WebSocket topics
    (cookie session). Delivered to every open editor tab, so multiple editors
    stay in sync.
 2. **Runtime feed** — topic `overlay-runtime:<overlay id>` on
-   `WS /overlay/<overlay id>/ws?token=…` (owner user token, no session).
+   `WS /overlay/<overlay id>/ws?token=…` (project token, no session).
    Delivered to that one overlay's OBS runtime page (each overlay feeds its
    own topic, so one user's overlays never feed each other).
 
@@ -242,20 +247,21 @@ Notes:
 | URL                                        | Auth                       | Serves                                     |
 | ------------------------------------------ | -------------------------- | ------------------------------------------ |
 | `/overlays/`                               | cookie session             | the overlay list; the editor lives at `/overlays/edit/<overlay id>/` |
-| `/overlay/<overlay id>`                    | owner user token in `?token=` | the transparent runtime page (OBS Browser Source); a bad/foreign token renders a blank page |
-| `/overlay/<overlay id>/variables?token=&<name>=<value>…`| owner user token    | revalue variables from the querystring (several `<name>=<value>` pairs per fetch; an empty value empties the variable to its neutral value: 0 / false / `#000000` / ""), returns the new variable list |
-| `POST /overlay/<overlay id>/variables?token=`           | owner user token  | revalue variables from a JSON body `{<name>: value\|null}` (`null`/`""` empties), returns the new variable list |
-| `/overlay/<overlay id>/event/<name>?token=…[&<name>=<value>…]` | owner user token | trigger every trigger-driven element in that overlay (alerts, spin wheel, …) whose *Event* prop equals `<name>` (queues FIFO per element); optional `<name>=<value>` pairs ride with the event and are written to the overlay variables when an element plays it (persist), returns `{"ok":true,"name":…}` |
-| `/overlay/<overlay id>/ws?token=`          | owner user token         | the runtime live feed (WebSocket; also the page's `overlays.applyEvent` uplink) |
+| `/overlay/<overlay id>`                    | project token in `?token=` | the transparent runtime page (OBS Browser Source); a bad/foreign token renders a blank page |
+| `/overlay/<overlay id>/variables?token=&<name>=<value>…`| project token    | revalue variables from the querystring (several `<name>=<value>` pairs per fetch; an empty value empties the variable to its neutral value: 0 / false / `#000000` / ""), returns the new variable list |
+| `POST /overlay/<overlay id>/variables?token=`           | project token  | revalue variables from a JSON body `{<name>: value\|null}` (`null`/`""` empties), returns the new variable list |
+| `/overlay/<overlay id>/event/<name>?token=…[&<name>=<value>…]` | project token | trigger every trigger-driven element in that overlay (alerts, spin wheel, …) whose *Event* prop equals `<name>` (queues FIFO per element); optional `<name>=<value>` pairs ride with the event and are written to the overlay variables when an element plays it (persist), returns `{"ok":true,"name":…}` |
+| `/overlay/<overlay id>/ws?token=`          | project token         | the runtime live feed (WebSocket; also the page's `overlays.applyEvent` uplink) |
 | `/chat/<dashboardId>/<widgetId>?token=`    | per-widget token           | a chat widget's live page                   |
 
-**Owner user token** — the overlay **owner's** profile device token
-(`POST /api/profile/tokens`, listed by `GET /api/profile`), the only
-credential any runtime surface needs. Every runtime URL carries it in
-`?token=` **plus the overlay id**; the server resolves the token to a login
-and serves the overlay only to its owner (a foreign or unknown token 404s /
-blank-renders, so probes leak nothing). Revoking the token from the profile
-invalidates every URL that used it immediately.
+**Project token** — the overlay's **project's** own token (one per project,
+shown on the [Projects page](../server/pages/projects/), regenerated with
+`POST /api/projects/<id>/token`), the only credential any runtime surface
+needs. Every runtime URL carries it in `?token=` **plus the overlay id**; the
+server resolves the token to a project and serves the overlay only when it
+belongs to that project (a foreign or unknown token 404s / blank-renders, so
+probes leak nothing). Regenerating the token invalidates every URL that used
+the old value immediately.
 
 **Element URLs** — the `iframe` and `chat` elements carry a `props.url`:
 
@@ -269,17 +275,16 @@ invalidates every URL that used it immediately.
 
 ## Tokens
 
-- The overlay **owner's user token** is the only credential a runtime URL
-  needs; the URL's overlay id + the token owner-check together address the
+- The overlay's **project token** is the only credential a runtime URL needs;
+  the URL's overlay id + the token project-check together address the
   overlay.
-- Requests without a valid, owner-matching token render an **empty page** (no
-  data, no error text) or 404 (REST/WS).
-- Revoke a token from the profile: every runtime URL using it stops
-  immediately; mint a new one and copy the new URL into the OBS Browser
-  Source.
-- Treat the token like a password: it grants access to **the owner's**
-  overlays and their variable values. A user's token never reaches another
-  user's overlays.
+- Requests without a valid, project-matching token render an **empty page**
+  (no data, no error text) or 404 (REST/WS).
+- Regenerate the token on the Projects page: every runtime URL using it stops
+  immediately; copy the regenerated runtime URL into the OBS Browser Source.
+- Treat the token like a password: it grants access to **the project's**
+  overlays and their variable values. A project's token never reaches
+  another project's overlays.
 
 ## Adding a new element type
 

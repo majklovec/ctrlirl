@@ -17,6 +17,8 @@
  *   GET    /api/projects/:id/tokens   `[{id, token, createdAt}]` (any member)
  *   POST   /api/projects/:id/tokens   → {token} (owner / editor)
  *   DELETE /api/projects/:id/tokens/:tokenId  (owner / editor)
+ *   GET    /api/projects/:id/token    → {token} the project's own token (any member)
+ *   POST   /api/projects/:id/token    → {token} regenerates it (owner / editor)
  *
  * The authorization rules live in the store (backend/registry.ts); these
  * handlers only parse the request and translate its outcome into JSON.
@@ -143,6 +145,12 @@ export function mountProjectRoutes(
                             tokens: projects.listTokens(user, id),
                         },
                     }));
+                if (sub === "token")
+                    return run(() => ({
+                        body: {
+                            token: projects.projectToken(user, id),
+                        },
+                    }));
                 return notFound();
             }),
         )
@@ -176,6 +184,12 @@ export function mountProjectRoutes(
                     return run(() => ({
                         status: 201,
                         body: { token: projects.createToken(user, id) },
+                    }));
+                if (sub === "token")
+                    return run(() => ({
+                        body: {
+                            token: projects.regenerateProjectToken(user, id),
+                        },
                     }));
                 return notFound();
             }),

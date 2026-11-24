@@ -27,7 +27,8 @@
     border-radius: var(--radius-sm);
 }
 
-.project-card-actions {
+.project-card-actions,
+.project-token-actions {
     margin-top: 0.75rem;
     justify-content: flex-start;
 }

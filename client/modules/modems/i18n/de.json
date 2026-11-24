@@ -3,16 +3,15 @@
     "dev.apn_hint": "APN name (e.g. internet)",
     "dev.apply": "Apply",
     "dev.autoconfig": "APN automatisch konfigurieren",
+    "dev.options": "Options",
     "dev.bands": "Bänder",
     "dev.imei": "IMEI",
-    "dev.keepalive_fail": "UDP-Keepalive an {{target}}:{{port}} konnte nicht gesendet werden · {{time}}",
-    "dev.keepalive_ok": "UDP-Keepalive an {{target}}:{{port}} gesendet (Zustellung nicht bestätigt) · {{time}}",
     "dev.modem_fallback": "Modem",
+    "dev.no_modems": "Keine Modems gefunden (ModemManager).",
     "dev.network": "Network",
     "dev.network_auto": "Auto (default)",
     "dev.network_no_scan": "Run the scan first",
     "dev.network_unknown": "Unknown",
-    "dev.no_modems": "Keine Modems gefunden (ModemManager).",
     "dev.operator": "Netzbetreiber",
     "dev.password": "Passwort",
     "dev.power": "Strom",
@@ -34,5 +33,7 @@
     "mlog.done.modem_scan": "Modem #{{index}} network scan finished",
     "mlog.done.modem_setup": "Modem #{{index}} network configured",
     "wtype.modems": "Modems",
-    "wtype.network": "Netzwerk"
+    "wtype.network": "Netzwerk",
+    "dev.keepalive_ok": "UDP-Keepalive an {{target}}:{{port}} gesendet (Zustellung nicht bestätigt) · {{time}}",
+    "dev.keepalive_fail": "UDP-Keepalive an {{target}}:{{port}} konnte nicht gesendet werden · {{time}}"
 }

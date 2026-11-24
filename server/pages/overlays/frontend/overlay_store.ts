@@ -44,9 +44,9 @@ export const state = {
     overlays: [] as OverlaySummary[],
     /** the overlay the editor page has loaded (full state), or null. */
     overlay: null as Overlay | null,
-    /** the active project's device token (owner user-token auth for runtime
-     * URLs); fetched from the project's token list so runtime URLs resolve
-     * to the overlay's project. */
+    /** the active project's own token (runtime-URL auth); fetched from
+     * `/api/projects/:id/token` so runtime URLs always resolve to the
+     * overlay's project. */
     token: "",
     selectedOverlayId: null as string | null,
     selectedElementId: null as string | null,
@@ -228,7 +228,7 @@ export function resolvedTransform(e: OverlayElement): Transform {
 }
 
 /** The runtime URL for an overlay: the overlay's id + the active project's
- * device token (which auth resolves to the overlay's project). */
+ * own token (which auth resolves to the overlay's project). */
 export function runtimeUrl(id: string): string {
     return (
         location.origin +
@@ -299,17 +299,16 @@ export function variableUsage(variableId: string): number {
 /** Fetch the overlay list; an editor page also loads the overlay its URL
  * names. */
 export async function load(overlayId: string | null = null): Promise<void> {
-    // runtime URLs authenticate with the owner's device token, which is
-    // project-scoped: fetch the active project's tokens (the overlay API no
-    // longer carries a per-overlay token, and /api/profile no longer lists
-    // tokens).
+    // runtime URLs authenticate with the active project's own token (one per
+    // project, migration 0014) — /api/profile no longer lists tokens, and an
+    // empty URL is no longer possible when the project exists.
     const projectId = getActiveProjectId();
-    const tokens = projectId
-        ? await apiTry<{ tokens?: { token: string }[] }>(
-              `/api/projects/${encodeURIComponent(projectId)}/tokens`,
+    const body = projectId
+        ? await apiTry<{ token?: string }>(
+              `/api/projects/${encodeURIComponent(projectId)}/token`,
           )
         : null;
-    state.token = tokens?.tokens?.[0]?.token ?? "";
+    state.token = body?.token ?? "";
     const list = await apiTry<{ overlays: OverlaySummary[] }>("/api/overlays");
     if (list?.overlays) state.overlays = list.overlays;
     if (overlayId) {
