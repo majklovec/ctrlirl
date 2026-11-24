@@ -1,3 +1,10 @@
+# [10.2.0](https://github.com/majklovec/ctrlirl/compare/v10.1.0...v10.2.0) (2026-11-24)
+
+
+### Features
+
+* **overlay:** add ticker padding ([3f07018](https://github.com/majklovec/ctrlirl/commit/3f07018b37bb9fa9f0d4790e0bd47fe213669e51))
+
 # [10.1.0](https://github.com/majklovec/ctrlirl/compare/v10.0.1...v10.1.0) (2026-11-24)
 
 
