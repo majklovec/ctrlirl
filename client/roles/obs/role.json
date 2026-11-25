@@ -1,14 +1,15 @@
 {
-  "id": "obs",
-  "titleKey": "role.obs",
-  "taglineKey": "setup.role.obs_tag",
-  "order": 40,
-  "setupSelectable": true,
-  "requires": {
-    "modules": ["obs", "speedtest", "systeminfo"],
-    "capabilities": []
-  },
-  "provides": {
-    "capabilities": []
-  }
+    "id": "obs",
+    "titleKey": "role.obs",
+    "taglineKey": "setup.role.obs_tag",
+    "order": 40,
+    "setupSelectable": true,
+    "requires": {
+        "modules": ["obs", "speedtest", "systeminfo"],
+        "optionalModules": ["streamdeck"],
+        "capabilities": []
+    },
+    "provides": {
+        "capabilities": []
+    }
 }

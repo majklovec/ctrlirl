@@ -1,15 +1,15 @@
 {
-  "id": "broadcaster",
-  "titleKey": "role.broadcaster",
-  "taglineKey": "setup.role.broadcaster_tag",
-  "order": 50,
-  "setupSelectable": true,
-  "requires": {
-    "modules": ["broadcaster", "speedtest", "systeminfo"],
-    "optionalModules": ["obs"],
-    "capabilities": []
-  },
-  "provides": {
-    "capabilities": []
-  }
+    "id": "broadcaster",
+    "titleKey": "role.broadcaster",
+    "taglineKey": "setup.role.broadcaster_tag",
+    "order": 50,
+    "setupSelectable": true,
+    "requires": {
+        "modules": ["broadcaster", "speedtest", "systeminfo"],
+        "optionalModules": ["obs", "streamdeck"],
+        "capabilities": []
+    },
+    "provides": {
+        "capabilities": []
+    }
 }

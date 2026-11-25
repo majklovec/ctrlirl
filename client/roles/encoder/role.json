@@ -1,33 +1,36 @@
 {
-  "id": "encoder",
-  "titleKey": "role.encoder",
-  "taglineKey": "setup.role.encoder_tag",
-  "order": 10,
-  "default": true,
-  "setupSelectable": true,
-  "requires": {
-    "modules": [
-      "encoder",
-      "ctrlink_streamer",
-      "network",
-      "srtla",
-      "modems",
-      "ssh",
-      "speedtest",
-      "systeminfo"
-    ],
-    "optionalModules": [
-      "obs",
-      "streamdeck"
-    ],
-    "capabilities": [
-      "network.uplinks",
-      "network.ctrlink",
-      "network.interfaces",
-      "modems.source"
-    ]
-  },
-  "provides": {
-    "capabilities": ["network.uplinks", "network.interfaces", "network.ctrlink", "modems.source", "streamdeck.events"]
-  }
+    "id": "encoder",
+    "titleKey": "role.encoder",
+    "taglineKey": "setup.role.encoder_tag",
+    "order": 10,
+    "default": true,
+    "setupSelectable": true,
+    "requires": {
+        "modules": [
+            "encoder",
+            "ctrlink_streamer",
+            "network",
+            "srtla",
+            "modems",
+            "ssh",
+            "speedtest",
+            "systeminfo"
+        ],
+        "optionalModules": ["obs", "streamdeck"],
+        "capabilities": [
+            "network.uplinks",
+            "network.ctrlink",
+            "network.interfaces",
+            "modems.source"
+        ]
+    },
+    "provides": {
+        "capabilities": [
+            "network.uplinks",
+            "network.interfaces",
+            "network.ctrlink",
+            "modems.source",
+            "streamdeck.events"
+        ]
+    }
 }
