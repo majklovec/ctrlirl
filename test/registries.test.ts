@@ -41,6 +41,7 @@ const DEVICE_ORDER = [
     "speedtest",
     "srtla",
     "ssh",
+    "streamdeck",
     "systeminfo",
 ];
 /** The channel widget modules (device-independent dashboard widgets). */

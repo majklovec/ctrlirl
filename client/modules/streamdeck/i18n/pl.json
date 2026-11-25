@@ -1,0 +1,10 @@
+{
+    "streamdeck.title": "Stream Deck",
+    "streamdeck.not_connected": "No Stream Deck connected",
+    "streamdeck.model": "Model",
+    "streamdeck.key_count": "Keys",
+    "streamdeck.last_pressed": "Last pressed",
+    "streamdeck.last_released": "Last released",
+    "streamdeck.deps_none": "No Stream Deck detected",
+    "streamdeck.deps_error": "Could not scan for a Stream Deck"
+}

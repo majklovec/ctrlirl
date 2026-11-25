@@ -24,6 +24,50 @@ export interface ModuleSliceView {
 /** Module system view: enabled flags + non-secret settings per module id (secrets come back as `{configured}`). */
 export type ModulesView = Record<string, ModuleSliceView>;
 
+/** The editable fields of a module, as serialized for the web UI's schema-driven config forms. */
+export interface ModuleInfoField {
+    name: string;
+    labelKey: string;
+    type: "text" | "number" | "boolean" | "select" | "password";
+    placeholderKey?: string;
+    helpKey?: string;
+    options?: readonly (readonly [string, string])[];
+    min?: number;
+    max?: number;
+    step?: number;
+    /** True when the secret for this field is already stored (the form starts empty; empty on save keeps it). */
+    configured?: boolean;
+    /** True for secret fields (the form renders a password input). */
+    secret?: boolean;
+}
+
+/** One row of the web UI's Modules panel (per module the active role serves). */
+export interface ModuleInfoView {
+    /** Module id (the `modules.<id>` RPC prefix / slice key). */
+    id: string;
+    /** Fallback title (the web UI prefers `titleKey` via i18n). */
+    title: string;
+    /** i18n key of the title. */
+    titleKey?: string;
+    /** Listed in the role's `requires.modules` (runs unless the operator disables it). */
+    required: boolean;
+    /** True when the role lists it in `requires.optionalModules` (default-off). */
+    optional: boolean;
+    /** The module's current enabled flag. */
+    enabled: boolean;
+    /** The module's editable settings fields (empty = no config form). */
+    fields: ModuleInfoField[];
+    /**
+     * Result of the module's dependency preflight (absent = the module declares
+     * no preflight; a timeout surfaces `ok: false` with a generic message).
+     */
+    deps?: {
+        ok: boolean;
+        messageKey?: string;
+        messageParams?: Record<string, unknown>;
+    };
+}
+
 /** The device status envelope; the modules' status fragments are deep-merged in. */
 export interface Status {
     /** Absent while no role has been selected (the device runs no modules). */
@@ -63,6 +107,8 @@ export interface SetupInfo {
     color: string;
     language: string;
     roleDefinitions: readonly RoleDefinition[];
+    /** The wizard's optional-module step: role id → its selectable modules + fields. */
+    optionalModuleInfo?: Record<string, readonly ModuleInfoView[]>;
     [key: string]: unknown;
 }
 

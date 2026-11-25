@@ -32,6 +32,7 @@ import { FieldGroup } from "./form";
 
 export type FieldType =
 	| "text"
+	| "password"
 	| "textarea"
 	| "number"
 	| "range"
@@ -251,6 +252,18 @@ export function makeControl(c: ControlValue): m.Vnode {
 				name,
 				disabled: c.disabled,
 				placeholder: c.placeholder,
+				value: (value as string) ?? "",
+				oninput: (e: Event) => write((e.target as HTMLInputElement).value),
+			});
+		case "password":
+			return m("input", {
+				type: "password",
+				name,
+				disabled: c.disabled,
+				placeholder: c.placeholder,
+				// Autocomplete off: the stored secret is never echoed back, and the
+				// form starts empty (a saved secret is kept when left blank).
+				autocomplete: "off",
 				value: (value as string) ?? "",
 				oninput: (e: Event) => write((e.target as HTMLInputElement).value),
 			});

@@ -18,9 +18,10 @@ All screenshots in this manual were captured from a real running instance and ar
 8. [Encoder options explained](#8-encoder-options-explained)
 9. [Encoder SRTLA options explained](#9-encoder-srtla-options-explained)
 10. [OBS Studio module & low-bitrate switcher](#10-obs-studio-module--low-bitrate-switcher)
-11. [Control server operation](#11-control-server-operation)
-12. [Command-line reference](#12-command-line-reference)
-13. [Troubleshooting](#13-troubleshooting)
+11. [Optional modules & the Stream Deck module](#11-optional-modules--the-stream-deck-module)
+12. [Control server operation](#12-control-server-operation)
+13. [Command-line reference](#13-command-line-reference)
+14. [Troubleshooting](#14-troubleshooting)
 
 ---
 
@@ -108,7 +109,7 @@ Devices are _owned_ by the user whose **device token** was present when the devi
 | OBS Studio with obs-websocket v5      | `obs` role, obs module, stats/chat dashboards                                               |
 | TLS reverse proxy                     | production control server (`wss://` / `https://` are required for tokens + session cookies) |
 
-For a local checkout with the bundled binaries, override their paths explicitly with `ENCODER_BIN` and `SRTLA_SEND_BIN` (see [Command-line reference](#12-command-line-reference)).
+For a local checkout with the bundled binaries, override their paths explicitly with `ENCODER_BIN` and `SRTLA_SEND_BIN` (see [Command-line reference](#13-command-line-reference)).
 
 ---
 
@@ -457,7 +458,58 @@ The status table tracks the engine per link: **State** (`normal` / `low bitrate`
 
 ---
 
-## 11. Control server operation
+## 11. Optional modules & the Stream Deck module
+
+A **module** is a self-contained feature (e.g. OBS, SRTLA, Stream Deck) that a
+device can run. Some modules are required by the device's role; others are
+**optional** — the role can run them, but they start **disabled** so a device
+only uses what it needs. Optional modules are:
+
+-   **Enabled on demand** — in the device UI, open **Modules** (the Modules
+    tab / panel) and toggle a module on. Its module (and its dependencies,
+    such as a network or OBS connection) is started only then; disabling it
+    stops it.
+-   **Configured inline** — expanding an optional module reveals its config
+    form (e.g. the OBS WebSocket URL + password, the Stream Deck deck model /
+    keymap). Saving a form re-applies the module.
+
+Two places surface this:
+
+-   **The setup wizard (role step)** — right after you pick a device role, the
+    _Optional modules_ block lists the modules that role supports (OBS,
+    Stream Deck). Tick the ones you want and fill their forms, then continue.
+    On **Encoder** and **OBS** roles; each checkbox reveals that module's
+    settings.
+-   **The Modules panel in Settings** — toggle and configure optional modules
+    at any time after setup.
+
+### 11.1 Stream Deck
+
+The **streamdeck** module reads an [Elgato Stream
+Deck](https://www.elgato.com/stream-deck) (USB) and treats each press as an
+addressable event:
+
+-   **`streamdeck.press` / `streamdeck.release`** — pushed to the device event
+    stream, so dashboards (e.g. a Buttons widget) can react to any key.
+-   **`streamdeck.events`** — a capability a module can subscribe
+    to (in its config, e.g. the encoder reacts to a scene/switch key, OBS to a
+    record key) without knowing about the hardware.
+
+Each key gets a label (shown on the card) and an optional **event id** (the
+name other modules subscribe to). If no deck is present the module starts idle
+and logs once — a missing deck never breaks the pipeline.
+
+> **Linux udev note.** On Linux the deck is a USB HID device. If it is not
+> visible (permissions), add a udev rule matching the Elgato vendor
+> (VID `0xd208`) granting access, then re-plug. See the module's
+> `install/udev` spec for the shipped rule.
+
+The **Stream Deck** card shows the connected deck (model, key count), the
+current **key → event** mapping, and a live log of presses.
+
+---
+
+## 12. Control server operation
 
 Start it (`bun server/backend/server.ts --port 8090`), sign in, and manage the fleet.
 
@@ -538,9 +590,9 @@ A widget for a device whose module is off shows _Module disabled on device_; a w
 
 ---
 
-## 12. Command-line reference
+## 13. Command-line reference
 
-### 12.1 Device client (`client/backend/client.ts`)
+### 13.1 Device client (`client/backend/client.ts`)
 
 Every flag has an environment-variable counterpart. Resolution order: **CLI flag > env var > config file > default**.
 
@@ -567,7 +619,7 @@ Every flag has an environment-variable counterpart. Resolution order: **CLI flag
 | `--remote-stats-interval` | `CONTROL_SERVER_STATS_INTERVAL` | `2`                              | `srtla_send` link-stats push interval in seconds.                                                                                                                                                                      |
 | `--dry-run`               | `DRY_RUN`                       | —                                | Print `ip`/process actions instead of running them (safe testing).                                                                                                                                                     |
 
-### 12.2 Control server (`server/backend/server.ts`)
+### 13.2 Control server (`server/backend/server.ts`)
 
 | Option             | Env                          | Default           | What it does                                                                                                                  |
 | ------------------ | ---------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -576,13 +628,13 @@ Every flag has an environment-variable counterpart. Resolution order: **CLI flag
 | `--storage`        | `STORAGE_DIR`                | `assets`          | Directory the asset files are saved to (the database keeps only the metadata).                                                |
 | `--no-auth`        | `NO_AUTH`                    | —                 | Local testing only — one shared `local` profile, no tokens needed (no database; dashboards are kept in memory only).          |
 
-### 12.3 Module-specific settings
+### 13.3 Module-specific settings
 
 OBS connection fields are owned by `obs` and can be supplied through `OBS_URL` / `OBS_PASSWORD` or the device setup and settings pages. Broadcaster outputs, ffmpeg profiles, and SRTLA receiver settings are owned by `client/modules/broadcaster`; there is no separate client entrypoint or transport.
 
 ---
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 | Symptom                                                    | What to check                                                                                                                                                                               |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

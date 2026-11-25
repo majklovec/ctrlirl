@@ -180,11 +180,42 @@ export interface ModuleSlice {
     [field: string]: unknown;
 }
 
+/** A serializable settings-field descriptor: the shared vocabulary of the web UI's schema-driven config forms. */
+export interface ModuleConfigField {
+    /** The config-key this field writes into the module's slice. */
+    name: string;
+    /** i18n key of the field label. */
+    labelKey: string;
+    type: "text" | "number" | "boolean" | "select" | "password";
+    /** i18n key of the input placeholder. */
+    placeholderKey?: string;
+    /** i18n key of the help text under the field. */
+    helpKey?: string;
+    /** Select options: [value, i18n label key]. */
+    options?: readonly (readonly [string, string])[];
+    /** Number bounds (type "number"). */
+    min?: number;
+    max?: number;
+    step?: number;
+}
+
+/** Result of a module's dependency preflight. */
+export interface ModuleDependencies {
+    /** All declared dependencies are satisfied. */
+    ok: boolean;
+    /** i18n key of the (human-readable) problem when not `ok`. */
+    messageKey?: string;
+    /** Params for the message key. */
+    messageParams?: Record<string, unknown>;
+}
+
 export interface BackendModule<TCore = unknown> {
     kind: "device" | "widget";
     /** Module id = directory name. */
     id: string;
     title: string;
+    /** i18n key of the module title (falling back to `title`). */
+    titleKey?: string;
     /** Optional control-server HTTP routes (not mounted on devices). */
     controlRoutes?(context: ControlRouteContext): AnyElysia;
 
@@ -199,6 +230,12 @@ export interface BackendModule<TCore = unknown> {
     legacyConfigKeys?: string[];
     /** Defaults of the slice, deep-merged under the stored values (new fields backfill). */
     configDefaults?: Record<string, unknown>;
+    /**
+     * The module's settings fields — serialized into `modules.info` for the web
+     * UI's schema-driven config forms, and used to validate `modules.configure`
+     * (unknown fields = 400). Absent = a module with no editable settings.
+     */
+    configFields?: readonly ModuleConfigField[];
     /** Slice fields the status view masks as `{ configured: boolean }`. */
     secretFields?: readonly string[];
     /** Reject the module's methods (409) while its slice is disabled. */
@@ -239,6 +276,13 @@ export interface BackendModule<TCore = unknown> {
     ): Promise<(() => void | Promise<void>) | undefined>;
     /** Apply a `modules.configure` call to the slice (default: only `enabled`). */
     configure?(config: Params, slice: ModuleSlice): void;
+    /**
+     * Preflight of the module's runtime dependencies (e.g. "OBS websockets
+     * plugin reachable", "Stream Deck detected"). Surfaced by `modules.info`
+     * for the web UI; a failure here must never break the device — report
+     * `ok: false` instead of throwing.
+     */
+    checkDependencies?(): Promise<ModuleDependencies>;
     /** Module-owned pages (`modules/<id>/pages/*.html`) and the paths that serve them. */
     pages?: readonly ModulePage[];
     /** Device-bound dashboard widgets the module renders. */

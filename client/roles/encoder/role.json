@@ -16,6 +16,10 @@
       "speedtest",
       "systeminfo"
     ],
+    "optionalModules": [
+      "obs",
+      "streamdeck"
+    ],
     "capabilities": [
       "network.uplinks",
       "network.ctrlink",
@@ -24,6 +28,6 @@
     ]
   },
   "provides": {
-    "capabilities": ["network.uplinks", "network.interfaces", "network.ctrlink", "modems.source"]
+    "capabilities": ["network.uplinks", "network.interfaces", "network.ctrlink", "modems.source", "streamdeck.events"]
   }
 }

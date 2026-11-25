@@ -1,3 +1,16 @@
+# [Unreleased](https://github.com/majklovec/ctrlirl/compare/v10.2.0...HEAD)
+
+
+### Features
+
+* **modules:** optional modules — per-device feature modules that a role can run but that start disabled. They can be enabled/disabled on demand from a new Modules panel (device UI + a `modules.info` / `modules.configure` RPC) and configured inline; enabling a module (re)starts it and its dependencies. Setup wizard gains an inline **Optional modules** block in the role step.
+* **streamdeck:** Stream Deck device module — reads an Elgato Stream Deck over USB HID, emits `streamdeck.press` / `streamdeck.release` events and a `streamdeck.events` capability other modules can subscribe to. An optional module (Encoder + OBS roles).
+* **obs:** OBS module config form (WebSocket URL, password, scene-events) surfaced in the Modules panel; reads `OBS_URL` / `OBS_PASSWORD` env as defaults.
+
+### Documentation
+
+* **manual:** new section on optional modules & the Stream Deck module (EN + CS); `client/modules/README.md` documents the optional-modules and `configFields` / `checkDependencies` conventions.
+
 # [10.2.0](https://github.com/majklovec/ctrlirl/compare/v10.1.0...v10.2.0) (2026-11-24)
 
 

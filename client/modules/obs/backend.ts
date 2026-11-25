@@ -594,6 +594,7 @@ const registration: BackendModule<ModuleCore> = {
     kind: "device",
     id: MODULE_ID,
     title: "OBS",
+    titleKey: "set.obs",
     legacyConfigKeys: ["obs-controller"],
     requireEnabled: true,
     configDefaults: {
@@ -602,6 +603,20 @@ const registration: BackendModule<ModuleCore> = {
         sceneEvents: true,
         ...SWITCHER_DEFAULTS,
     },
+    configFields: [
+        {
+            name: "obsUrl",
+            labelKey: "set.obs_url",
+            type: "text",
+            placeholderKey: "set.obs_url_ph",
+        },
+        {
+            name: "obsPassword",
+            labelKey: "set.obs_password",
+            type: "password",
+        },
+        { name: "sceneEvents", labelKey: "set.obs_scene_events", type: "boolean" },
+    ],
     secretFields: ["obsPassword"],
     methods: [
         "obs.request",
@@ -718,6 +733,40 @@ const registration: BackendModule<ModuleCore> = {
             s.obsPassword = config.obsPassword;
         if (typeof config.sceneEvents === "boolean")
             s.sceneEvents = config.sceneEvents;
+    },
+    /** Modules panel preflight: is the configured OBS websocket reachable? */
+    async checkDependencies() {
+        const cfg = slice();
+        const url = typeof cfg?.obsUrl === "string" ? cfg.obsUrl.trim() : "";
+        if (!url) return { ok: false, messageKey: "obs.deps_no_url" };
+        const probe = new ObsClient({
+            url,
+            ...(typeof cfg?.obsPassword === "string" && cfg.obsPassword
+                ? { password: cfg.obsPassword }
+                : {}),
+            disableReconnect: true,
+            log: () => {},
+        });
+        try {
+            await Promise.race([
+                probe.connect(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("timeout")), 3000),
+                ),
+            ]);
+            await probe
+                .sendRequest({
+                    requestType: "GetVersion",
+                    requestId: randomUUID(),
+                    requestData: {},
+                })
+                .catch(() => {});
+            return { ok: true };
+        } catch {
+            return { ok: false, messageKey: "obs.deps_unreachable" };
+        } finally {
+            probe.disconnect();
+        }
     },
     async status() {
         // The low-bitrate switcher's live state (null = not running): the card

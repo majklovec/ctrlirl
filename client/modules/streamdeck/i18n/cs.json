@@ -1,0 +1,10 @@
+{
+    "streamdeck.title": "Stream Deck",
+    "streamdeck.not_connected": "Není připojen žádný Stream Deck",
+    "streamdeck.model": "Model",
+    "streamdeck.key_count": "Klávesy",
+    "streamdeck.last_pressed": "Poslední stisk",
+    "streamdeck.last_released": "Poslední puštění",
+    "streamdeck.deps_none": "Nebyl detekován žádný Stream Deck",
+    "streamdeck.deps_error": "Nepodařilo se vyhledat Stream Deck"
+}

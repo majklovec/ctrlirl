@@ -18,9 +18,10 @@ Všechny snímky obrazovky v této příručce byly pořízeny ze skutečně bě
 8. [Vysvětlení voleb enkodéru](#8-vysvětlení-voleb-enkodéru)
 9. [Vysvětlení voleb encoder/SRTLA](#9-vysvětlení-voleb-encodersrtla)
 10. [Modul OBS Studio & přepínač nízkého bitrate](#10-modul-obs-studio--přepínač-nízkého-bitrate)
-11. [Obsluha ovládacího serveru](#11-obsluha-ovládacího-serveru)
-12. [Reference příkazové řádky](#12-reference-příkazové-řádky)
-13. [Řešení problémů](#13-řešení-problémů)
+11. [Volitelné moduly & modul Stream Deck](#11-volitelné-moduly--modul-stream-deck)
+12. [Obsluha ovládacího serveru](#12-obsluha-ovládacího-serveru)
+13. [Reference příkazové řádky](#13-reference-příkazové-řádky)
+14. [Řešení problémů](#14-řešení-problémů)
 
 ---
 
@@ -109,7 +110,7 @@ Zařízení _patří_ uživateli, jehož **device token** byl použit, když se 
 | OBS Studio s obs-websocket v5         | role `obs`, modul obs, dashboardy se statistikou/chatem                             |
 | Reverzní proxy s TLS                  | produkční ovládací server (tokeny a relační cookies vyžadují `wss://` / `https://`) |
 
-Pro lokální checkout s přibalovanými binárkami explicitně přepište jejich cesty pomocí `ENCODER_BIN` a `SRTLA_SEND_BIN` (viz [Reference příkazové řádky](#12-reference-příkazové-řádky)).
+Pro lokální checkout s přibalovanými binárkami explicitně přepište jejich cesty pomocí `ENCODER_BIN` a `SRTLA_SEND_BIN` (viz [Reference příkazové řádky](#13-reference-příkazové-řádky)).
 
 ---
 
@@ -458,7 +459,56 @@ Stavová tabulka zobrazuje stav přepínače pro každé spojení: **State** (`n
 
 ---
 
-## 11. Obsluha ovládacího serveru
+## 11. Volitelné moduly & modul Stream Deck
+
+**Modul** je samostatný funkční celek (např. OBS, SRTLA, Stream Deck), který
+zařízení může běhat. Některé moduly jsou pro roli povinné, jiné jsou
+**volitelné** — roli umí spustit, ale ve výchozím stavu jsou **vypnuté**, ať
+zařízení používá jen to, co potřebuje. Volitelné moduly:
+
+-   **Spouští se na požadavek** — v UI zařízení otevřete **Moduly** (panel
+    Moduly) a modul zapnete. Jeho modul (společně s jeho závislostmi, např.
+    síťou nebo připojením k OBS) se spustí až tehdy; vypnutím se stopne.
+-   **Konfigurují se přímo** — rozbalení volitelného modulu odhalí jeho
+    formulář nastavení (např. adresa + heslo WebSocketu OBS, model decku a
+    mapování klíčů Stream Decku). Uložení formuláře modul znovu aplikuje.
+
+Dva způsoby, jak se k tomu dostat:
+
+-   **Průvodce prvním spuštěním (krok Role)** — hned po výběru role zařízení se
+    objeví blok _Volitelné moduly_ s moduly, které daná role podporuje (OBS,
+    Stream Deck). Škrtnete ty, které chcete, vyplňte jejich formuláře a pokračujte.
+-   **Panel Modulů v Nastavení** — volitelné moduly zapínáte a nastavujete kdykoliv
+    po nastavení.
+
+### 11.1 Stream Deck
+
+Modul **streamdeck** čte [Elgato Stream Deck](https://www.elgato.com/stream-deck)
+(USB) a každé stisknutí počítá jako adresovatelnou událost:
+
+-   **`streamdeck.press` / `streamdeck.release`** — posílají se do proudu
+    událostí zařízení, takže na ně mohou reagovat dashboardy (např. widget
+    Tlačítky) pro libovolný klíč.
+-   **`streamdeck.events`** — kapabilita, na kterou se může přihlásit jiný
+    modul (ve svém nastavení, např. enkodér reaguje na klíč scény/přepínače,
+    OBS na klíč nahrávání), aniž by znal hardware.
+
+Každý klíč dostane popisek (zobrazený na kartě) a volitelné **id události**
+(název, na který se přihlašují ostatní moduly). Pokud deck není přítomen,
+modul spustí v klidovém stavu a jednou zaloguje — chybějící deck nikdy
+nerozbije pipeline.
+
+> **Poznámka k udev na Linuxu.** Na Linuxu je deck USB HID zařízení. Pokud ho
+> systém nevidí (oprávnění), přidejte udev pravidlo pro Elgato vendor
+> (VID `0xd208`) udělující přístup a deck znovu přidejte. Viz `install/udev`
+> specifikace modulu s dodávaným pravidlem.
+
+Karta **Stream Deck** zobrazuje připojený deck (model, počet klíčů), aktuální
+mapování **klíč → událost** a živý záznam stisků.
+
+---
+
+## 12. Obsluha ovládacího serveru
 
 Spusťte server příkazem `bun server/backend/server.ts --port 8090`, přihlaste se a můžete spravovat připojená zařízení.
 
@@ -539,9 +589,9 @@ Widget zařízení, na kterém je modul vypnutý, zobrazuje _Module disabled on 
 
 ---
 
-## 12. Reference příkazové řádky
+## 13. Reference příkazové řádky
 
-### 12.1 Klient zařízení (`client/backend/client.ts`)
+### 13.1 Klient zařízení (`client/backend/client.ts`)
 
 Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI flag > proměnná prostředí > konfigurační soubor > výchozí hodnota**.
 
@@ -568,7 +618,7 @@ Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI 
 | `--remote-stats-interval` | `CONTROL_SERVER_STATS_INTERVAL` | `2`                              | Interval odesílání statistik spojení `srtla_send` v sekundách.                                                                                                                                                                                         |
 | `--dry-run`               | `DRY_RUN`                       | —                                | Vypíše příkazy `ip` a akce s procesy, ale neprovede je (bezpečné testování).                                                                                                                                                                           |
 
-### 12.2 Ovládací server (`server/backend/server.ts`)
+### 13.2 Ovládací server (`server/backend/server.ts`)
 
 | Volba              | Proměnná                     | Výchozí           | Co dělá                                                                                                                                                 |
 | ------------------ | ---------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -576,13 +626,13 @@ Každá volba má ekvivalent v podobě proměnné prostředí. Řešení: **CLI 
 | `--db`             | `DB_FILE`                    | `database.sqlite` | Databáze SQLite obsahující uživatele, tokeny zařízení a dashboardy.                                                                                     |
 | `--no-auth`        | `NO_AUTH`                    | —                 | Pouze pro místní testování: používá se společný profil `local` bez tokenů a databáze; dashboardy se uchovávají pouze v paměti.                          |
 
-### 12.3 Nastavení specifická pro moduly
+### 13.3 Nastavení specifická pro moduly
 
 Připojení k OBS spravuje modul `obs`; hodnoty lze zadat přes `OBS_URL` / `OBS_PASSWORD` nebo na stránce nastavení zařízení. RTMP výstupy, profily ffmpeg a nastavení SRTLA přijímače vlastní `client/modules/broadcaster`. Pro tyto role neexistuje samostatný vstupní bod klienta.
 
 ---
 
-## 13. Řešení problémů
+## 14. Řešení problémů
 
 | Příznak                                                     | Co zkontrolovat                                                                                                                                                                                                                              |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

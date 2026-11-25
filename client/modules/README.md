@@ -155,6 +155,30 @@ are seeded from the role's module list (a module is `enabled` by default when
 the role lists it in `requires.modules`, see [Roles](#roles)) + `configDefaults`
 when setup completes and backfilled at every load.
 
+### Optional modules
+
+A module a role lists in `requires.optionalModules` is **optional**: it is
+seeded `enabled: false` and only starts when the user turns it on (Modules
+panel / `modules.configure`, or the setup wizard). The lifecycle is
+`configureModule(id, {enabled, config})` in
+[`client/backend/modules.ts`](../backend/modules.ts):
+
+-   **Dependencies first** — an optional module that declares `dependencies`
+    (e.g. `streamdeck` → `network`) is started only when its deps are already
+    running; toggling it on re-applies (`stop` + `start`) the module.
+-   **Config is validated & stored** — `validateModuleConfig(id, fields, data)`
+    (a module's `configFields` + `configSchema`) is the single source of truth
+    shared by the setup wizard, the Modules panel and `configureModule`.
+    `configDefaults(role)` seeds the slice when a role's setup completes so a
+    form has something to show.
+-   **Dependencies you cannot satisfy** — the module still enables; the panel
+    shows `checkDependencies(role)` (a `deps_ok` state, `deps_none` /
+    `deps_error` with an i18n `deps_*` message) and keeps `available()` false.
+-   `moduleInfos()` is the read side for the panel: id, title, kind
+    (`required` / `optional` / `available`), `enabled`, `state`, `available`,
+    `dependencies`, `configFields`, plus `configSchema`, `checkDependencies`
+    and `configure` (only when served by the live role).
+
 ### Pushes
 
 `ctx.emit(event, data, opts?)` sends `{ type: "event", event, data, module }` to
@@ -342,9 +366,9 @@ live role run me?" — so no module file names a role (pinned by
 
 `resolveOrder` (in `shared/registry.ts`) topologically sorts modules by their
 `dependencies` (cycle-safe; ids visited alphabetically). Today: `network`
-depends on `modems`, and `encoder`, `ctrlink_relay`, `ctrlink_streamer` and
-`srtla` all depend on `network`. `startModules` / `stopModules` (reverse) /
-`moduleStatuses` / autostart all iterate that order.
+depends on `modems`, and `encoder`, `ctrlink_relay`, `ctrlink_streamer`,
+`srtla` and `streamdeck` all depend on `network`. `startModules` /
+`stopModules` (reverse) / `moduleStatuses` / autostart all iterate that order.
 
 ## Adding a module
 
@@ -356,9 +380,12 @@ depends on `modems`, and `encoder`, `ctrlink_relay`, `ctrlink_streamer` and
    `styles.css`.
 2. Declare `methods`, `events`, the hooks you need, `log` wording, `pages` /
    `dashboardWidgets` / `dashboardActions`, and `dependencies` if it must start
-   after another module. A module never names a role; to make it run on a role,
-   add its id to that role's `requires.modules` (or `optionalModules`) in
-   `client/roles/<role>/role.json` (see [Roles](#roles)).
+   after another module. For an **optional** module add `enabledByRole:
+   Optional<boolean>` (its default-on flag per role), `configFields` (+
+   `configSchema`/`configDefaults`/`checkDependencies`) and a `title` — see
+   [Optional modules](#optional-modules). A module never names a role; to make
+   it run on a role, add its id to that role's `requires.modules` (or
+   `optionalModules`) in `client/roles/<role>/role.json` (see [Roles](#roles)).
 3. Put the module's translations in `modules/<id>/i18n/<lang>.json` (all
    languages in `shared/languages.ts`) and its wire types in `types.ts`.
 4. **No core edits** — the backend scan picks up the module, and `predev`

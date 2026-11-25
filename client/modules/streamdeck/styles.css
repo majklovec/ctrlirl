@@ -1,0 +1,36 @@
+.streamdeck-card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.streamdeck-empty {
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.streamdeck-model,
+.streamdeck-keys,
+.streamdeck-last {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+
+.streamdeck-label {
+	color: var(--muted);
+	font-size: 0.8rem;
+}
+
+.streamdeck-release {
+	margin-left: 8px;
+}
+
+.streamdeck-value {
+	font-weight: 600;
+	color: var(--text);
+}
+
+.streamdeck-pressed {
+	color: var(--accent);
+}

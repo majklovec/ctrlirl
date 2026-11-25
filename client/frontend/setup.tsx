@@ -8,6 +8,7 @@ import {
 	Checkbox,
 	CheckField,
 	ConnectionBadge,
+	DynamicForm,
 	Field,
 	Form,
 	Input,
@@ -21,10 +22,15 @@ import { HOSTNAME_PATTERN, mountPage, setHeaderColor } from "@ui/util";
 import m from "mithril";
 import roleDiagrams from "../../generated/role_diagrams";
 import type { ModuleSetupStep } from "../../shared/contracts/frontend_module";
-import type { Role, SetupInfo } from "../../shared/contracts/wire";
+import type {
+	Role,
+	SetupInfo,
+	ModuleInfoView,
+} from "../../shared/contracts/wire";
 import type { LogEntry, LogEvent } from "../../shared/log_messages";
 import { attemptedSteps } from "../../shared/setup_progress";
 import { errorMessage } from "../../shared/util";
+import { schemaFor } from "./module_panel";
 import {
 	DEFAULT_COLOR,
 	HOSTNAME_RE,
@@ -121,6 +127,8 @@ const f = {
 	remoteUrl: "",
 	remoteToken: "",
 	autostart: false,
+	/** Optional-module selection in the role step: per-module selection + config. */
+	optSel: {} as Record<string, { enabled: boolean; config: Record<string, unknown> }>,
 };
 
 // The per-role architecture diagram each module ships (role_<role>.svg),
@@ -259,6 +267,7 @@ function coreStep(step: CoreStep): WizardStep {
 								roleInvalid,
 							),
 						),
+						optionalModuleSelect(),
 					);
 				}
 				case "identity": {
@@ -420,12 +429,67 @@ function coreStep(step: CoreStep): WizardStep {
 	};
 }
 
+/** The role's optional modules (from `setup.get`), empty when the role has none
+ * — then the inline selection renders nothing. */
+const optionalInfos = (): readonly ModuleInfoView[] =>
+	f.role ? state.info?.optionalModuleInfo?.[f.role] ?? [] : [];
+
+/** The role's optional-module selection, shown inline below the role cards:
+ * a checkbox per optional module, with a schema-driven config form revealed
+ * for each selection. Empty (nothing rendered) when the selected role declares
+ * no optional modules. */
+function optionalModuleSelect(): m.Vnode | null {
+	const infos = optionalInfos();
+	if (infos.length === 0) return null;
+	return (
+		<div class="wiz-opt-block" key="wiz-opt-block">
+			<p class="wiz-opt-lead">{t("setup.step.optional_modules_sub")}</p>
+			{infos.map((info) => {
+				const sel = f.optSel[info.id];
+				const enabled = sel?.enabled ?? false;
+				return (
+					<div class="wiz-opt" key={info.id}>
+						<label class="wiz-opt-head">
+							<input
+								type="checkbox"
+								checked={enabled}
+								onchange={(e: Event) => {
+									const on = (e.target as HTMLInputElement).checked;
+									f.optSel[info.id] =
+										f.optSel[info.id] ?? { enabled: false, config: {} };
+									f.optSel[info.id].enabled = on;
+									m.redraw();
+								}}
+							/>
+							<span>{info.titleKey ? t(info.titleKey) : info.title}</span>
+						</label>
+						{enabled ? (
+							<DynamicForm
+								schema={schemaFor(info)}
+								value={sel?.config ?? {}}
+								onChange={(next) => {
+									f.optSel[info.id] = { enabled: true, config: next };
+									m.redraw();
+								}}
+							/>
+						) : null}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
 function visibleSteps(): WizardStep[] {
 	const role = f.role;
 	const modules = role
 		? setupStepsForRole(role).map((s) => moduleStep(s, role))
 		: [];
-	return [...CORE_STEPS.map(coreStep), ...modules, coreStep(FINISH_STEP)];
+	return [
+		...CORE_STEPS.map(coreStep),
+		...modules,
+		coreStep(FINISH_STEP),
+	];
 }
 
 const currentIndex = () => Math.min(state.current, visibleSteps().length - 1);
@@ -558,6 +622,15 @@ async function complete(): Promise<void> {
 	};
 	for (const setupStep of setupStepsForRole(role))
 		Object.assign(payload, setupStep.config(role));
+	// Optional modules: only the selected role's modules that the operator
+	// enabled, each with its config (an unselected module is omitted and stays
+	// default-off). Scoped to the role so a stale selection from a previously
+	// viewed role can't leak into the payload.
+	const allowed = new Set(optionalInfos().map((info) => info.id));
+	const optionalModules: Record<string, unknown> = {};
+	for (const [id, sel] of Object.entries(f.optSel))
+		if (allowed.has(id) && sel.enabled) optionalModules[id] = sel.config;
+	Object.assign(payload, { optionalModules });
 	try {
 		await rpc.call("setup.complete", payload);
 		state.message = `${t("setup.saved")} ${t("set.restart_required")}`;

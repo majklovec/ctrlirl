@@ -11,7 +11,9 @@ import type {
     ModuleSlice,
     Params,
 } from "../../shared/contracts/backend_module";
+import type { ModuleInfoView } from "../../shared/contracts/wire";
 import { argFail } from "../../shared/args";
+import { ApiError } from "../../shared/params";
 import {
     ALL_MODULES,
     ROLES,
@@ -20,7 +22,7 @@ import {
     roleDefinitions,
 } from "../../shared/registry";
 import { roleEnablesModule, roleServesModule } from "../../shared/roles";
-import { deepMerge } from "../../shared/util";
+import { deepMerge, isPlainObject } from "../../shared/util";
 import type { Role } from "../../shared/validate";
 import { runAutostart as runAutostartWith } from "./autostart";
 import { provideCapability } from "../../shared/capabilities";
@@ -29,6 +31,7 @@ import { buildModuleCore, type ModuleCore } from "./module_core";
 import { pushModuleEvent } from "./push";
 import {
     completeSetup,
+    saveState,
     type ModulesState,
     setupRequired,
     state,
@@ -127,13 +130,187 @@ export function safeModules(): Record<string, Record<string, unknown>> {
     return out;
 }
 
-/** Apply a `modules.configure` payload (the module's hook, or just `enabled`). */
+/**
+ * Validate a `modules.configure` payload against the module's declared fields
+ * (unknown fields and wrong types = 400, thrown before anything is written).
+ * `enabled` is always accepted.
+ */
+export function validateModuleConfig(mod: Module, config: Params): void {
+    const known = new Set([
+        "enabled",
+        ...(mod.configFields ?? []).map((f) => f.name),
+    ]);
+    for (const key of Object.keys(config))
+        if (!known.has(key))
+            throw new ApiError(`Unknown config field: ${key}`, 400);
+    for (const field of mod.configFields ?? []) {
+        const value = config[field.name];
+        if (value === undefined) continue;
+        const fail = (expected: string) =>
+            new ApiError(
+                `config ${field.name} must be ${expected} (module ${mod.id})`,
+                400,
+            );
+        switch (field.type) {
+            case "text":
+            case "password":
+                if (typeof value !== "string") throw fail("a string");
+                break;
+            case "select": {
+                if (typeof value !== "string") throw fail("a string");
+                if (field.options && !field.options.some(([v]) => v === value))
+                    throw fail("one of " + field.options.map(([v]) => v).join(" | "));
+                break;
+            }
+            case "number": {
+                if (typeof value !== "number" || !Number.isFinite(value))
+                    throw fail("a number");
+                if (field.min !== undefined && value < field.min)
+                    throw fail(`>= ${field.min}`);
+                if (field.max !== undefined && value > field.max)
+                    throw fail(`<= ${field.max}`);
+                break;
+            }
+            case "boolean":
+                if (typeof value !== "boolean") throw fail("a boolean");
+                break;
+        }
+    }
+}
+
+/** Apply a `modules.configure` payload (the module's hook, or its declared
+ * fields + `enabled` when the module declares none of its own). */
 export function configureModule(mod: Module, config: Params): void {
     const slice = ensureModuleSlices()[configKey(mod)];
-    if (mod.configure) mod.configure(config, slice);
-    else if (typeof config.enabled === "boolean")
-        slice.enabled = config.enabled;
+    if (mod.configure) {
+        mod.configure(config, slice);
+        return;
+    }
+    if (typeof config.enabled === "boolean") slice.enabled = config.enabled;
+    for (const field of mod.configFields ?? []) {
+        const value = config[field.name];
+        if (value === undefined) continue;
+        // An empty password keeps the stored secret (the UI omits it on save).
+        if (
+            field.type === "password" &&
+            value === "" &&
+            slice[field.name] !== undefined
+        )
+            continue;
+        slice[field.name] = value;
+    }
 }
+
+/**
+ * Per-module info for the web UI's Modules panel: the role's required and
+ * optional modules, with their editable fields (secret state masked as
+ * `configured`) and the dependency preflight. A preflight that throws or
+ * times out never fails the call — it reports `ok: false` (acceptance test).
+ */
+/** The module's editable fields as serialized for the web UI (secret state masked). */
+const infoFields = (
+    mod: Module,
+    slice: ModuleSlice | undefined,
+): ModuleInfoView["fields"] => {
+    const secrets = new Set(mod.secretFields ?? []);
+    return (mod.configFields ?? []).map((f) => ({
+        name: f.name,
+        labelKey: f.labelKey,
+        type: f.type,
+        placeholderKey: f.placeholderKey,
+        helpKey: f.helpKey,
+        options: f.options,
+        min: f.min,
+        max: f.max,
+        step: f.step,
+        secret: secrets.has(f.name),
+        configured:
+            f.type === "password" &&
+            typeof slice?.[f.name] === "string" &&
+            (slice[f.name] as string) !== "",
+    }));
+};
+
+export async function moduleInfos(): Promise<ModuleInfoView[]> {
+    const role = effectiveRole();
+    const def = role === undefined ? undefined : ROLES.find((r) => r.id === role);
+    if (def === undefined) return [];
+    const build = async (mod: Module, required: boolean): Promise<ModuleInfoView> => {
+        const slice = moduleSlice(mod);
+        let deps: ModuleInfoView["deps"];
+        if (mod.checkDependencies) {
+            try {
+                deps = await withTimeout(
+                    Promise.resolve(mod.checkDependencies()),
+                    3000,
+                );
+            } catch {
+                deps = { ok: false, messageKey: "mods.deps_timeout" };
+            }
+        }
+        return {
+            id: mod.id,
+            title: mod.title,
+            titleKey: mod.titleKey,
+            required,
+            optional: !required,
+            enabled: slice?.enabled === true,
+            fields: infoFields(mod, slice),
+            deps,
+        };
+    };
+    const entries = [
+        ...def.requires.modules.map((id) => moduleById(id)),
+        ...(def.requires.optionalModules ?? []).map((id) => moduleById(id)),
+    ].filter((m): m is Module => m !== undefined && m.kind === "device");
+    return Promise.all(
+        entries.map((m) => build(m, def.requires.modules.includes(m.id))),
+    );
+}
+
+/**
+ * Setup wizard: per role, its optional modules and their editable fields —
+ * the wizard renders a checkbox + config form per selection and sends them
+ * back on `setup.complete` as `optionalModules: {id: config}`.
+ */
+export function optionalModuleInfo(): Record<
+    string,
+    readonly ModuleInfoView[]
+> {
+    const out: Record<string, readonly ModuleInfoView[]> = {};
+    for (const def of roleDefinitions()) {
+        const mods = (def.requires.optionalModules ?? [])
+            .map((id) => moduleById(id))
+            .filter((m): m is Module => m !== undefined && m.kind === "device");
+        if (mods.length > 0)
+            out[def.id] = mods.map((m) => ({
+                id: m.id,
+                title: m.title,
+                titleKey: m.titleKey,
+                required: false,
+                optional: true,
+                enabled: false,
+                fields: infoFields(m, undefined),
+            }));
+    }
+    return out;
+}
+
+/** Reject a promise after `ms` (used to keep a module preflight from stalling the panel). */
+const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("timeout")), ms);
+        p.then(
+            (v) => {
+                clearTimeout(timer);
+                resolve(v);
+            },
+            (e) => {
+                clearTimeout(timer);
+                reject(e);
+            },
+        );
+    });
 
 export function setModuleEnabled(mod: Module, enabled: boolean): void {
     ensureModuleSlices()[configKey(mod)].enabled = enabled;
@@ -267,6 +444,31 @@ export async function setupModules(
 export async function finishSetup(role: Role): Promise<void> {
     ensureModuleSlices(role);
     await completeSetup();
+}
+
+/**
+ * Seed the role's optional modules (the wizard's selection): each listed
+ * module gets its validated config and `enabled` (absent = selected = `true`).
+ * Run after `finishSetup`, which persists the role's own slices.
+ */
+export async function seedOptionalModules(
+    role: Role,
+    optional: Record<string, unknown>,
+): Promise<void> {
+    const def = ROLES.find((r) => r.id === role);
+    const allowed = new Set(def?.requires.optionalModules ?? []);
+    for (const [id, raw] of Object.entries(optional)) {
+        const mod = moduleById(id);
+        if (!mod || mod.kind !== "device" || !allowed.has(id))
+            throw new ApiError(`Optional module not on role: ${id}`, 400);
+        const config = isPlainObject(raw) ? raw : {};
+        validateModuleConfig(mod, config);
+        configureModule(mod, {
+            ...config,
+            enabled: config.enabled === undefined ? true : config.enabled,
+        });
+    }
+    await saveState();
 }
 
 // ---------------------------------------------------------------------------

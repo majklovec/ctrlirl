@@ -32,6 +32,11 @@ import {
 	renderModuleCards,
 	setDraftRole,
 } from "./modules";
+import {
+	bindPanel,
+	loadPanel,
+	modulePanelCard,
+} from "./module_panel";
 
 const state = {
 	connected: false,
@@ -51,6 +56,7 @@ const draft = {
 
 const rpc = new RpcClient(() => socketUrl("../ws"));
 bind(rpc);
+bindPanel(rpc);
 rpc.on("open", () => {
 	state.connected = true;
 	state.settings = null;
@@ -114,6 +120,7 @@ async function load(): Promise<void> {
 		role: draft.role,
 	});
 	setHeaderColor(settings.settings.color);
+	void loadPanel();
 }
 
 async function save(): Promise<void> {
@@ -232,12 +239,12 @@ const App: m.Component = {
 			}
 			headerRight={<ConnectionBadge connected={state.connected} />}
 		>
-			{/* The device card and the module cards must share ONE children array:
-			 * passing two JSX children would make <main>{children} a fragment of a
-			 * keyed vnode (the device card) next to an unkeyed array (the module
-			 * cards), and a mixed fragment throws in Mithril 2.3. Flattening them
-			 * keeps every child keyed. */}
-			{[settingsCard(), ...renderModuleCards()]}
+			{/* The device card, the modules panel and the module cards must share
+			 * ONE children array: passing two JSX children would make <main>{children}
+			 * a fragment of a keyed vnode (the device card) next to an unkeyed array
+			 * (the module cards), and a mixed fragment throws in Mithril 2.3. Flattening
+			 * them keeps every child keyed. */}
+			{[settingsCard(), modulePanelCard(), ...renderModuleCards()]}
 		</Page>
 	),
 };

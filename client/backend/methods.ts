@@ -19,7 +19,8 @@
  *   setup.get, setup.install {role}, setup.complete {...wizard answers}
  *       (only while the device has no config file)
  *   settings.get, settings.update {hostname?, role?, color?, remoteUrl?, remoteToken?, language?}
- *   modules.list, modules.enable {id}, modules.disable {id}, modules.configure {id, config}
+ *   modules.list, modules.info, modules.enable {id}, modules.disable {id},
+ *   modules.configure {id, config}
  *   autostart.set {enabled}   resume the last run when the service starts
  *
  * Every other method belongs to a module (modules/<id>/backend.ts `methods`)
@@ -48,7 +49,7 @@ import {
 } from "../../shared/params";
 import { installModuleRoot } from "../../shared/paths";
 import { registeredRoleIds, roleDefinitions } from "../../shared/registry";
-import { errorMessage, textOf } from "../../shared/util";
+import { errorMessage, isPlainObject, textOf } from "../../shared/util";
 import { DEFAULT_COLOR, type Role } from "../../shared/validate";
 import { autoInstallRole } from "../install/auto_install";
 import { realProviderBundle } from "../install/providers";
@@ -64,13 +65,17 @@ import {
 	methodAllowed,
 	methodOwner,
 	moduleById,
+	moduleInfos,
 	moduleSettings,
+	optionalModuleInfo,
 	moduleSetupInfo,
 	moduleStatuses,
 	restartModule,
 	safeModules,
+	seedOptionalModules,
 	setModuleEnabled,
 	setupModules,
+	validateModuleConfig,
 } from "./modules";
 import { applyRemoteSettings } from "./remote";
 import {
@@ -200,6 +205,21 @@ async function setupComplete(p: Params): Promise<object> {
 		optionalSettingString(p, "remoteUrl", undefined),
 	);
 	const remoteToken = optionalSettingString(p, "remoteToken", undefined);
+	// Optional modules the wizard selected: id → config. Validated now (a
+	// rejection here leaves the device untouched); applied after finishSetup.
+	const optionalModules =
+		p.optionalModules &&
+		typeof p.optionalModules === "object" &&
+		!Array.isArray(p.optionalModules)
+			? (p.optionalModules as Record<string, unknown>)
+			: {};
+	for (const [id, raw] of Object.entries(optionalModules)) {
+		const mod = moduleById(id);
+		if (!mod || mod.kind !== "device")
+			throw new ApiError(`Unknown module: ${id}`);
+		const config = isPlainObject(raw) ? raw : {};
+		validateModuleConfig(mod, config);
+	}
 	const applyModules = await setupModules(p, role);
 
 	// Everything is valid: apply
@@ -220,6 +240,7 @@ async function setupComplete(p: Params): Promise<object> {
 	};
 	setCurrentLanguage(language);
 	await finishSetup(role);
+	await seedOptionalModules(role, optionalModules);
 	if (remoteUrl) applyRemoteSettings(remoteUrl, remoteToken);
 	// The wizard's install step already applied the role's host rules.
 	return { completed: true, restartRequired: true };
@@ -303,6 +324,8 @@ const CORE_METHODS: Record<string, Method> = {
 		color: state.settings.color ?? DEFAULT_COLOR,
 		language: uiLanguage(),
 		...(await moduleSetupInfo()),
+		// The wizard's optional-module step: role → its selectable modules + fields.
+		optionalModuleInfo: optionalModuleInfo(),
 		roleDefinitions: roleDefinitions().filter(
 			(role) => role.setupSelectable !== false,
 		),
@@ -312,6 +335,8 @@ const CORE_METHODS: Record<string, Method> = {
 	"settings.get": () => ({ settings: settingsView(), restartRequired: true }),
 	"settings.update": updateSettings,
 	"modules.list": () => ({ modules: safeModules() }),
+	/** The web UI's Modules panel: role rows + fields + dependency preflight. */
+	"modules.info": async () => ({ modules: await moduleInfos() }),
 	"modules.enable": async (p) => {
 		const mod = requireModule(p);
 		setModuleEnabled(mod, true);
@@ -332,6 +357,9 @@ const CORE_METHODS: Record<string, Method> = {
 			p.config && typeof p.config === "object" && !Array.isArray(p.config)
 				? (p.config as Params)
 				: {};
+		// Validate BEFORE mutating anything: a 400 must leave the slice on
+		// disk untouched.
+		validateModuleConfig(mod, config);
 		configureModule(mod, config);
 		await saveState();
 		void restartModule(mod);

@@ -35,6 +35,8 @@
         "typescript": "^7.0.2"
     },
     "dependencies": {
+        "@elgato-stream-deck/core": "^7.9.0",
+        "@elgato-stream-deck/node": "^7.9.0",
         "@elysia/static": "^1.4.11",
         "drizzle-orm": "^0.45.4",
         "elysia": "^1.4.30",

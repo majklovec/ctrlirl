@@ -225,3 +225,32 @@
 .install-log-error {
     color: var(--danger);
 }
+/* The optional-module selection lives inside the role step, below the
+   role cards. It spans the full width of the (two-column on wide screens)
+   role grid. */
+.wiz-opt-block {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.wiz-opt-lead {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+.wiz-opt {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.wiz-opt-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
