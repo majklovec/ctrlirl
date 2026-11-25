@@ -198,7 +198,7 @@ function row(info: ModuleInfoView): m.Vnode {
 				<input
 					type="checkbox"
 					checked={info.enabled}
-					disabled={panelState.saving}
+					disabled={panelState.saving || info.required}
 					onchange={() => void toggle(info)}
 				/>
 				<span class="mp-toggle-label">

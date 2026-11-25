@@ -268,6 +268,13 @@ export async function moduleInfos(): Promise<ModuleInfoView[]> {
     );
 }
 
+/** True when the active role lists this module as required (not user-toggleable). */
+export function isRequiredModule(id: string): boolean {
+    const role = effectiveRole();
+    const def = role === undefined ? undefined : ROLES.find((r) => r.id === role);
+    return def?.requires.modules.includes(id) ?? false;
+}
+
 /**
  * Setup wizard: per role, its optional modules and their editable fields —
  * the wizard renders a checkbox + config form per selection and sends them

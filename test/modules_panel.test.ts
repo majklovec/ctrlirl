@@ -207,7 +207,7 @@ describe("modules.enable / modules.disable", () => {
         expect(slice(OBS)?.enabled).toBe(false);
 
         const disabled = await request("modules.disable", { id: OBS });
-        expect(disabled.ok).true;
+        expect(disabled.ok).toBe(true);
         expect(slice(OBS)?.enabled).toBe(false);
         // The config survives the toggle — the secret is still stored.
         expect(slice(OBS)?.obsPassword).toBe("hunter22");
@@ -218,10 +218,21 @@ describe("modules.enable / modules.disable", () => {
         expect(list[OBS]?.obsPassword).toEqual({ configured: true });
 
         const enabled = await request("modules.enable", { id: OBS });
-        expect(enabled.ok).true;
+        expect(enabled.ok).toBe(true);
         expect(slice(OBS)?.enabled).toBe(true);
         expect(slice(OBS)?.obsPassword).toBe("hunter22");
         expect(slice(OBS)?.sceneEvents).toBe(true);
+    });
+
+    test("a required module cannot be disabled", async () => {
+        encoderDevice();
+        silenceLog();
+        expect(slice("encoder")?.enabled).toBe(true);
+        const response = await request("modules.disable", { id: "encoder" });
+        expect(response.ok).toBe(false);
+        expect(response.code).toBe(400);
+        // The required module stays enabled.
+        expect(slice("encoder")?.enabled).toBe(true);
     });
 });
 

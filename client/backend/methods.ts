@@ -62,6 +62,7 @@ import {
 	configureModule,
 	effectiveRole,
 	finishSetup,
+	isRequiredModule,
 	methodAllowed,
 	methodOwner,
 	moduleById,
@@ -346,6 +347,8 @@ const CORE_METHODS: Record<string, Method> = {
 	},
 	"modules.disable": async (p) => {
 		const mod = requireModule(p);
+		if (isRequiredModule(mod.id))
+			throw new ApiError("Required module cannot be disabled", 400);
 		setModuleEnabled(mod, false);
 		await saveState();
 		void restartModule(mod);
