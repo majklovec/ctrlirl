@@ -162,6 +162,9 @@ const roleCard = (
 	tagline?: string,
 	invalid?: boolean,
 ): m.Vnode => (
+	// No `key`: the cards are stable-order and siblings of stepFrame's
+	// unkeyed <h2>/<p>, so a keyed child here would form a mixed-keys
+	// fragment and crash Mithril's render (see `optionalModuleSelect`).
 	<label class={`role-card${invalid ? " invalid" : ""}`}>
 		<input
 			type="radio"
@@ -169,7 +172,11 @@ const roleCard = (
 			value={value}
 			required={true}
 			checked={f.role === value}
-			onchange={() => (f.role = value)}
+			onchange={() => {
+				f.role = value;
+				// Picking a role reveals its optional modules below the cards.
+				m.redraw();
+			}}
 		/>
 		{roleIcon(value) ?? null}
 		<span class="role-name">{name}</span>
@@ -441,8 +448,13 @@ const optionalInfos = (): readonly ModuleInfoView[] =>
 function optionalModuleSelect(): m.Vnode | null {
 	const infos = optionalInfos();
 	if (infos.length === 0) return null;
+	// No `key` on the wrapper: it is a sibling of stepFrame's unkeyed
+	// <h2>/<p> and the unkeyed role cards, so a keyed wrapper would form a
+	// mixed-keys fragment and crash Mithril's render. The lead <p> must stay
+	// unkeyed too — a nested array counts as an *unkeyed* child, so a keyed
+	// <p> alongside the keyed `.map()` of module divs would be mixed.
 	return (
-		<div class="wiz-opt-block" key="wiz-opt-block">
+		<div class="wiz-opt-block">
 			<p class="wiz-opt-lead">{t("setup.step.optional_modules_sub")}</p>
 			{infos.map((info) => {
 				const sel = f.optSel[info.id];
