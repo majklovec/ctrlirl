@@ -1,3 +1,18 @@
+# [10.3.0](https://github.com/majklovec/ctrlirl/compare/v10.2.0...v10.3.0) (2026-11-25)
+
+
+### Bug Fixes
+
+* **settings:** modules Edit button + full-viewport config modal ([d13c797](https://github.com/majklovec/ctrlirl/commit/d13c797431b924a4400c582ca4b0350153080a47))
+* **setup:** render optional-module block in the role step ([0fc87f5](https://github.com/majklovec/ctrlirl/commit/0fc87f52362509f530d246069919e71d94dcfd21))
+* **ui:** dedupe OBS config + hide Stream Deck card when disabled ([8f4bfd5](https://github.com/majklovec/ctrlirl/commit/8f4bfd54cff7e25861c69280dac47fd85718a725))
+
+
+### Features
+
+* **modules:** lock required modules' toggle ([4b8b4af](https://github.com/majklovec/ctrlirl/commit/4b8b4af48bdd17089e9ebaa3ed96c1a620d758d7))
+* **modules:** optional modules + streamdeck ([f94250a](https://github.com/majklovec/ctrlirl/commit/f94250a69fecf9ab4d395086271901f2df913147))
+
 # [Unreleased](https://github.com/majklovec/ctrlirl/compare/v10.2.0...HEAD)
 
 
