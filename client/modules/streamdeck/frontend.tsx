@@ -95,6 +95,10 @@ const streamdeckModule: FrontendModule = {
 	icon: "⌨️",
 	order: 60,
 	log,
+	// The module is optional (default-off); hide its device page card until the
+	// operator enables it — `moduleCards` keeps only modules where
+	// `available(status)` is true (no `available` = always shown).
+	available: (status) => status.modules["streamdeck"]?.enabled === true,
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },
 	handleEvent: onEvent,
