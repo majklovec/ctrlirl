@@ -6,33 +6,34 @@
  * prefix or status key: every decision reads the registration contract
  * (shared/contracts/backend_module.ts).
  */
+
+import { argFail } from "../../shared/args";
+import { provideCapability } from "../../shared/capabilities";
 import type {
     BackendModule,
     ModuleSlice,
     Params,
 } from "../../shared/contracts/backend_module";
 import type { ModuleInfoView } from "../../shared/contracts/wire";
-import { argFail } from "../../shared/args";
 import { ApiError } from "../../shared/params";
 import {
     ALL_MODULES,
-    ROLES,
     isRegisteredRole,
     moduleById,
+    ROLES,
     roleDefinitions,
 } from "../../shared/registry";
 import { roleEnablesModule, roleServesModule } from "../../shared/roles";
 import { deepMerge, isPlainObject } from "../../shared/util";
 import type { Role } from "../../shared/validate";
 import { runAutostart as runAutostartWith } from "./autostart";
-import { provideCapability } from "../../shared/capabilities";
 import { logEvent } from "./eventlog";
 import { buildModuleCore, type ModuleCore } from "./module_core";
 import { pushModuleEvent } from "./push";
 import {
     completeSetup,
-    saveState,
     type ModulesState,
+    saveState,
     setupRequired,
     state,
 } from "./state";
@@ -49,7 +50,9 @@ if (state.settings.role && !isRegisteredRole(state.settings.role))
     argFail(
         "config role",
         state.settings.role,
-        roleDefinitions().map((role) => role.id).join(" | "),
+        roleDefinitions()
+            .map((role) => role.id)
+            .join(" | "),
     );
 
 // ---------------------------------------------------------------------------
@@ -73,7 +76,10 @@ const servesRole = (mod: BackendModule, role: Role | undefined): boolean =>
     roleServesModule(ROLES, role, mod.id);
 
 /** The slice a fresh device gets for `mod` on `role` (no role → disabled). */
-const defaultSlice = (mod: BackendModule, role: Role | undefined): ModuleSlice =>
+const defaultSlice = (
+    mod: BackendModule,
+    role: Role | undefined,
+): ModuleSlice =>
     deepMerge(
         { enabled: roleEnablesModule(ROLES, role, mod.id) },
         mod.configDefaults,
@@ -159,7 +165,9 @@ export function validateModuleConfig(mod: Module, config: Params): void {
             case "select": {
                 if (typeof value !== "string") throw fail("a string");
                 if (field.options && !field.options.some(([v]) => v === value))
-                    throw fail("one of " + field.options.map(([v]) => v).join(" | "));
+                    throw fail(
+                        "one of " + field.options.map(([v]) => v).join(" | "),
+                    );
                 break;
             }
             case "number": {
@@ -233,9 +241,13 @@ const infoFields = (
 
 export async function moduleInfos(): Promise<ModuleInfoView[]> {
     const role = effectiveRole();
-    const def = role === undefined ? undefined : ROLES.find((r) => r.id === role);
+    const def =
+        role === undefined ? undefined : ROLES.find((r) => r.id === role);
     if (def === undefined) return [];
-    const build = async (mod: Module, required: boolean): Promise<ModuleInfoView> => {
+    const build = async (
+        mod: Module,
+        required: boolean,
+    ): Promise<ModuleInfoView> => {
         const slice = moduleSlice(mod);
         let deps: ModuleInfoView["deps"];
         if (mod.checkDependencies) {
@@ -271,7 +283,8 @@ export async function moduleInfos(): Promise<ModuleInfoView[]> {
 /** True when the active role lists this module as required (not user-toggleable). */
 export function isRequiredModule(id: string): boolean {
     const role = effectiveRole();
-    const def = role === undefined ? undefined : ROLES.find((r) => r.id === role);
+    const def =
+        role === undefined ? undefined : ROLES.find((r) => r.id === role);
     return def?.requires.modules.includes(id) ?? false;
 }
 
@@ -373,7 +386,9 @@ const shouldRun = (mod: Module): boolean =>
  * `mods` is a test seam; the process starts with the full registry. A device
  * with no role selected (fresh install, wizard not finished) starts nothing —
  * the web UI stays up so a role can be picked first. */
-export async function startModules(mods: Module[] = DEVICE_MODULES): Promise<void> {
+export async function startModules(
+    mods: Module[] = DEVICE_MODULES,
+): Promise<void> {
     const role = effectiveRole();
     if (role === undefined) return;
     // A device without stored slices has no slices yet; seed the role's
