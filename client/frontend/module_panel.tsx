@@ -72,6 +72,62 @@ const depsTitle = (info: ModuleInfoView): string => {
 	return t("set.mod_deps_na");
 };
 
+/**
+ * The Edit config form, mounted on its own `document.body` root (the
+ * `modal-root` pattern from `confirm.tsx`). It cannot live inside `<Card>`:
+ * the card's `backdrop-filter`/`overflow-x`/`container-type` establish a
+ * containing block that would confine the modal's `position:fixed` backdrop
+ * to the card's box instead of covering the viewport.
+ */
+const ConfigDialog: m.Component = {
+	view: () => {
+		const editing = panelState.editing;
+		if (editing === null) return null;
+		return (
+			<Modal title={titleOf(editing)} onClose={closeEdit}>
+				<DynamicForm
+					schema={schemaFor(editing)}
+					value={panelState.draft}
+					onChange={(next) => {
+						panelState.draft = next;
+						m.redraw();
+					}}
+				/>
+				{panelState.message !== "" ? (
+					<p class="muted mp-message" role="status">
+						{panelState.message}
+					</p>
+				) : null}
+				<div class="mp-actions">
+					<Button
+						label={t("set.mod_save")}
+						type="button"
+						disabled={panelState.saving}
+						onclick={() => void saveEdit()}
+					/>
+					<Button
+						label={t("set.mod_cancel")}
+						type="button"
+						disabled={panelState.saving}
+						onclick={closeEdit}
+					/>
+				</div>
+			</Modal>
+		);
+	},
+};
+
+/** Lazily mount the dialog root once; reused for the app's lifetime. */
+let modalRoot: HTMLElement | null = null;
+function ensureModalRoot(): void {
+	if (!modalRoot) {
+		modalRoot = document.createElement("div");
+		modalRoot.className = "modal-root";
+		document.body.appendChild(modalRoot);
+		m.mount(modalRoot, ConfigDialog);
+	}
+}
+
 function toFieldSchema(f: ModuleInfoField): FieldSchema {
 	const base = { name: f.name, labelKey: f.labelKey };
 	switch (f.type) {
@@ -105,6 +161,7 @@ export const schemaFor = (info: ModuleInfoView): FormSchema => ({
 });
 
 function openEdit(info: ModuleInfoView): void {
+	ensureModalRoot();
 	const draft: Record<string, unknown> = {};
 	for (const f of info.fields) {
 		// Secrets start empty (the stored value is never echoed back); booleans
@@ -187,10 +244,10 @@ function row(info: ModuleInfoView): m.Vnode {
 				aria-label={depsTitle(info)}
 			/>
 			{info.fields.length > 0 ? (
-				<Button
-					label={t("set.mod_edit")}
-					onClick={() => openEdit(info)}
-				/>
+				// Mithril binds events only for lowercase `on*` attributes (a
+				// capitalised `onClick` is spread onto the <button> as an inert
+				// DOM property, so the click never fires) — keep it lowercase.
+				<Button label={t("set.mod_edit")} onclick={() => openEdit(info)} />
 			) : (
 				<span class="mp-spacer" />
 			)}
@@ -227,37 +284,6 @@ export function modulePanelCard(): m.Vnode {
 					) : null}
 				</div>
 			)}
-			{editing !== null ? (
-				<Modal title={titleOf(editing)} onClose={closeEdit}>
-					<DynamicForm
-						schema={schemaFor(editing)}
-						value={panelState.draft}
-						onChange={(next) => {
-							panelState.draft = next;
-							m.redraw();
-						}}
-					/>
-					{panelState.message !== "" ? (
-						<p class="muted mp-message" role="status">
-							{panelState.message}
-						</p>
-					) : null}
-					<div class="mp-actions">
-						<Button
-							label={t("set.mod_save")}
-							type="button"
-							disabled={panelState.saving}
-							onClick={() => void saveEdit()}
-						/>
-						<Button
-							label={t("set.mod_cancel")}
-							type="button"
-							disabled={panelState.saving}
-							onClick={closeEdit}
-						/>
-					</div>
-				</Modal>
-			) : null}
 		</Card>
 	);
 }
