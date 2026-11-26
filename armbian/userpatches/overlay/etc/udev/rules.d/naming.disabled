@@ -1,4 +1,0 @@
-ACTION=="add", SUBSYSTEM=="net", ATTRS{idVendor}=="12d1", \
-  PROGRAM="/usr/local/sbin/huawei-net name %k", \
-  NAME="%c", \
-  RUN+="/usr/local/sbin/huawei-net mac $name"

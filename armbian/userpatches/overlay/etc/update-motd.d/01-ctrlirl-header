@@ -1,0 +1,46 @@
+#!/bin/bash
+# CtrlIRL MOTD header — banner + verze + role
+
+set -o pipefail
+
+# --- role ---
+ROLE=""
+for f in /etc/ctrlirl/role /opt/ctrlirl/role; do
+    [[ -r "$f" ]] && { ROLE="$(head -1 "$f" | tr -d '\n')"; break; }
+done
+if [[ -z "$ROLE" ]] && command -v systemctl >/dev/null 2>&1; then
+    units="$(systemctl list-units --type=service --state=running --no-legend 2>/dev/null || true)"
+    if   grep -qiE 'ctrlirl.*relay'   <<<"$units"; then ROLE="relay"
+    elif grep -qiE 'ctrlirl.*encoder' <<<"$units"; then ROLE="encoder"
+    fi
+fi
+
+# --- verze ---
+VERSION=""
+for f in /etc/ctrlirl/version /opt/ctrlirl/version; do
+    [[ -r "$f" ]] && { VERSION="$(head -1 "$f" | tr -d '\n')"; break; }
+done
+if [[ -z "$VERSION" ]]; then
+    for p in /opt/ctrlirl/package.json /root/ctrlirl/package.json /home/*/ctrlirl/package.json; do
+        if [[ -r "$p" ]]; then
+            VERSION="$(grep -m1 '"version"' "$p" \
+                | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+            [[ -n "$VERSION" ]] && break
+        fi
+    done
+fi
+
+# --- banner ---
+printf '\e[1;36m'
+if command -v figlet >/dev/null 2>&1; then
+    figlet -f small " CtrlIRL " 2>/dev/null || echo "  ===== CtrlIRL ====="
+else
+    echo "  ===== CtrlIRL ====="
+fi
+printf '\e[0m'
+
+LINE=""
+[[ -n "$VERSION" ]] && LINE+=" Verze: \e[92m${VERSION}\e[0m"
+[[ -n "$ROLE"    ]] && LINE+="   Role: \e[93m${ROLE}\e[0m"
+[[ -n "$LINE"    ]] && printf '%b\n' "$LINE"
+echo ""
