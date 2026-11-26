@@ -1,3 +1,11 @@
+# [10.4.0](https://github.com/majklovec/ctrlirl/compare/v10.3.0...v10.4.0) (2026-11-26)
+
+
+### Features
+
+* **armbian:** build RK GStreamer from source ([2f49de6](https://github.com/majklovec/ctrlirl/commit/2f49de677318a782022d21c670522f61ddf617d6))
+* **roles:** align module dependencies ([faba1ae](https://github.com/majklovec/ctrlirl/commit/faba1ae38d5430aa4cbee31718799c3a56c3c301))
+
 # [10.3.0](https://github.com/majklovec/ctrlirl/compare/v10.2.0...v10.3.0) (2026-11-25)
 
 
