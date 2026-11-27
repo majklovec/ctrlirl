@@ -10,6 +10,7 @@
 #   2. libv4l-rkmpp needs libv4l2.pc -> added libv4l-dev.
 #   3. libv4l-rkmpp fails on .mmap (API mismatch) -> patch out the .mmap assignment.
 #   4. Bun installer requires unzip -> added unzip (+ curl) to the package list.
+#   5. ctrlirl-coder ships in its own apt repo -> add keyring + sources entry (section 1).
 
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -23,8 +24,14 @@ BUILD_DIR="${HOME}/rk-gst-build"
 # ============================================================
 # 1. APT setup + single consolidated package install
 # ============================================================
-apt-get update
+# Add the ctrlirl-coder apt repository (keyring + source list).
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://majklovec.github.io/ctrlirl-coder/deb/ctrlirl.asc \
+	-o /etc/apt/keyrings/ctrlirl.asc
+echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] https://majklovec.github.io/ctrlirl-coder/deb ctrlirl main" \
+	>/etc/apt/sources.list.d/ctrlirl-coder.list
 
+apt-get update
 apt-get install -y --no-install-recommends \
 	software-properties-common \
 	nano build-essential git tcl libssl-dev nodejs npm usb-modeswitch \
@@ -36,7 +43,8 @@ apt-get install -y --no-install-recommends \
 	gstreamer1.0-plugins-ugly gstreamer1.0-libav \
 	gstreamer1.0-gl gstreamer1.0-tools \
 	libdrm-dev libx11-dev libwayland-dev libegl-dev libgles-dev \
-	avahi-daemon avahi-utils libnss-mdns
+	avahi-daemon avahi-utils libnss-mdns \
+	ctrlirl-coder
 
 # ============================================================
 # 2. Sanity checks (warn-only — never block the automated build)
