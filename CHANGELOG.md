@@ -1,3 +1,10 @@
+## [10.4.1](https://github.com/majklovec/ctrlirl/compare/v10.4.0...v10.4.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **armbian:** correct build script references ([8af35a8](https://github.com/majklovec/ctrlirl/commit/8af35a8e991c2d3e65072eff97ed4e6262347bcc))
+
 # [10.4.0](https://github.com/majklovec/ctrlirl/compare/v10.3.0...v10.4.0) (2026-11-26)
 
 
