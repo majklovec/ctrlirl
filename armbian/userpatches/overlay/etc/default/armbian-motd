@@ -1,2 +1,0 @@
-# CtrlIRL MOTD configuration
-MOTD_DISABLE="header ap-info containers-info ip-info sysinfo tips commands"
