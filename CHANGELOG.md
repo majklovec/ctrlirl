@@ -1,3 +1,10 @@
+# [10.5.0](https://github.com/majklovec/ctrlirl/compare/v10.4.1...v10.5.0) (2026-11-27)
+
+
+### Features
+
+* **armbian:** add ctrlirl-coder apt repo ([7a88867](https://github.com/majklovec/ctrlirl/commit/7a8886749b3e59058bf90406e883909c71fcd74e))
+
 ## [10.4.1](https://github.com/majklovec/ctrlirl/compare/v10.4.0...v10.4.1) (2026-11-27)
 
 
