@@ -61,7 +61,7 @@ build_mpp() {
 	echo "=== Building Rockchip MPP (rockchip-linux/mpp, develop branch) ==="
 	rm -rf mpp-rockchip
 	git clone --depth=1 --single-branch --branch develop \
-		https://github.com mpp-rockchip
+		https://github.com/rockchip-linux/mpp mpp-rockchip
 	cmake -B mpp-rockchip/build -S mpp-rockchip \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib/aarch64-linux-gnu \
@@ -87,7 +87,7 @@ build_mpp() {
 build_librga() {
 	echo "=== Building librga ==="
 	rm -rf librga-rockchip
-	git clone --depth=1 https://github.com librga-rockchip
+	git clone --depth=1 https://github.com/tsukumijima/librga-rockchip librga-rockchip
 	meson setup librga-rockchip/build librga-rockchip \
 		--prefix=/usr --libdir=lib/aarch64-linux-gnu --buildtype=release
 	ninja -C librga-rockchip/build
@@ -98,7 +98,7 @@ build_gst_rockchip() {
 	echo "=== Building gstreamer-rockchip ==="
 	rm -rf gstreamer-rockchip
 	git clone --depth=1 --single-branch --branch gstreamer-rockchip \
-		https://github.com gstreamer-rockchip
+		https://github.com/JeffyCN/mirrors gstreamer-rockchip
 	meson setup gstreamer-rockchip/build gstreamer-rockchip \
 		--prefix=/usr --libdir=lib/aarch64-linux-gnu --buildtype=release \
 		-Drockchipmpp=enabled -Drga=enabled
@@ -109,7 +109,7 @@ build_gst_rockchip() {
 build_libv4l_rkmpp() {
 	echo "=== Building libv4l-rkmpp ==="
 	rm -rf libv4l-rkmpp
-	git clone --depth=1 https://github.com libv4l-rkmpp
+	git clone --depth=1 https://github.com/JeffyCN/libv4l-rkmpp libv4l-rkmpp
 
 	# --- fix: remove .mmap assignment that is not present in the
 	#     standard libv4l_dev_ops struct shipped by libv4l-dev ---
@@ -127,8 +127,7 @@ build_gst_rockchip
 build_libv4l_rkmpp
 
 ldconfig
-cd /
-rm -rf "${BUILD_DIR}" "${HOME}/.cache/gstreamer-1.0"
+rm -rf "${HOME}/.cache/gstreamer-1.0"
 
 # ============================================================
 # 4. Hostname
@@ -164,17 +163,15 @@ systemctl enable systemd-resolved 2>/dev/null || true
 # 7. Bun
 # ============================================================
 echo "Installing Bun..."
-curl -fsSL https://bun.sh | bash
+curl -fsSL https://bun.sh/install | bash
 export BUN_INSTALL="${HOME}/.bun"
 export PATH="${BUN_INSTALL}/bin:${PATH}"
-ln -sf "${BUN_INSTALL}/bin/bun" /usr/local/bin/bun
-ln -sf "${BUN_INSTALL}/bin/bunx" /usr/local/bin/bunx
 
 # ============================================================
 # 8. ctrlirl
 # ============================================================
 echo "Installing ctrlirl..."
-git clone https://github.com /opt/ctrlirl
+git clone https://github.com/majklovec/ctrlirl.git /opt/ctrlirl
 cd /opt/ctrlirl
 [[ -f package.json ]] && bun install
 
@@ -207,14 +204,12 @@ fi
 # 10. eMMC-only: first-boot auto-installer
 # ============================================================
 if [[ "${BUILD_VARIANT:-sd}" == "emmc" ]]; then
-	echo "Enabling first-boot eMMC installer..."
-	chmod 0755 /usr/local/sbin/ctrlirl-emmc-install.sh
-	chmod 0644 /etc/systemd/system/ctrlirl-emmc-install.service
-	systemctl enable ctrlirl-emmc-install.service 2>/dev/null || true
-else
-	# Remove eMMC-only files from SD image if copied by overlay in section 9
-	rm -f /usr/local/sbin/ctrlirl-emmc-install.sh \
+	echo "Installing first-boot eMMC installer..."
+	install -m 0755 /tmp/overlay/usr/local/sbin/ctrlirl-emmc-install.sh \
+		/usr/local/sbin/ctrlirl-emmc-install.sh
+	install -m 0644 /tmp/overlay/etc/systemd/system/ctrlirl-emmc-install.service \
 		/etc/systemd/system/ctrlirl-emmc-install.service
+	systemctl enable ctrlirl-emmc-install.service 2>/dev/null || true
 fi
 
 # ============================================================
