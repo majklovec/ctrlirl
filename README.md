@@ -118,6 +118,20 @@ Modules check for their own dependencies at startup and log what is missing.
 
 ## Getting started
 
+### Install via apt (Linux)
+
+The device client is published as the `ctrlirl-coder` deb package from the project's [signed apt repository](https://majklovec.github.io/ctrlirl/). Add the repo and install:
+
+```sh
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://majklovec.github.io/ctrlirl/deb/ctrlirl.asc -o /etc/apt/keyrings/ctrlirl.asc
+echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] https://majklovec.github.io/ctrlirl/deb ctrlirl main" | sudo tee /etc/apt/sources.list.d/ctrlirl-coder.list
+sudo apt-get update
+sudo apt-get install ctrlirl-coder
+```
+
+The package installs the client to `/opt/ctrlirl`; run a role with `/opt/ctrlirl/ctrlirl --host 0.0.0.0 <role>`. `sudo apt-get upgrade ctrlirl-coder` picks up the newest release once it is published.
+
 ### Device client
 
 Run a role directly:
