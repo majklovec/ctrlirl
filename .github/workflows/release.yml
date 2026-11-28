@@ -251,7 +251,7 @@ jobs:
                       echo " CtrlIRL streaming device client (role-driven). Bundles"
                       echo " the compiled client binary and the per-module install"
                       echo " sidecar trees. The payload deploys to /opt/ctrlirl; run"
-                      echo "/opt/ctrlirl/ctrlirl --host 0.0.0.0 <role>."
+                      echo " /opt/ctrlirl/ctrlirl --host 0.0.0.0 <role>."
                     } > "${root}/DEBIAN/control"
 
                     dpkg-deb --build --root-owner-group "${root}" \
