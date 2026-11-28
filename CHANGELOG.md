@@ -1,3 +1,10 @@
+## [10.6.3](https://github.com/majklovec/ctrlirl/compare/v10.6.2...v10.6.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* **deb:** strip tag version prefix for Debian Version field ([a38197c](https://github.com/majklovec/ctrlirl/commit/a38197cc46ca4ed47ecda0e8dc8d0e54391c0a24))
+
 ## [10.6.2](https://github.com/majklovec/ctrlirl/compare/v10.6.1...v10.6.2) (2026-11-28)
 
 

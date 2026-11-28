@@ -1,6 +1,6 @@
 {
     "name": "ctrlirl",
-    "version": "10.6.2",
+    "version": "10.6.3",
     "description": "IRL control application",
     "author": "Michal Vondráček",
     "scripts": {
