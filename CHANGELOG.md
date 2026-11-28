@@ -1,3 +1,10 @@
+## [11.0.1](https://github.com/majklovec/ctrlirl/compare/v11.0.0...v11.0.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **pages:** use deb basename in index table ([96278ef](https://github.com/majklovec/ctrlirl/commit/96278ef2454e5af6e04d21ea1f80c03f2588fb98))
+
 # [11.0.0](https://github.com/majklovec/ctrlirl/compare/v10.6.5...v11.0.0) (2026-11-28)
 
 
