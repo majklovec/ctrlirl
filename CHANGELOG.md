@@ -1,3 +1,10 @@
+## [11.1.1](https://github.com/majklovec/ctrlirl/compare/v11.1.0...v11.1.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **deb:** install payload to /usr/bin ([e93cfbc](https://github.com/majklovec/ctrlirl/commit/e93cfbcb516844e23728ebcc812d774aba209d7a))
+
 # [11.1.0](https://github.com/majklovec/ctrlirl/compare/v11.0.1...v11.1.0) (2026-11-28)
 
 
