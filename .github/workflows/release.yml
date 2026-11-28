@@ -128,28 +128,35 @@ jobs:
               shell: bash
               run: bun scripts/gen_control_server_assets.ts
 
+            # Binaries are written to dist/ so the --outfile never collides with
+            # a source directory (e.g. `server` is both a source dir and the
+            # server binary name). The artifact name stays matrix.name, so the
+            # deb stage keeps fetching `client`/`client-arm` by name and the
+            # release assets keep their bare names.
             - name: Build profiling binaries (profiled targets only)
               if: matrix.profile == true
               shell: bash
               run: |
+                  mkdir -p dist
                   bun build --compile --minify --sourcemap \
                     --target=${{ matrix.target }} \
                     ${{ matrix.entrypoint }} \
-                    --outfile prof-${{ matrix.name }}${{ matrix.ext }}
+                    --outfile dist/prof-${{ matrix.name }}${{ matrix.ext }}
 
             - name: Record bytecode profiles (profiled targets only)
               if: matrix.profile == true
               shell: bash
               run: |
-                  BUN_BYTECODE_ORDER_OUT=client.order ./prof-${{ matrix.name }}${{ matrix.ext }} --help
+                  BUN_BYTECODE_ORDER_OUT=client.order ./dist/prof-${{ matrix.name }}${{ matrix.ext }} --help
 
             - name: Build final binaries
               shell: bash
               run: |
+                  mkdir -p dist
                   ARGS="--compile --minify --sourcemap --format=esm --bytecode \
                     --target=${{ matrix.target }} \
                     ${{ matrix.entrypoint }} \
-                    --outfile ${{ matrix.name }}${{ matrix.ext }}"
+                    --outfile dist/${{ matrix.name }}${{ matrix.ext }}"
                   if [ -f client.order ]; then
                     ARGS="$ARGS --bytecode-order=client.order"
                   fi
@@ -159,8 +166,8 @@ jobs:
               if: matrix.profile == true
               shell: bash
               run: |
-                  chmod +x ${{ matrix.name }}${{ matrix.ext }} || true
-                  ./${{ matrix.name }}${{ matrix.ext }} --help
+                  chmod +x dist/${{ matrix.name }}${{ matrix.ext }} || true
+                  ./dist/${{ matrix.name }}${{ matrix.ext }} --help
 
             - uses: actions/upload-artifact@v7
               with:
@@ -168,7 +175,7 @@ jobs:
                   # fetchable by name from the deb stage; the asset file itself
                   # carries the platform extension.
                   name: ${{ matrix.name }}
-                  path: ${{ matrix.name }}${{ matrix.ext }}
+                  path: dist/${{ matrix.name }}${{ matrix.ext }}
 
     deb:
         needs: [version, build]
