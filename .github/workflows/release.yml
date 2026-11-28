@@ -284,6 +284,9 @@ jobs:
         permissions:
             contents: read
             pages: write
+            # actions/deploy-pages@v5 mints an OIDC deployment token, which
+            # requires the GITHUB_TOKEN to carry id-token: write.
+            id-token: write
         env:
             # GitHub Pages base URL for this repo (user.github.io/<repo>).
             APT_BASE: https://majklovec.github.io/ctrlirl
