@@ -1,3 +1,15 @@
+# [11.0.0](https://github.com/majklovec/ctrlirl/compare/v10.6.5...v11.0.0) (2026-11-28)
+
+
+### Bug Fixes
+
+* **deb:** rename package to ctrlirl ([0e727b8](https://github.com/majklovec/ctrlirl/commit/0e727b8e134d6af3c005ad352b932b0b65de3807))
+
+
+### BREAKING CHANGES
+
+* **deb:** the apt package is now installed as ctrlirl, not ctrlirl-coder.
+
 ## [10.6.5](https://github.com/majklovec/ctrlirl/compare/v10.6.4...v10.6.5) (2026-11-28)
 
 
