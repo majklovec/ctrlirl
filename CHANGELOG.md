@@ -1,3 +1,10 @@
+## [10.6.5](https://github.com/majklovec/ctrlirl/compare/v10.6.4...v10.6.5) (2026-11-28)
+
+
+### Bug Fixes
+
+* **pages:** grant id-token write permission to the pages job ([92cc0fd](https://github.com/majklovec/ctrlirl/commit/92cc0fd464398816ea20db940e21632250ace3b6))
+
 ## [10.6.4](https://github.com/majklovec/ctrlirl/compare/v10.6.3...v10.6.4) (2026-11-28)
 
 
