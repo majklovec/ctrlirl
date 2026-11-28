@@ -1,3 +1,10 @@
+## [10.6.1](https://github.com/majklovec/ctrlirl/compare/v10.6.0...v10.6.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **roles:** declare optional streamdeck capability in provides ([e1ea457](https://github.com/majklovec/ctrlirl/commit/e1ea4575a2098fcde9e008ab996b6216aff68f70))
+
 # [10.6.0](https://github.com/majklovec/ctrlirl/compare/v10.5.0...v10.6.0) (2026-11-28)
 
 
