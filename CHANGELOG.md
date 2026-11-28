@@ -1,3 +1,10 @@
+# [10.6.0](https://github.com/majklovec/ctrlirl/compare/v10.5.0...v10.6.0) (2026-11-28)
+
+
+### Features
+
+* **distribution:** publish ctrlirl-coder as a signed apt repository ([9027efc](https://github.com/majklovec/ctrlirl/commit/9027efc841ecacf2bdb9e24957f8ee37f954001c))
+
 # [10.5.0](https://github.com/majklovec/ctrlirl/compare/v10.4.1...v10.5.0) (2026-11-27)
 
 
