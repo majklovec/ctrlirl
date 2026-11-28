@@ -410,7 +410,7 @@ jobs:
                     arch=$(basename "$(dirname "$f")" | sed 's/^binary-//')
                     ver=$(dpkg-deb -f "$f" Version 2>/dev/null || true)
                     size=$(( $(stat -c %s "$f") / 1024 ))
-                    rel=${f#site/}
+                    rel=$(basename "${f#site/}")
                     ROWS="${ROWS}<tr><td>${ver}</td><td>${arch}</td><td>${size} KiB</td><td><a href=\"${rel}\">${rel}</a></td></tr>"
                   done
                   cat > site/index.html <<HTML
