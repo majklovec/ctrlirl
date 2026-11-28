@@ -1,3 +1,10 @@
+## [10.6.2](https://github.com/majklovec/ctrlirl/compare/v10.6.1...v10.6.2) (2026-11-28)
+
+
+### Bug Fixes
+
+* **build:** write compiled binaries to dist/ to avoid source-dir collision ([47742ae](https://github.com/majklovec/ctrlirl/commit/47742ae57c2b90595479146c6b11d217d6680bb7))
+
 ## [10.6.1](https://github.com/majklovec/ctrlirl/compare/v10.6.0...v10.6.1) (2026-11-28)
 
 
