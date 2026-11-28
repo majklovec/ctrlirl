@@ -19,7 +19,8 @@
         "capabilities": [
             "modems.source",
             "network.ctrlink",
-            "network.interfaces"
+            "network.interfaces",
+            "streamdeck.events"
         ]
     }
 }

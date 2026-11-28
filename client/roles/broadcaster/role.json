@@ -10,6 +10,6 @@
         "capabilities": []
     },
     "provides": {
-        "capabilities": []
+        "capabilities": ["streamdeck.events"]
     }
 }
