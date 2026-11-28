@@ -260,6 +260,217 @@ jobs:
                   path: |
                       dist/ctrlirl-coder_*.deb
 
+    # Publishes the Linux ctrlirl-coder debs as a static, GPG-signed apt
+    # repository on GitHub Pages (majklovec.github.io/ctrlirl/deb). The Release
+    # metadata is hand-rolled (not apt-ftparchive) so apt 3.x sees the exact
+    # per-arch Packages targets, is signed with secrets.CTRLIRL_GPG_KEY, and
+    # ships the public key at /deb/ctrlirl.asc. Independent of `release` so the
+    # GitHub Release is never gated on Pages.
+    pages:
+        needs: [version, deb]
+        if: needs.version.outputs.new_tag != ''
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pages: write
+        env:
+            # GitHub Pages base URL for this repo (user.github.io/<repo>).
+            APT_BASE: https://majklovec.github.io/ctrlirl
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ needs.version.outputs.new_tag }}
+
+            # Pull the Linux debs built by the deb job.
+            - name: Download ctrlirl-coder debs
+              uses: actions/download-artifact@v8
+              with:
+                  name: ctrlirl-coder-debs
+                  path: debs
+
+            - name: Install apt packaging tools
+              # apt-utils provides apt-ftparchive (Release metadata); the runner
+              # image ships apt but not apt-utils. dpkg-dev for dpkg-scanpackages,
+              # gnupg for signing.
+              run: sudo apt-get update && sudo apt-get install -y apt-utils dpkg-dev gnupg
+
+            # Import the release GPG key (armored private key) so the Release can
+            # be signed; the public key is exported to site/deb/ctrlirl.asc below.
+            - name: Import GPG release key
+              env:
+                  CTRLIRL_GPG_KEY: ${{ secrets.CTRLIRL_GPG_KEY }}
+              run: |
+                  set -euo pipefail
+                  [ -n "${CTRLIRL_GPG_KEY:-}" ] || {
+                    echo "secrets.CTRLIRL_GPG_KEY is not set - cannot sign the apt Release."
+                    echo "Add the release key (armored private key) as a repo secret."; exit 1;
+                  }
+                  printf '%s' "$CTRLIRL_GPG_KEY" > /tmp/ctrlirl-key.asc
+                  gpg --batch --import /tmp/ctrlirl-key.asc
+                  gpg --batch --list-secret-keys
+
+            - name: Build apt repo (main)
+              run: |
+                  set -euo pipefail
+                  # Canonical apt layout: a single Codename (ctrlirl) with `main`
+                  # as the component. apt resolves
+                  # dists/ctrlirl/main/binary-<arch>/Packages[.gz] and joins the
+                  # Packages Filename: field to the repository ROOT - so it must
+                  # be root-relative.
+                  SITE="site/deb"
+                  DIST="$SITE/dists/ctrlirl"
+                  mkdir -p "$DIST/main"
+
+                  # Ship the public key so consumers can [signed-by=] it. No
+                  # explicit userid: export whatever key CTRLIRL_GPG_KEY imported,
+                  # regardless of its name/email.
+                  gpg --batch --yes --armor --export > "$SITE/ctrlirl.asc"
+                  [ -s "$SITE/ctrlirl.asc" ] || { echo "GPG public key export is empty"; exit 1; }
+
+                  # Move the debs into per-arch binary dirs.
+                  for f in debs/*.deb; do
+                    [ -e "$f" ] || continue
+                    arch=$(dpkg-deb -f "$f" Architecture)
+                    mkdir -p "$DIST/main/binary-$arch"
+                    cp "$f" "$DIST/main/binary-$arch/"
+                  done
+                  [ "$(ls "$DIST"/main/binary-*/*.deb 2>/dev/null | wc -l)" -gt 0 ] \
+                    || { echo "no debs to publish"; exit 1; }
+
+                  # Per-arch Packages: scan each arch dir from the repository ROOT
+                  # so Filename: is root-relative (dists/.../binary-<arch>/<deb>) -
+                  # that path is what apt joins to the repo root. -k keeps the
+                  # uncompressed Packages; apt 3.x only fetches index targets whose
+                  # canonical (uncompressed) form is in the Release hash table.
+                  for d in "$DIST"/main/binary-*; do
+                    [ -e "$d" ] || continue
+                    rel=${d#"$SITE"/}
+                    ( cd "$SITE" && dpkg-scanpackages --multiversion "$rel" /dev/null > "$rel/Packages" 2>/dev/null )
+                    gzip -9kf "$d/Packages"
+                  done
+
+                  # Hand-rolled, signed Release (NOT apt-ftparchive): with only
+                  # {Origin,Label,Suite,Codename} set, apt-ftparchive detects no
+                  # Architectures/Components for this layout and never lists the
+                  # uncompressed Packages target, so apt 3.x skips every index
+                  # ("Unable to locate package"). Emit the exact per-arch
+                  # Packages[.gz] hash entries, listing BOTH the plain and gzipped
+                  # index. Signing is REQUIRED: an unsigned Release makes apt 3.x
+                  # silently skip the index fetch.
+                  archs=$(ls -d "$DIST"/main/binary-*/ 2>/dev/null | xargs -n1 basename | sed 's/^binary-//' | LC_ALL=C sort -u | tr '\n' ' ')
+                  {
+                    echo 'Origin: CtrlIRL'
+                    echo 'Label: ctrlirl'
+                    echo 'Suite: stable'
+                    echo 'Codename: ctrlirl'
+                    echo "Architectures: ${archs% }"
+                    echo 'Components: main'
+                    echo 'Description: CtrlIRL device client (releases)'
+                    echo "Date: $(LC_ALL=C date -u -R)"
+                    for h in MD5Sum SHA1 SHA256; do
+                      case $h in
+                        MD5Sum) hsum=md5sum ;; SHA1) hsum=sha1sum ;; SHA256) hsum=sha256sum ;;
+                      esac
+                      echo "$h:"
+                      ( cd "$SITE" && find dists/ctrlirl \( -name 'Packages' -o -name 'Packages.gz' \) | LC_ALL=C sort |
+                        while IFS= read -r f; do
+                          rel=${f#dists/ctrlirl/}
+                          printf ' %s %s %s\n' "$($hsum "$f" | cut -d' ' -f1)" "$(stat -c %s "$f")" "$rel"
+                        done )
+                    done
+                  } > "$DIST/Release"
+                  gpg --batch --yes --pinentry-mode loopback --passphrase '' \
+                    --clearsign --output "$DIST/InRelease" "$DIST/Release"
+                  gpg --batch --yes --pinentry-mode loopback --passphrase '' \
+                    --detach-sign --output "$DIST/Release.gpg" "$DIST/Release"
+                  ls -lR site
+
+            - name: Write index.html (apt repo + .deb list)
+              run: |
+                  set -euo pipefail
+                  BASE="${APT_BASE}/deb"
+                  # Dynamic deb table rows.
+                  ROWS=""
+                  for f in "site/deb/dists/ctrlirl/main"/binary-*/*.deb; do
+                    [ -e "$f" ] || continue
+                    arch=$(basename "$(dirname "$f")" | sed 's/^binary-//')
+                    ver=$(dpkg-deb -f "$f" Version 2>/dev/null || true)
+                    size=$(( $(stat -c %s "$f") / 1024 ))
+                    rel=${f#site/}
+                    ROWS="${ROWS}<tr><td>${ver}</td><td>${arch}</td><td>${size} KiB</td><td><a href=\"${rel}\">${rel}</a></td></tr>"
+                  done
+                  cat > site/index.html <<HTML
+                  <!DOCTYPE html>
+                  <html lang="en"><head><meta charset="utf-8">
+                  <title>CtrlIRL - deb packages</title>
+                  <style>
+                  body{font-family:system-ui,sans-serif;margin:2rem;max-width:64rem}
+                  table{border-collapse:collapse;width:100%}
+                  th,td{border:1px solid #ccc;padding:.4rem .7rem;text-align:left}
+                  th{background:#f2f2f2}
+                  pre{background:#f6f6f6;padding:.8rem;overflow-x:auto}
+                  a{color:#0366d6}
+                  </style></head><body>
+                  <h1>CtrlIRL - deb packages</h1>
+                  <p>Static apt-style repository, GPG-signed - key at <a href="deb/ctrlirl.asc">deb/ctrlirl.asc</a>. Published by the CI <code>pages</code> job.</p>
+                  <h2>Add the repository</h2>
+                  <pre>sudo mkdir -p /etc/apt/keyrings
+                  curl -fsSL ${BASE}/ctrlirl.asc -o /etc/apt/keyrings/ctrlirl.asc
+                  echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] ${BASE} ctrlirl main" | sudo tee /etc/apt/sources.list.d/ctrlirl-coder.list
+                  sudo apt-get update
+                  sudo apt-get install ctrlirl-coder</pre>
+                  <h2>Debs</h2>
+                  <table><tr><th>Version</th><th>Architecture</th><th>Size</th><th>File</th></tr>
+                  ${ROWS}
+                  </table>
+                  </body></html>
+                  HTML
+                  head -30 site/index.html
+
+            - name: Write site README
+              run: |
+                  set -euo pipefail
+                  BASE="${APT_BASE}/deb"
+                  cat > site/README.md <<'README'
+                  # CtrlIRL - deb package repository
+
+                  Single component `main` (release debs), signed with the key at
+                  `__APT_BASE__/ctrlirl.asc`:
+
+                  ```sh
+                  sudo mkdir -p /etc/apt/keyrings
+                  curl -fsSL __APT_BASE__/ctrlirl.asc -o /etc/apt/keyrings/ctrlirl.asc
+                  echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] __APT_BASE__ ctrlirl main" | sudo tee /etc/apt/sources.list.d/ctrlirl-coder.list
+                  sudo apt-get update
+                  sudo apt-get install ctrlirl-coder
+                  ```
+
+                  `sudo apt-get upgrade ctrlirl-coder` follows the newest release
+                  once it is published here.
+                  README
+                  sed -i "s|__APT_BASE__|${BASE}|g" site/README.md
+
+            - name: Upload Pages artifact
+              uses: actions/upload-pages-artifact@v5
+              with:
+                  path: site
+
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v5
+              continue-on-error: true
+
+            # Transient artifact-metadata fetch failures ("No artifacts named
+            # github-pages were found") are GitHub-side hiccups: the artifact is
+            # uploaded, so retry the deploy (NO re-upload - no duplicate artifact).
+            - name: Wait before deploy retry
+              if: steps.deployment.outcome == 'failure'
+              run: sleep 60
+
+            - name: Deploy to GitHub Pages (retry)
+              if: steps.deployment.outcome == 'failure'
+              uses: actions/deploy-pages@v5
+
     publish-server-docker:
         needs: version
         if: needs.version.outputs.new_tag != ''
