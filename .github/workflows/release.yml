@@ -218,7 +218,7 @@ jobs:
                     local arch="$1" bin="$2"
                     local root
                     root="$(mktemp -d)"
-                    local stage="${root}/opt/ctrlirl"
+                    local stage="${root}/usr/bin"
                     mkdir -p "${stage}"
 
                     # The compiled client, at the app root (the binary dir the
@@ -250,8 +250,8 @@ jobs:
                       echo "Description: CtrlIRL device client"
                       echo " CtrlIRL streaming device client (role-driven). Bundles"
                       echo " the compiled client binary and the per-module install"
-                      echo " sidecar trees. The payload deploys to /opt/ctrlirl; run"
-                      echo " /opt/ctrlirl/ctrlirl --host 0.0.0.0 <role>."
+                      echo " sidecar trees. The payload deploys to /usr/bin/ run"
+                      echo " /usr/bin/ctrlirl --host 0.0.0.0 <role>."
                     } > "${root}/DEBIAN/control"
 
                     dpkg-deb --build --root-owner-group "${root}" \
