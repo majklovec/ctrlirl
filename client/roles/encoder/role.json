@@ -16,7 +16,7 @@
             "speedtest",
             "systeminfo"
         ],
-        "optionalModules": ["obs", "streamdeck"],
+        "optionalModules": ["obs", "streamdeck", "wifi"],
         "capabilities": [
             "network.uplinks",
             "network.ctrlink",

@@ -43,6 +43,7 @@ const DEVICE_ORDER = [
     "ssh",
     "streamdeck",
     "systeminfo",
+    "wifi",
 ];
 /** The channel widget modules (device-independent dashboard widgets). */
 const WIDGET_IDS = ["stats", "chat"];

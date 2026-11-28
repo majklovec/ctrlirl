@@ -6,7 +6,7 @@
     "setupSelectable": true,
     "requires": {
         "modules": ["obs", "speedtest", "systeminfo"],
-        "optionalModules": ["streamdeck"],
+        "optionalModules": ["streamdeck", "wifi"],
         "capabilities": []
     },
     "provides": {

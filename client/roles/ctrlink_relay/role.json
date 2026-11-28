@@ -12,7 +12,7 @@
             "systeminfo",
             "ctrlink_relay"
         ],
-        "optionalModules": ["obs", "streamdeck"],
+        "optionalModules": ["obs", "streamdeck", "wifi"],
         "capabilities": ["modems.source", "network.interfaces"]
     },
     "provides": {
