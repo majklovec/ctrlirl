@@ -1,3 +1,10 @@
+## [10.6.4](https://github.com/majklovec/ctrlirl/compare/v10.6.3...v10.6.4) (2026-11-28)
+
+
+### Bug Fixes
+
+* **deb:** indent Description continuation line in deb control file ([c9cf396](https://github.com/majklovec/ctrlirl/commit/c9cf3965f6cc3f04614f101f7bbcbfd76026704d))
+
 ## [10.6.3](https://github.com/majklovec/ctrlirl/compare/v10.6.2...v10.6.3) (2026-11-28)
 
 
