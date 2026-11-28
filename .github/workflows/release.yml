@@ -210,6 +210,10 @@ jobs:
               run: |
                   set -euo pipefail
 
+                  # Debian package versions must start with a digit, so strip
+                  # the git tag's `v` prefix for the control field and filename.
+                  DEB_VERSION="${TAG#v}"
+
                   build_deb() {
                     local arch="$1" bin="$2"
                     local root
@@ -237,7 +241,7 @@ jobs:
                     mkdir -p "${root}/DEBIAN"
                     {
                       echo "Package: ctrlirl-coder"
-                      echo "Version: ${TAG}"
+                      echo "Version: ${DEB_VERSION}"
                       echo "Architecture: ${arch}"
                       echo "Maintainer: Michal Vondráček <michal.vondracek@optimal4.cz>"
                       echo "Section: net"
@@ -251,7 +255,7 @@ jobs:
                     } > "${root}/DEBIAN/control"
 
                     dpkg-deb --build --root-owner-group "${root}" \
-                      "dist/ctrlirl-coder_${TAG}_${arch}.deb" >/dev/null
+                      "dist/ctrlirl-coder_${DEB_VERSION}_${arch}.deb" >/dev/null
                     rm -rf "${root}"
                   }
 
