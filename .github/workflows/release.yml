@@ -240,7 +240,7 @@ jobs:
 
                     mkdir -p "${root}/DEBIAN"
                     {
-                      echo "Package: ctrlirl-coder"
+                      echo "Package: ctrlirl"
                       echo "Version: ${DEB_VERSION}"
                       echo "Architecture: ${arch}"
                       echo "Maintainer: Michal Vondráček <michal.vondracek@optimal4.cz>"
@@ -255,7 +255,7 @@ jobs:
                     } > "${root}/DEBIAN/control"
 
                     dpkg-deb --build --root-owner-group "${root}" \
-                      "dist/ctrlirl-coder_${DEB_VERSION}_${arch}.deb" >/dev/null
+                      "dist/ctrlirl_${DEB_VERSION}_${arch}.deb" >/dev/null
                     rm -rf "${root}"
                   }
 
@@ -263,15 +263,15 @@ jobs:
                   build_deb arm64 dist/client-arm
 
                   echo "Built debs:"
-                  ls -la dist/ctrlirl-coder_*.deb
+                  ls -la dist/ctrlirl_*.deb
 
             - uses: actions/upload-artifact@v7
               with:
-                  name: ctrlirl-coder-debs
+                  name: ctrlirl-debs
                   path: |
-                      dist/ctrlirl-coder_*.deb
+                      dist/ctrlirl_*.deb
 
-    # Publishes the Linux ctrlirl-coder debs as a static, GPG-signed apt
+    # Publishes the Linux ctrlirl debs as a static, GPG-signed apt
     # repository on GitHub Pages (majklovec.github.io/ctrlirl/deb). The Release
     # metadata is hand-rolled (not apt-ftparchive) so apt 3.x sees the exact
     # per-arch Packages targets, is signed with secrets.CTRLIRL_GPG_KEY, and
@@ -296,10 +296,10 @@ jobs:
                   ref: ${{ needs.version.outputs.new_tag }}
 
             # Pull the Linux debs built by the deb job.
-            - name: Download ctrlirl-coder debs
+            - name: Download ctrlirl debs
               uses: actions/download-artifact@v8
               with:
-                  name: ctrlirl-coder-debs
+                  name: ctrlirl-debs
                   path: debs
 
             - name: Install apt packaging tools
@@ -430,9 +430,9 @@ jobs:
                   <h2>Add the repository</h2>
                   <pre>sudo mkdir -p /etc/apt/keyrings
                   curl -fsSL ${BASE}/ctrlirl.asc -o /etc/apt/keyrings/ctrlirl.asc
-                  echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] ${BASE} ctrlirl main" | sudo tee /etc/apt/sources.list.d/ctrlirl-coder.list
+                  echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] ${BASE} ctrlirl main" | sudo tee /etc/apt/sources.list.d/ctrlirl.list
                   sudo apt-get update
-                  sudo apt-get install ctrlirl-coder</pre>
+                  sudo apt-get install ctrlirl</pre>
                   <h2>Debs</h2>
                   <table><tr><th>Version</th><th>Architecture</th><th>Size</th><th>File</th></tr>
                   ${ROWS}
@@ -454,12 +454,12 @@ jobs:
                   ```sh
                   sudo mkdir -p /etc/apt/keyrings
                   curl -fsSL __APT_BASE__/ctrlirl.asc -o /etc/apt/keyrings/ctrlirl.asc
-                  echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] __APT_BASE__ ctrlirl main" | sudo tee /etc/apt/sources.list.d/ctrlirl-coder.list
+                  echo "deb [signed-by=/etc/apt/keyrings/ctrlirl.asc] __APT_BASE__ ctrlirl main" | sudo tee /etc/apt/sources.list.d/ctrlirl.list
                   sudo apt-get update
-                  sudo apt-get install ctrlirl-coder
+                  sudo apt-get install ctrlirl
                   ```
 
-                  `sudo apt-get upgrade ctrlirl-coder` follows the newest release
+                  `sudo apt-get upgrade ctrlirl` follows the newest release
                   once it is published here.
                   README
                   sed -i "s|__APT_BASE__|${BASE}|g" site/README.md
@@ -524,11 +524,11 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             # Merges every artifact into artifacts/: the client, client-arm and
-            # server binaries plus the two ctrlirl-coder .deb packages.
+            # server binaries plus the two ctrlirl .deb packages.
             - uses: actions/download-artifact@v8
               with:
                   path: artifacts
-                  pattern: '*'
+                  pattern: "*"
                   merge-multiple: true
 
             - name: Create release
@@ -538,6 +538,6 @@ jobs:
                   name: Release ${{ needs.version.outputs.new_tag }}
                   # Release body is already set by semantic-release (conventional
                   # commit changelog); this step only attaches the binaries and
-                  # the ctrlirl-coder .deb packages.
+                  # the ctrlirl .deb packages.
                   files: artifacts/*
                   token: ${{ secrets.GITHUB_TOKEN }}
